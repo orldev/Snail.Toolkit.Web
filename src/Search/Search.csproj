@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>
+      Answers "where is this written about?" — takes a query and returns links, aggregated across
+      providers. Never returns page content: reading a page belongs to Snail.Toolkit.Web.Scraping.
+    </Description>
+    <PackageTags>search;links;duckduckgo;aggregator</PackageTags>
+  </PropertyGroup>
+
+  <!--
+    The markup parser is internal because the shape of one provider's HTML is not a contract. Its tests are,
+    which is why the test assembly is let in rather than the parser being made public.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Web\Web.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>
+      Answers "what does this page say?" — takes a URL, drives a real browser and returns the rendered
+      content or the reason there is none. Playwright is an implementation detail of this package.
+    </Description>
+    <PackageTags>scraping;playwright;browser;stealth;crawler</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="Polly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Web\Web.csproj" />
+  </ItemGroup>
+
+</Project>

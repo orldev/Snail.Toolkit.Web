@@ -1,0 +1,35 @@
+using Snail.Toolkit.Web.Scraping;
+
+namespace Snail.Toolkit.Web.Search.Browser.Tests;
+
+/// <summary>
+/// The pages a stubbed reader hands back, so an engine can be driven without a browser.
+/// </summary>
+/// <remarks>
+/// The text is empty on purpose: a search engine reads its links out of the markup, and a fixture that filled
+/// the text in would let a parser pass while reading the wrong half of the page.
+/// </remarks>
+internal static class Fixture
+{
+    public static PageOutcome Read(string html)
+        => PageOutcome.Success(
+            new PageContent(Link.Of("https://engine.example/search"), html, string.Empty, DateTimeOffset.UtcNow));
+
+    public static PageOutcome Refused(FailureKind kind, string message)
+        => PageOutcome.Failed(new PageFailure(kind, message));
+}
+
+/// <summary>
+/// Answers with a prepared page and remembers what it was asked for.
+/// </summary>
+internal sealed class StubReader(Func<Link, PageOutcome> answer) : IPageReader
+{
+    public Link? Requested { get; private set; }
+
+    public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+    {
+        Requested = address;
+
+        return Task.FromResult(answer(address));
+    }
+}

@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Project folders are short (Web, Search, Scraping) so the solution stays readable in an IDE.
+    The names that reach the outside world are derived here instead: leaving AssemblyName and
+    RootNamespace to their defaults would ship Search.dll with a root namespace of Search, which
+    collides with unrelated packages in a consumer's graph and is painful to diagnose.
+  -->
+  <PropertyGroup>
+    <Product>Snail.Toolkit.Web</Product>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'Web'">$(Product)</PackageId>
+    <PackageId Condition="'$(MSBuildProjectName)' == 'Web.Tests'">$(Product).Tests</PackageId>
+    <PackageId Condition="'$(PackageId)' == ''">$(Product).$(MSBuildProjectName)</PackageId>
+    <AssemblyName>$(PackageId)</AssemblyName>
+    <RootNamespace>$(PackageId)</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    One version for every package in the repository. Independent versions only ever apply to leaves:
+    packing turns a ProjectReference into a versioned dependency, so a change in the core forces the
+    dependants to be republished anyway.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <Authors>Toolkit</Authors>
+    <Copyright>Toolkit</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/orldev/Snail.Toolkit.Web</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/orldev/Snail.Toolkit.Web</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+</Project>
