@@ -138,6 +138,41 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     }
 
     /// <summary>
+    /// <c>navigator.userAgentData</c> has to name the brand the <c>Sec-Ch-Ua</c> header already claims.
+    /// </summary>
+    /// <remarks>
+    /// Measured against a live site on 2026-09-11: the context sent <c>Sec-Ch-Ua</c> for Chrome while the page
+    /// still read <c>HeadlessChrome;151</c> from <c>navigator.userAgentData</c>, and the site's analytics carried
+    /// that build away in its <c>uafvl</c> parameter. The probe is served over TLS here because
+    /// <c>userAgentData</c> exists only in a secure context: over plain http it reads as absent, and an assertion
+    /// against it would pass while proving nothing.
+    /// </remarks>
+    [Fact]
+    public async Task ReadAsync_ClientHints_NameTheBrandTheHeadersClaim()
+    {
+        await using var host = Host(
+            identity => identity.Fingerprints =
+            [
+                new Fingerprint
+                {
+                    UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    Locale = "en-GB",
+                    Timezone = "Europe/London",
+                    AcceptLanguage = "en-GB,en;q=0.9"
+                }
+            ],
+            options => options.IgnoreCertificateErrors = true);
+
+        var probe = await ProbeAsync(host, SiteFixture.SecureBaseUrl);
+
+        var brands = probe.GetProperty("brands").GetString();
+
+        Assert.DoesNotContain("Headless", brands, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Google Chrome;124", brands, StringComparison.Ordinal);
+        Assert.Equal("macOS", probe.GetProperty("uaPlatform").GetString());
+    }
+
+    /// <summary>
     /// Regression: the spoofed <c>getParameter</c> called the original without its receiver, so every query
     /// other than the two spoofed ones threw <c>Illegal invocation</c> and broke WebGL outright.
     /// </summary>
@@ -223,9 +258,9 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         Assert.Contains("Grain report\nWheat prices rose.\nBarley held steady.", text, StringComparison.Ordinal);
     }
 
-    private async Task<JsonElement> ProbeAsync(Harness host)
+    private async Task<JsonElement> ProbeAsync(Harness host, string origin = SiteFixture.BaseUrl)
     {
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/probe.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{origin}/probe.html"));
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
 

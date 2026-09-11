@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>
+      Answers "what does this page say once someone has filled the form in?" — types, picks and clicks through
+      a page the way a visitor would, and names the step that produced nothing rather than returning an empty
+      result that explains itself as "nothing found".
+    </Description>
+    <PackageTags>scraping;playwright;browser;forms;automation</PackageTags>
+  </PropertyGroup>
+
+  <!--
+    A separate package because driving a page is a different job from reading one, with a different failure
+    mode: a read either returns the document or says why not, while a walkthrough can succeed at every
+    keystroke and still leave the site none the wiser. Consumers that only ever read a URL should not carry
+    the vocabulary for the other.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Scraping\Scraping.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -28,6 +30,8 @@ public sealed class SiteFixture : IAsyncLifetime
 
     private const int ServerPort = 3000;
 
+    private const int SecurePort = 443;
+
     private readonly INetwork _network = new NetworkBuilder().Build();
     private IContainer? _browser;
     private IContainer? _site;
@@ -40,6 +44,15 @@ public sealed class SiteFixture : IAsyncLifetime
 
     /// <summary>The root the fixture pages are served from, as the browser sees it.</summary>
     public const string BaseUrl = $"http://{Host}";
+
+    /// <summary>The same pages over TLS, for anything the platform exposes only in a secure context.</summary>
+    /// <remarks>
+    /// <c>navigator.userAgentData</c> is the reason this exists: it is undefined outside a secure context, so a
+    /// client-hint assertion made over <see cref="BaseUrl"/> would read "absent" and pass without proving
+    /// anything. The certificate is self-signed and generated per run, so a test using this root has to open the
+    /// reader with <c>IgnoreCertificateErrors</c>.
+    /// </remarks>
+    public const string SecureBaseUrl = $"https://{Host}";
 
     /// <summary>The Playwright version this project references, used for both the image and the server.</summary>
     private static string Version =>
@@ -61,10 +74,16 @@ public sealed class SiteFixture : IAsyncLifetime
 
         await _browser.StartAsync();
 
+        var (certificate, key) = SelfSigned();
+
         _site = new ContainerBuilder("nginx:alpine")
             .WithNetwork(_network)
             .WithNetworkAliases(Host)
             .WithPortBinding(80, true)
+            .WithPortBinding(SecurePort, true)
+            .WithResourceMapping(Bytes(Pages.Nginx), "/etc/nginx/conf.d/default.conf")
+            .WithResourceMapping(certificate, "/etc/nginx/site.crt")
+            .WithResourceMapping(key, "/etc/nginx/site.key")
             .WithResourceMapping(Bytes(Pages.Article), "/usr/share/nginx/html/article.html")
             .WithResourceMapping(Bytes(Pages.Hub), "/usr/share/nginx/html/hub.html")
             .WithResourceMapping(Bytes(Pages.Grain), "/usr/share/nginx/html/grain.html")
@@ -75,7 +94,9 @@ public sealed class SiteFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Blank), "/usr/share/nginx/html/blank.html")
             .WithResourceMapping(Bytes(Pages.Probe), "/usr/share/nginx/html/probe.html")
             .WithResourceMapping(Bytes(Pages.Robots), "/usr/share/nginx/html/robots.txt")
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(80))
+            .WithWaitStrategy(Wait.ForUnixContainer()
+                .UntilInternalTcpPortIsAvailable(80)
+                .UntilInternalTcpPortIsAvailable(SecurePort))
             .Build();
 
         await _site.StartAsync();
@@ -97,6 +118,23 @@ public sealed class SiteFixture : IAsyncLifetime
     }
 
     private static byte[] Bytes(string content) => Encoding.UTF8.GetBytes(content);
+
+    /// <summary>A throwaway certificate for <see cref="Host"/>, valid for the life of the run.</summary>
+    private static (byte[] Certificate, byte[] Key) SelfSigned()
+    {
+        using var rsa = RSA.Create(2048);
+
+        var request = new CertificateRequest($"CN={Host}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var names = new SubjectAlternativeNameBuilder();
+
+        names.AddDnsName(Host);
+        request.CertificateExtensions.Add(names.Build());
+
+        using var certificate = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+
+        return (Bytes(certificate.ExportCertificatePem()), Bytes(rsa.ExportPkcs8PrivateKeyPem()));
+    }
 
     /// <summary>A sitemap as sites actually serve it: gzipped, with no Content-Encoding to announce it.</summary>
     private static byte[] Gzipped(string content)
@@ -180,6 +218,26 @@ public sealed class SiteFixture : IAsyncLifetime
             </urlset>
             """;
 
+        /// <summary>Serves the same document root over both http and TLS.</summary>
+        public const string Nginx =
+            $$"""
+            server {
+                listen 80;
+                server_name {{Host}};
+                root /usr/share/nginx/html;
+                index index.html;
+            }
+
+            server {
+                listen 443 ssl;
+                server_name {{Host}};
+                ssl_certificate /etc/nginx/site.crt;
+                ssl_certificate_key /etc/nginx/site.key;
+                root /usr/share/nginx/html;
+                index index.html;
+            }
+            """;
+
         /// <summary>Reports what a page script can observe, so the stealth layer can be asserted end to end.</summary>
         public const string Probe =
             """
@@ -203,13 +261,21 @@ public sealed class SiteFixture : IAsyncLifetime
                   return 'threw:' + error.message;
                 }
               };
+              const brands = () => navigator.userAgentData
+                ? navigator.userAgentData.brands.map(entry => entry.brand + ';' + entry.version).join(', ')
+                : 'insecure-context';
+              const uaPlatform = () => navigator.userAgentData
+                ? navigator.userAgentData.platform
+                : 'insecure-context';
               document.getElementById('probe').textContent = JSON.stringify({
                 platform: navigator.platform,
                 languages: navigator.languages,
                 webdriver: navigator.webdriver === undefined ? 'undefined' : String(navigator.webdriver),
                 hardwareConcurrency: navigator.hardwareConcurrency,
                 webgl: webgl(),
-                vendor: vendor()
+                vendor: vendor(),
+                brands: brands(),
+                uaPlatform: uaPlatform()
               });
             </script>
             </body></html>

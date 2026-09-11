@@ -79,6 +79,8 @@ public static class ServiceCollectionExtensions
 
             services.TryAddSingleton<ISitemapSource, HttpSitemapSource>();
             services.TryAddSingleton<IStealthScript, StealthScript>();
+            services.TryAddSingleton<IClientHints, ClientHints>();
+            services.TryAddSingleton<IVisits, Visits>();
             services.TryAddSingleton<IHumanBehavior, HumanBehavior>();
             services.TryAddSingleton<IPageReader, PageReader>();
             services.TryAddSingleton<ICrawler, Crawler>();

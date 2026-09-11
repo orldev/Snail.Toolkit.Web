@@ -12,8 +12,6 @@ using Snail.Toolkit.Web.Robots;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Diagnostics;
-using Snail.Toolkit.Web.Scraping.Identity;
-using Snail.Toolkit.Web.Scraping.Stealth;
 using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Scraping;
@@ -29,9 +27,8 @@ namespace Snail.Toolkit.Web.Scraping;
 /// </remarks>
 public sealed class PageReader : IPageReader
 {
-    private readonly IBrowserPool _pool;
+    private readonly IVisits _visits;
     private readonly IIdentityRotation _identities;
-    private readonly IStealthScript _stealth;
     private readonly IHumanBehavior _behavior;
     private readonly IBlockDetector _blocks;
     private readonly ITextExtraction _text;
@@ -44,9 +41,8 @@ public sealed class PageReader : IPageReader
 
     /// <summary>Assembles the reader and its retry pipeline.</summary>
     public PageReader(
-        IBrowserPool pool,
+        IVisits visits,
         IIdentityRotation identities,
-        IStealthScript stealth,
         IHumanBehavior behavior,
         IBlockDetector blocks,
         ITextExtraction text,
@@ -57,9 +53,8 @@ public sealed class PageReader : IPageReader
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        _pool = pool;
+        _visits = visits;
         _identities = identities;
-        _stealth = stealth;
         _behavior = behavior;
         _blocks = blocks;
         _text = text;
@@ -141,20 +136,12 @@ public sealed class PageReader : IPageReader
         WebIdentity identity,
         CancellationToken ct)
     {
-        var traits = BrowserTraits.For(identity);
-
         try
         {
-            await using var lease = await _pool.RentAsync(ct);
-            await using var context = await lease.Browser.NewContextAsync(
-                BrowserContexts.For(identity, traits, _options.IgnoreCertificateErrors));
+            await using var visit = await _visits.OpenAsync(identity, ct);
 
-            context.SetDefaultNavigationTimeout(_options.NavigationTimeoutMs);
-            context.SetDefaultTimeout(_options.NavigationTimeoutMs);
+            var page = visit.Page;
 
-            await context.AddInitScriptAsync(_stealth.For(identity));
-
-            var page = await context.NewPageAsync();
             Trace(page, target);
 
             var response = await page.GotoAsync(target.ToString(), new PageGotoOptions

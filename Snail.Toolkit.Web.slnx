@@ -1,11 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Scraping.Agent/Scraping.Agent.csproj" />
     <Project Path="src/Scraping/Scraping.csproj" />
     <Project Path="src/Search.Browser/Search.Browser.csproj" />
     <Project Path="src/Search/Search.csproj" />
     <Project Path="src/Web/Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Scraping.Agent.Tests/Scraping.Agent.Tests.csproj" />
     <Project Path="tests/Scraping.Tests/Scraping.Tests.csproj" />
     <Project Path="tests/Search.Browser.Tests/Search.Browser.Tests.csproj" />
     <Project Path="tests/Search.Tests/Search.Tests.csproj" />

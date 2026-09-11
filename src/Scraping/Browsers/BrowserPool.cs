@@ -40,6 +40,14 @@ public sealed class BrowserPool : IBrowserPool
         foreach (var slot in _slots)
             _free.Writer.TryWrite(slot);
 
+        if (IsRemote && _options.BrowserArguments.Count > 0)
+            _logger.LogWarning(
+                "{Count} browser arguments are configured but a browser server is in use, and a connection "
+                + "carries no command line: the server was started with its own. Measured consequence: with "
+                + "'--disable-blink-features=AutomationControlled' among them, a connected browser still reports "
+                + "navigator.webdriver as true. Pass the arguments to the server's own launch command instead.",
+                _options.BrowserArguments.Count);
+
         _reaper = IsRemote ? Task.CompletedTask : Task.Run(() => ReapIdleAsync(_shutdown.Token));
     }
 
