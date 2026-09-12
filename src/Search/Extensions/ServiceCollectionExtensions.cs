@@ -10,7 +10,7 @@ using Snail.Toolkit.Web.Search.Providers;
 namespace Snail.Toolkit.Web.Search.Extensions;
 
 /// <summary>
-/// Registers the providers, their HTTP clients and the search that merges them.
+/// Registers the providers, their HTTP clients, the memory of refusals and the search that merges them.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
@@ -95,11 +95,28 @@ public static class ServiceCollectionExtensions
             return client;
         }
 
+        /// <summary>Registers the providers that answer a plain request, the search that merges them, and the memory it consults first.</summary>
+        /// <remarks>
+        /// Two engines rather than one, because which of them answers a given client from a given address is a
+        /// fact that changes: measured on 2026-09-12 from a datacentre address, one returned results while
+        /// several others answered with a challenge. Each provider is one request per query, so a deployment
+        /// that wants only one registers it on its own instead of taking the pair.
+        /// <para>
+        /// The memory of refusals is one per process on purpose — a rest recorded by one search has to hold
+        /// for the next — and the clock it reads is registered beside it, so a host that keeps its own
+        /// <see cref="TimeProvider"/> wins and a test can move time instead of waiting it out.
+        /// </para>
+        /// </remarks>
         private IServiceCollection AddSearchParts()
         {
             services.AddSearchProvider<DuckDuckGo>();
             services.AddSearchClient(DuckDuckGo.ProviderName);
 
+            services.AddSearchProvider<Bing>();
+            services.AddSearchClient(Bing.ProviderName);
+
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<ISearchCooldown, SearchCooldown>();
             services.TryAddSingleton<IWebSearch, WebSearch>();
 
             return services;
@@ -117,5 +134,18 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => settings.Timeout >= TimeSpan.FromSeconds(1),
                 $"'{SearchOptions.SectionName}:{nameof(SearchOptions.Timeout)}' has to be at least one second.")
+            .Validate(
+                settings => settings.RefusalCooldown > TimeSpan.Zero,
+                $"'{SearchOptions.SectionName}:{nameof(SearchOptions.RefusalCooldown)}' has to be positive.")
+            .Validate(
+                settings => settings.MaxRefusalCooldown >= settings.RefusalCooldown,
+                $"'{SearchOptions.SectionName}:{nameof(SearchOptions.MaxRefusalCooldown)}' cannot be shorter than "
+                + $"'{nameof(SearchOptions.RefusalCooldown)}'.")
+            .Validate(
+                settings => settings.ProvidersPerQuery > 0,
+                $"'{SearchOptions.SectionName}:{nameof(SearchOptions.ProvidersPerQuery)}' has to be positive.")
+            .Validate(
+                settings => settings.AlwaysAsked.All(name => !string.IsNullOrWhiteSpace(name)),
+                $"'{SearchOptions.SectionName}:{nameof(SearchOptions.AlwaysAsked)}' holds a blank provider name.")
             .ValidateOnStart();
 }

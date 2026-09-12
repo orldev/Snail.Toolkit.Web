@@ -4,7 +4,8 @@
     <Description>
       Shared web-client behaviour: identity and proxy rotation, per-host politeness, robots rules,
       block detection, text extraction, URL identity and the outcome shape the engines answer with.
-      Knows nothing about a browser or an HTTP client.
+      Knows nothing about a browser, and of an HTTP client only how to send one out through a
+      configured exit — a type the framework provides, so no package reference is added for it.
     </Description>
     <PackageTags>web;scraping;search;robots;proxy;user-agent</PackageTags>
   </PropertyGroup>

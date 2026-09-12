@@ -24,23 +24,14 @@ internal sealed class ProxiedHttp : IDisposable
     public HttpClient For(ProxyEndpoint? proxy)
         => _clients.GetOrAdd(proxy?.Server ?? string.Empty, _ => Build(proxy));
 
+    /// <summary>Builds the one client that belongs to a proxy.</summary>
+    /// <remarks>
+    /// The exit is applied by <see cref="Proxied"/> rather than here, because the same three lines were written
+    /// twice — once for these files and once by every consumer that puts a proxy on a named client — and two
+    /// copies of a credential rule are one copy too many.
+    /// </remarks>
     private static HttpClient Build(ProxyEndpoint? proxy)
-    {
-        var handler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All };
-
-        if (proxy is not null)
-        {
-            handler.Proxy = new WebProxy(proxy.Server)
-            {
-                Credentials = proxy.IsAuthenticated
-                    ? new NetworkCredential(proxy.Username, proxy.Password)
-                    : null
-            };
-            handler.UseProxy = true;
-        }
-
-        return new HttpClient(handler, disposeHandler: true);
-    }
+        => new(Proxied.Handler(proxy), disposeHandler: true);
 
     public void Dispose()
     {

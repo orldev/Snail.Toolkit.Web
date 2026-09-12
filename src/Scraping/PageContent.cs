@@ -25,6 +25,9 @@ public sealed record PageContent(Link Requested, string Html, string Text, DateT
     /// <summary>Gets the address the browser ended on after redirects.</summary>
     public Link Final { get; init; } = Requested;
 
+    /// <summary>Gets the document's own name, or <see langword="null"/> when it has none.</summary>
+    public string? Title { get; init; }
+
     /// <summary>Gets the HTTP status of the main document, when the browser reported one.</summary>
     public int? StatusCode { get; init; }
 

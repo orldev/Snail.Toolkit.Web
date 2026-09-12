@@ -14,6 +14,13 @@ namespace Snail.Toolkit.Web.Scraping;
 /// </remarks>
 public sealed record CrawlPage(Link Address, int Depth, string Text, DateTimeOffset FetchedAt)
 {
+    /// <summary>Gets the page's own name, or <see langword="null"/> when it has none.</summary>
+    /// <remarks>
+    /// The one thing kept from the head: an index built over a crawl needs to name what it found, and the
+    /// first line of the text is not the name of the page.
+    /// </remarks>
+    public string? Title { get; init; }
+
     /// <summary>Gets whether the text was cut to fit a budget, the crawl's or the reader's.</summary>
     public bool IsTruncated { get; init; }
 

@@ -57,20 +57,40 @@ public class RegistrationTests
     {
         using var services = Built();
 
-        Assert.Equal(4, services.GetRequiredService<IOptions<PolitenessOptions>>().Value.MaxConcurrentPerHost);
+        var politeness = services.GetRequiredService<IOptions<PolitenessOptions>>().Value;
+
+        Assert.Equal(4, politeness.MaxConcurrentPerHost);
+        Assert.Equal(TimeSpan.FromSeconds(5), politeness.HostDelays["search.example"]);
         Assert.True(services.GetRequiredService<IOptions<RobotsOptions>>().Value.IsObeyed);
         Assert.Equal(["http://one.example:8080"], services.GetRequiredService<IOptions<IdentityOptions>>().Value.Proxies);
     }
 
-    private static ServiceProvider Built(Action<IServiceCollection>? extra = null)
+    /// <summary>A gap below zero is not a setting but a typo, and it is refused where the message can name it.</summary>
+    [Theory]
+    [InlineData("Web:Politeness:MinDelayPerHost", "-00:00:01")]
+    [InlineData("Web:Politeness:MaxConcurrentPerHost", "0")]
+    [InlineData("Web:Politeness:HostDelays:slow.example", "-00:00:01")]
+    public void AddWeb_PolitenessSettingThatCannotWork_FailsValidation(string key, string value)
+    {
+        using var services = Built(settings: new Dictionary<string, string?> { [key] = value });
+
+        Assert.Throws<OptionsValidationException>(
+            () => services.GetRequiredService<IOptions<PolitenessOptions>>().Value);
+    }
+
+    private static ServiceProvider Built(
+        Action<IServiceCollection>? extra = null,
+        Dictionary<string, string?>? settings = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Web:Politeness:MaxConcurrentPerHost"] = "4",
+                ["Web:Politeness:HostDelays:search.example"] = "00:00:05",
                 ["Web:Robots:IsObeyed"] = "true",
                 ["Web:Identity:Proxies:0"] = "http://one.example:8080"
             })
+            .AddInMemoryCollection(settings ?? [])
             .Build();
 
         var services = new ServiceCollection();

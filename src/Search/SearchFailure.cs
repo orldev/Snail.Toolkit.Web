@@ -16,7 +16,17 @@ public enum SearchFailureKind
     Faulted,
 
     /// <summary>The caller cancelled before the provider answered.</summary>
-    Canceled
+    Canceled,
+
+    /// <summary>The provider was turned away: a challenge, a consent wall, a rate limit.</summary>
+    /// <remarks>
+    /// Kept apart from <see cref="Faulted"/> because the two call for opposite reactions. A fault is a defect
+    /// on this side — a parser that no longer follows the markup, a socket that died — and the right answer is
+    /// to look at it. A refusal is the engine asking to be left alone, and the right answer is to leave it
+    /// alone for a while, which is what <see cref="ISearchCooldown"/> does with it. Folding the two together,
+    /// as the search once did, would have rested an engine over our own bug.
+    /// </remarks>
+    Refused
 }
 
 /// <summary>

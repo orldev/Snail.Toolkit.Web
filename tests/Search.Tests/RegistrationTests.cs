@@ -20,6 +20,9 @@ public class RegistrationTests
         {
             ["Web:Search:MaxDegreeOfParallelism"] = "9",
             ["Web:Search:MaxResultsPerProvider"] = "5",
+            ["Web:Search:RefusalCooldown"] = "00:02:00",
+            ["Web:Search:ProvidersPerQuery"] = "3",
+            ["Web:Search:AlwaysAsked:0"] = "corpus",
             ["Web:Politeness:MinDelayPerHost"] = "00:00:03"
         });
 
@@ -27,6 +30,9 @@ public class RegistrationTests
 
         Assert.Equal(9, search.MaxDegreeOfParallelism);
         Assert.Equal(5, search.MaxResultsPerProvider);
+        Assert.Equal(TimeSpan.FromMinutes(2), search.RefusalCooldown);
+        Assert.Equal(3, search.ProvidersPerQuery);
+        Assert.Equal(["corpus"], search.AlwaysAsked);
         Assert.Equal(
             TimeSpan.FromSeconds(3),
             provider.GetRequiredService<IOptions<PolitenessOptions>>().Value.MinDelayPerHost);
@@ -37,6 +43,9 @@ public class RegistrationTests
     [InlineData("Web:Search:MaxResultsPerProvider", "0")]
     [InlineData("Web:Search:Timeout", "00:00:00")]
     [InlineData("Web:Search:Timeout", "00:00:00.500")]
+    [InlineData("Web:Search:RefusalCooldown", "00:00:00")]
+    [InlineData("Web:Search:MaxRefusalCooldown", "00:01:00")]
+    [InlineData("Web:Search:ProvidersPerQuery", "0")]
     public void AddSearch_SettingThatCannotWork_FailsValidation(string key, string value)
     {
         using var provider = Built(new Dictionary<string, string?> { [key] = value });
@@ -45,12 +54,24 @@ public class RegistrationTests
             () => provider.GetRequiredService<IOptions<SearchOptions>>().Value);
     }
 
+    /// <summary>
+    /// Two engines answer a plain request, and both are registered.
+    /// </summary>
+    /// <remarks>
+    /// Measured on 2026-09-12 from a datacentre address: engines disagree about who they will answer, and one
+    /// of them refused where the other returned results. A set of one makes the search as available as its
+    /// weakest day, which is the whole reason the providers are an enumerable.
+    /// </remarks>
     [Fact]
-    public void AddSearch_ByDefault_RegistersTheHtmlProvider()
+    public void AddSearch_ByDefault_RegistersBothHtmlProviders()
     {
         using var provider = Built([]);
 
-        Assert.IsType<DuckDuckGo>(Assert.Single(provider.GetRequiredService<IEnumerable<ISearchProvider>>()));
+        var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>()
+            .Select(engine => engine.Name)
+            .Order();
+
+        Assert.Equal([Bing.ProviderName, DuckDuckGo.ProviderName], names);
     }
 
     /// <summary>Providers accumulate rather than replace each other, which is what an enumerable is for.</summary>
@@ -64,7 +85,7 @@ public class RegistrationTests
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
     /// <summary>Registration is idempotent, so a second call cannot ask the same back end twice per query.</summary>
@@ -79,8 +100,19 @@ public class RegistrationTests
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.Single(provider.GetRequiredService<IEnumerable<ISearchProvider>>());
+        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IWebSearch));
+    }
+
+    /// <summary>A rest recorded by one search has to hold for the next, which takes one memory per process.</summary>
+    [Fact]
+    public void AddSearch_MemoryOfRefusals_IsOnePerProcess()
+    {
+        using var provider = Built([]);
+
+        provider.GetRequiredService<ISearchCooldown>().Refused(DuckDuckGo.ProviderName);
+
+        Assert.True(provider.GetRequiredService<ISearchCooldown>().IsResting(DuckDuckGo.ProviderName));
     }
 
     [Fact]
@@ -91,6 +123,7 @@ public class RegistrationTests
         var clients = provider.GetRequiredService<IHttpClientFactory>();
 
         Assert.NotNull(clients.CreateClient(DuckDuckGo.ProviderName));
+        Assert.NotNull(clients.CreateClient(Bing.ProviderName));
     }
 
     /// <summary>

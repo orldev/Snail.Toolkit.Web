@@ -87,7 +87,11 @@ Project folders are short so the solution reads well in an IDE. The names that r
 
 ## Dependency rules
 
-1. The core depends on neither Playwright nor `HttpClient`.
+1. The core depends on neither Playwright nor `HttpClient` — with one deliberate exception. `Proxied` turns
+   a configured exit into a `SocketsHttpHandler`, because every transport needs that and none of them owns
+   it, and it costs nothing: the type ships with the framework, so the core still carries no package
+   reference for it. Without it a consumer runs with two exits at once — a proxied browser beside plain
+   clients going out directly.
 2. `Search` does not depend on `Scraping` — that is what `Search.Browser` is for, so that a consumer using
    only HTTP providers never pays for a browser driver.
 3. Fetching `robots.txt` belongs to the transport, not to the core.

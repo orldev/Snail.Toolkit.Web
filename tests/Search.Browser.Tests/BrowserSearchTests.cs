@@ -34,17 +34,49 @@ public class BrowserSearchTests
 
     /// <summary>
     /// Reading answers with failure as data while a provider is contracted to throw. The exception names the
-    /// engine because a caller running several of them needs to know which wall it hit.
+    /// engine because a caller running several of them needs to know which wall it hit — and a challenge page
+    /// is thrown as the refusal the search rests an engine over.
     /// </summary>
     [Fact]
     public async Task FindAsync_PageRefused_ThrowsNamingTheEngineAndCarryingTheFailure()
     {
         var reader = new StubReader(_ => Fixture.Refused(FailureKind.Blocked, "consent wall"));
 
-        var refusal = await Assert.ThrowsAsync<SearchRefusedException>(() => Engine(reader).FindAsync("grain"));
+        var refusal = await Assert.ThrowsAsync<PageRefusedException>(() => Engine(reader).FindAsync("grain"));
 
         Assert.Equal("Elsewhere", refusal.Provider);
         Assert.Equal(FailureKind.Blocked, refusal.Failure.Kind);
+    }
+
+    /// <summary>A 429 is the engine saying "later" in the status line, and is a refusal for the same reason a challenge is.</summary>
+    [Fact]
+    public async Task FindAsync_TooManyRequests_IsARefusal()
+    {
+        var reader = new StubReader(_ => Fixture.Refused(FailureKind.Navigation, "too many requests", status: 429));
+
+        var refusal = await Assert.ThrowsAsync<PageRefusedException>(() => Engine(reader).FindAsync("grain"));
+
+        Assert.Equal(429, refusal.Failure.StatusCode);
+    }
+
+    /// <summary>
+    /// A timeout says nothing about the engine's patience: resting it over one would leave a working engine out
+    /// of the next searches over a hiccup on this side. It is still thrown, because an empty list would read as
+    /// "nothing found" — just not as the refusal the search reacts to.
+    /// </summary>
+    [Theory]
+    [InlineData(FailureKind.Timeout)]
+    [InlineData(FailureKind.BrowserUnavailable)]
+    [InlineData(FailureKind.Proxy)]
+    [InlineData(FailureKind.Navigation)]
+    public async Task FindAsync_PageThatCouldNotBeRead_ThrowsButNotAsARefusal(FailureKind kind)
+    {
+        var reader = new StubReader(_ => Fixture.Refused(kind, "our side"));
+
+        var unread = await Assert.ThrowsAsync<PageUnreadException>(() => Engine(reader).FindAsync("grain"));
+
+        Assert.IsNotAssignableFrom<SearchRefusedException>(unread);
+        Assert.Equal(kind, unread.Failure.Kind);
     }
 
     [Fact]

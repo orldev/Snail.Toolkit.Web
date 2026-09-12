@@ -19,6 +19,11 @@ public sealed partial class TextExtraction : ITextExtraction
 {
     private const string NoiseQuery = "//script|//style|//noscript|//iframe|//svg|//template";
 
+    /// <summary>The page's own title first, and only outside an inline drawing, whose title names the drawing.</summary>
+    private const string TitleQuery = "//title[not(ancestor::svg)]";
+
+    private const string HeadingQuery = "//h1";
+
     private static readonly string[] Breaks =
     [
         "p", "div", "section", "article", "header", "footer", "li", "tr", "br",
@@ -44,6 +49,26 @@ public sealed partial class TextExtraction : ITextExtraction
         Append(document.DocumentNode, text);
 
         return Collapse(WebUtility.HtmlDecode(text.ToString()));
+    }
+
+    /// <inheritdoc />
+    public string? Title(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return null;
+
+        var document = new HtmlDocument();
+        document.LoadHtml(html);
+
+        var named = document.DocumentNode.SelectSingleNode(TitleQuery)
+            ?? document.DocumentNode.SelectSingleNode(HeadingQuery);
+
+        if (named is null)
+            return null;
+
+        var title = AnySpace().Replace(WebUtility.HtmlDecode(named.InnerText), " ").Trim();
+
+        return title.Length > 0 ? title : null;
     }
 
     private static void Append(HtmlNode node, StringBuilder text)
@@ -76,4 +101,7 @@ public sealed partial class TextExtraction : ITextExtraction
 
     [GeneratedRegex(@"\s*\n\s*(?:\n\s*)*")]
     private static partial Regex BlankLines();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex AnySpace();
 }

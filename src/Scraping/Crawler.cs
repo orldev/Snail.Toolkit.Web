@@ -330,6 +330,7 @@ public sealed class Crawler(
         return Outcome<CrawlPage, PageFailure>.Success(
             new CrawlPage(address, depth, budgeted.Text, page.FetchedAt)
             {
+                Title = page.Title,
                 IsTruncated = page.IsTruncated || budgeted.IsTruncated,
                 OriginalLength = Math.Max(page.OriginalLength, budgeted.OriginalLength)
             });

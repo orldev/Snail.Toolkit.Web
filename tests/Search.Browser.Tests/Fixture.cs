@@ -15,8 +15,8 @@ internal static class Fixture
         => PageOutcome.Success(
             new PageContent(Link.Of("https://engine.example/search"), html, string.Empty, DateTimeOffset.UtcNow));
 
-    public static PageOutcome Refused(FailureKind kind, string message)
-        => PageOutcome.Failed(new PageFailure(kind, message));
+    public static PageOutcome Refused(FailureKind kind, string message, int? status = null)
+        => PageOutcome.Failed(new PageFailure(kind, message) { StatusCode = status });
 }
 
 /// <summary>

@@ -84,6 +84,62 @@ public class HostPolitenessTests
         Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
     }
 
+    /// <summary>
+    /// One gap for every host is the wrong shape when a search engine and a newspaper are read in the same
+    /// minute: a host named in the settings gets its own, longer one.
+    /// </summary>
+    [Fact]
+    public async Task EnterAsync_HostWithItsOwnGap_WaitsThatLong()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1, ("engine.example", TimeSpan.FromMilliseconds(200)));
+
+        await using (await politeness.EnterAsync(new Uri("https://engine.example/a")))
+        {
+        }
+
+        var started = Stopwatch.GetTimestamp();
+
+        await using (await politeness.EnterAsync(new Uri("https://engine.example/b")))
+        {
+        }
+
+        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+    }
+
+    /// <summary>A host beneath a named one inherits its gap, so one line covers a site together with its subdomains.</summary>
+    [Fact]
+    public async Task EnterAsync_HostBeneathANamedOne_InheritsItsGap()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1, ("example.com", TimeSpan.FromMilliseconds(200)));
+
+        await using (await politeness.EnterAsync(new Uri("https://news.example.com/a")))
+        {
+        }
+
+        var started = Stopwatch.GetTimestamp();
+
+        await using (await politeness.EnterAsync(new Uri("https://news.example.com/b")))
+        {
+        }
+
+        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+    }
+
+    /// <summary>The cut is at a dot: <c>ample.com</c> is not a parent of <c>example.com</c>, however it ends.</summary>
+    [Fact]
+    public async Task EnterAsync_HostThatMerelyEndsLikeANamedOne_KeepsTheDefault()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1, ("ample.com", TimeSpan.FromSeconds(30)));
+
+        await using (await politeness.EnterAsync(new Uri("https://example.com/a")))
+        {
+        }
+
+        var entering = politeness.EnterAsync(new Uri("https://example.com/b"));
+
+        Assert.Same(entering, await Task.WhenAny(entering, Task.Delay(TimeSpan.FromSeconds(5))));
+    }
+
     [Fact]
     public async Task EnterAsync_HostAtItsConcurrencyLimit_MakesTheNextCallerWait()
     {
@@ -96,10 +152,14 @@ public class HostPolitenessTests
         Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
     }
 
-    private static HostPoliteness Gate(TimeSpan minDelay, int maxConcurrent)
+    private static HostPoliteness Gate(
+        TimeSpan minDelay,
+        int maxConcurrent,
+        params (string Host, TimeSpan Gap)[] gentler)
         => new(Options.Create(new PolitenessOptions
         {
             MinDelayPerHost = minDelay,
-            MaxConcurrentPerHost = maxConcurrent
+            MaxConcurrentPerHost = maxConcurrent,
+            HostDelays = gentler.ToDictionary(named => named.Host, named => named.Gap, StringComparer.OrdinalIgnoreCase)
         }));
 }

@@ -7,21 +7,28 @@ using Snail.Toolkit.Web.Streaming;
 namespace Snail.Toolkit.Web.Search;
 
 /// <summary>
-/// Runs a batch of queries across every registered provider.
+/// Runs a batch of queries across the registered providers, a few per query and in turn.
 /// </summary>
 /// <remarks>
 /// Deduplication is why several providers are worth asking at once, and it is decided by <see cref="Link"/>
 /// equality rather than by string comparison: grouping on the raw address kept the same page three times.
 /// One provider failing is a recorded attempt, never an exception — a slow or blocked back end must not take
-/// the whole answer with it.
+/// the whole answer with it. A provider that refused is recorded as refused rather than faulted, and is left
+/// out of the following searches until its rest is over: the engines measured on 2026-09-12 closed over
+/// frequency, not fingerprint, and asking a challenged engine again at once is how a pause becomes a ban.
+/// For the same reason a query goes to <see cref="SearchOptions.ProvidersPerQuery"/> providers rather than to
+/// all of them, the next query to the next ones in the round, so that a batch spreads what it asks.
 /// </remarks>
 public sealed class WebSearch(
     IEnumerable<ISearchProvider> providers,
+    ISearchCooldown cooldown,
     IOptions<SearchOptions> options,
     ILogger<WebSearch> logger) : IWebSearch
 {
     private readonly IReadOnlyList<ISearchProvider> _providers = [.. providers];
     private readonly SearchOptions _options = options.Value;
+    private readonly Lock _round = new();
+    private int _next;
 
     /// <inheritdoc />
     public async Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct = default)
@@ -46,7 +53,8 @@ public sealed class WebSearch(
         ArgumentNullException.ThrowIfNull(queries);
 
         var wanted = queries.ToArray();
-        var work = _providers.SelectMany(provider => wanted.Select(query => (Provider: provider, Query: query)));
+        var awake = Awake();
+        var work = wanted.SelectMany(query => Turn(awake).Select(provider => (Provider: provider, Query: query)));
 
         return Fanout.OverAsync(
             work,
@@ -57,6 +65,57 @@ public sealed class WebSearch(
 
     private static IReadOnlyList<SearchResult> Deduplicated(IEnumerable<SearchResult> results)
         => [.. results.GroupBy(result => result.Address).Select(group => group.First())];
+
+    /// <summary>The providers that may be asked right now, with the resting ones named in the log.</summary>
+    /// <remarks>
+    /// A search in which every provider rests asks nobody and comes back unanswered — which is the truth, and
+    /// louder in the log than the usual line, because from the caller's side it looks like a search that found
+    /// nothing.
+    /// </remarks>
+    private IReadOnlyList<ISearchProvider> Awake()
+    {
+        var byRest = _providers.ToLookup(provider => cooldown.IsResting(provider.Name));
+        IReadOnlyList<ISearchProvider> awake = [.. byRest[false]];
+
+        if (byRest[true].Any())
+            logger.Log(
+                awake.Count > 0 ? LogLevel.Information : LogLevel.Warning,
+                "{Resting} left out of this search, resting after a refusal; {Count} provider(s) asked",
+                string.Join(", ", byRest[true].Select(provider => provider.Name)),
+                awake.Count);
+
+        return awake;
+    }
+
+    /// <summary>The providers one query goes to: the next few in the round, or every one when the round holds them all.</summary>
+    /// <remarks>
+    /// The round runs over the providers awake for this search, so a resting one is skipped rather than
+    /// counted as a turn, and its share goes to the ones that can take it. A provider named in
+    /// <see cref="SearchOptions.AlwaysAsked"/> stands outside the round and joins every query.
+    /// </remarks>
+    private IReadOnlyList<ISearchProvider> Turn(IReadOnlyList<ISearchProvider> awake)
+    {
+        var spared = awake.Where(provider => !IsAlwaysAsked(provider)).ToArray();
+
+        if (spared.Length <= _options.ProvidersPerQuery)
+            return awake;
+
+        lock (_round)
+        {
+            var first = _next % spared.Length;
+
+            _next = (first + _options.ProvidersPerQuery) % spared.Length;
+
+            return
+            [
+                .. awake.Where(IsAlwaysAsked),
+                .. Enumerable.Range(first, _options.ProvidersPerQuery).Select(index => spared[index % spared.Length])
+            ];
+        }
+    }
+
+    private bool IsAlwaysAsked(ISearchProvider provider)
+        => _options.AlwaysAsked.Contains(provider.Name, StringComparer.Ordinal);
 
     private async ValueTask<SearchAttempt> AttemptAsync(
         ISearchProvider provider,
@@ -69,6 +128,8 @@ public sealed class WebSearch(
         {
             var results = await provider.FindAsync(query, ct);
             var duration = Stopwatch.GetElapsedTime(started);
+
+            cooldown.Answered(provider.Name);
 
             if (results.Count == 0)
             {
@@ -96,6 +157,19 @@ public sealed class WebSearch(
             return Record(provider, query, duration, "cancelled") with
             {
                 Failure = new SearchFailure(SearchFailureKind.Canceled)
+            };
+        }
+        catch (SearchRefusedException refusal)
+        {
+            var duration = Stopwatch.GetElapsedTime(started);
+            var rest = cooldown.Refused(provider.Name);
+
+            logger.LogWarning("{Provider} refused '{Query}' after {Ms:F0}ms and is left alone for {Rest}: {Reason}",
+                provider.Name, query, duration.TotalMilliseconds, rest, refusal.Reason);
+
+            return Record(provider, query, duration, "refused") with
+            {
+                Failure = new SearchFailure(SearchFailureKind.Refused, refusal.Reason)
             };
         }
         catch (Exception exception)

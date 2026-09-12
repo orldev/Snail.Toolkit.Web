@@ -132,6 +132,13 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => settings.MaxConcurrentPerHost > 0,
                 $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.MaxConcurrentPerHost)}' has to be positive.")
+            .Validate(
+                settings => settings.HostDelays.Values.All(gap => gap >= TimeSpan.Zero),
+                $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.HostDelays)}' holds a negative gap.")
+            .Validate(
+                settings => settings.HostDelays.Keys.All(host => !string.IsNullOrWhiteSpace(host))
+                    && settings.HostDelays.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() == settings.HostDelays.Count,
+                $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.HostDelays)}' names a host twice, or names an empty one.")
             .ValidateOnStart();
 
     private static void Validated(OptionsBuilder<RobotsOptions> builder)

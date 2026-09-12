@@ -8,10 +8,10 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// </summary>
 /// <remarks>
 /// Google is not alone in this: Bing, Yandex, Brave and Baidu all meet a plain HTTP client with a consent wall
-/// or a challenge, and every one of them then needs the same handling — read the page with a browser, turn a
-/// refusal into a fault, drop the links that are the page's own furniture, and say so when a page that loaded
-/// fine parsed into nothing. Only two things differ per engine: the address a query becomes, and the markup it
-/// comes back as. Those are what a subclass supplies.
+/// or a challenge, and every one of them then needs the same handling — read the page with a browser, tell a
+/// refusal from a page that merely could not be read, drop the links that are the page's own furniture, and
+/// say so when a page that loaded fine parsed into nothing. Only two things differ per engine: the address a
+/// query becomes, and the markup it comes back as. Those are what a subclass supplies.
 /// <para>
 /// The page is read through <see cref="IPageReader"/> rather than through a browser lease of its own, so every
 /// engine inherits the per-host gate, the coherent identity, the stealth script, challenge detection and the
@@ -50,7 +50,8 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
     protected abstract IEnumerable<SearchResult> Parsed(string html);
 
     /// <inheritdoc />
-    /// <exception cref="SearchRefusedException">The results page could not be read.</exception>
+    /// <exception cref="PageRefusedException">The engine turned the request away.</exception>
+    /// <exception cref="PageUnreadException">The results page could not be read for any other reason.</exception>
     public async Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -59,7 +60,7 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
         var outcome = await pages.ReadAsync(AddressOf(query), ct);
 
         if (!outcome.IsSuccess)
-            throw new SearchRefusedException(Name, outcome.Failure);
+            throw Unread(outcome.Failure);
 
         var page = outcome.Value;
 
@@ -84,5 +85,20 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
             return false;
 
         return !ServiceHosts.Any(host => uri.Host.StartsWith(host, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Tells a page the engine refused to show from one that merely could not be read.</summary>
+    /// <remarks>
+    /// Only two failures are the engine's answer to being asked too often: a challenge or refusal page, and a
+    /// 429 that says so in the status. A timeout, an unreachable browser, a proxy that would not connect or a
+    /// DNS failure say nothing about the engine's patience, and the search — which rests an engine over a
+    /// refusal — would otherwise leave a working engine out over a hiccup on this side.
+    /// </remarks>
+    private Exception Unread(PageFailure failure)
+    {
+        if (failure is { Kind: FailureKind.Blocked } or { Kind: FailureKind.Navigation, StatusCode: 429 })
+            return new PageRefusedException(Name, failure);
+
+        return new PageUnreadException(Name, failure);
     }
 }

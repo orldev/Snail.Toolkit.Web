@@ -248,6 +248,7 @@ public sealed class PageReader : IPageReader
         return PageOutcome.Success(new PageContent(address, html, budgeted.Text, DateTimeOffset.UtcNow)
         {
             Final = Link.Of(finalUrl),
+            Title = _text.Title(html),
             StatusCode = status,
             UserAgent = identity.UserAgent,
             IsTruncated = budgeted.IsTruncated,

@@ -300,6 +300,20 @@ public class CrawlerTests
         Assert.Equal(FailureKind.Navigation, Assert.Single(report.Pages).Failure?.Kind);
     }
 
+    /// <summary>
+    /// The page's name is the one thing kept from the head: an index built over a crawl has to name what it
+    /// found, and the first line of the text is not the name of the page.
+    /// </summary>
+    [Fact]
+    public async Task CrawlAsync_PageWithATitle_KeepsIt()
+    {
+        var crawler = Crawler(new StubReader(address => Named(address, "Wheat prices")));
+
+        var report = await crawler.CrawlAsync(Scope(crawler));
+
+        Assert.Equal("Wheat prices", Page(report, Home).Title);
+    }
+
     private static CrawlScope Scope(ICrawler crawler) => crawler.ScopeOf(Link.Of(Site));
 
     private static CrawlPage Page(CrawlReport report, string canonical)
@@ -311,6 +325,10 @@ public class CrawlerTests
 
     private static PageOutcome Read(Link address, string html, string text)
         => PageOutcome.Success(new PageContent(address, html, text, DateTimeOffset.UtcNow));
+
+    private static PageOutcome Named(Link address, string title)
+        => PageOutcome.Success(
+            new PageContent(address, "<html><body>ok</body></html>", "ok", DateTimeOffset.UtcNow) { Title = title });
 
     private static PageOutcome Unreachable(Link address)
         => PageOutcome.Failed(new PageFailure(FailureKind.Navigation, "unreachable") { Address = address });

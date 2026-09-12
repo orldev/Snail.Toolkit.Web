@@ -20,7 +20,9 @@ public class RegistrationTests
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal([Brave.ProviderName, DuckDuckGo.ProviderName, Google.ProviderName], names);
+        Assert.Equal(
+            [Bing.ProviderName, Brave.ProviderName, DuckDuckGo.ProviderName, Google.ProviderName],
+            names);
     }
 
     [Fact]
@@ -70,7 +72,7 @@ public class RegistrationTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(4, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
     /// <summary>
