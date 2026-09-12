@@ -20,7 +20,7 @@ public class RegistrationTests
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal([DuckDuckGo.ProviderName, Google.ProviderName], names);
+        Assert.Equal([Brave.ProviderName, DuckDuckGo.ProviderName, Google.ProviderName], names);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class RegistrationTests
             () => provider.GetRequiredService<IOptions<GoogleOptions>>().Value);
     }
 
-    /// <summary>Registration is idempotent, so a second call cannot ask Google twice per query.</summary>
+    /// <summary>Registration is idempotent, so a second call cannot ask an engine twice per query.</summary>
     [Fact]
     public async Task AddBrowserSearch_CalledTwice_AsksEachProviderOnce()
     {
@@ -70,7 +70,28 @@ public class RegistrationTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+    }
+
+    /// <summary>
+    /// The second browser engine is configured and validated the same way as the first.
+    /// </summary>
+    /// <remarks>
+    /// Added because which engine answers a given client from a given address is a fact that changes:
+    /// measured on 2026-09-12 from a datacentre address, Brave answered with a hundred links across
+    /// twenty-six sites while Google returned a captcha. A setting that cannot work has to refuse at start-up
+    /// rather than produce an address like <c>https://https://search.brave.com/search</c> far from its cause.
+    /// </remarks>
+    [Theory]
+    [InlineData("https://search.brave.com")]
+    [InlineData("search.brave.com/search")]
+    [InlineData("")]
+    public async Task AddBrowserSearch_BraveDomainThatIsNotAHost_FailsValidation(string domain)
+    {
+        await using var provider = Built(new Dictionary<string, string?> { ["Web:Search:Brave:Domain"] = domain });
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<BraveOptions>>().Value);
     }
 
     private static ServiceProvider Built(Dictionary<string, string?> settings)

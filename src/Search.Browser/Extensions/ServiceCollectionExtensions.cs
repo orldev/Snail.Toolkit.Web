@@ -26,7 +26,9 @@ public static class ServiceCollectionExtensions
             services.AddSearch(configuration);
             services.AddScraping(configuration);
 
-            return services.AddGoogle(configuration);
+            return services
+                .AddGoogle(configuration)
+                .AddBrave(configuration);
         }
 
         /// <summary>Adds the Google provider on top of a search and a page reader already registered.</summary>
@@ -39,7 +41,31 @@ public static class ServiceCollectionExtensions
 
             return services.AddSearchProvider<Google>();
         }
+
+        /// <summary>Adds the Brave provider on top of a search and a page reader already registered.</summary>
+        /// <remarks>
+        /// Registered beside Google rather than instead of it, because which engine answers a given client
+        /// from a given address is a fact that changes: measured on 2026-09-12 Brave answered and Google did
+        /// not, and the aggregator is where that stops mattering. Each provider costs a page load, so a
+        /// deployment that wants only one of them adds it on its own instead of taking this pair.
+        /// </remarks>
+        public IServiceCollection AddBrave(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            Validated(services.AddOptions<BraveOptions>()
+                .Bind(configuration.GetSection(BraveOptions.SectionName)));
+
+            return services.AddSearchProvider<Brave>();
+        }
     }
+
+    private static void Validated(OptionsBuilder<BraveOptions> builder)
+        => builder
+            .Validate(
+                settings => IsHost(settings.Domain),
+                $"'{BraveOptions.SectionName}:{nameof(BraveOptions.Domain)}' has to be a bare host such as 'search.brave.com', without a scheme or a path.")
+            .ValidateOnStart();
 
     private static void Validated(OptionsBuilder<GoogleOptions> builder)
         => builder

@@ -10,6 +10,12 @@ namespace Snail.Toolkit.Web.Scraping.Agent;
 /// Worse, typing key by key raised them on one run and not on the next, with identical code. A step that only
 /// reports whether it executed is therefore worthless: success and silence look the same. A step reports
 /// whether the site reacted.
+/// <para>
+/// <see cref="Pattern"/> stays a plain selector, URL fragment or phrase rather than becoming a
+/// <see cref="Spot"/>. A consequence is watched for, never acted on, and the failure that made addressing
+/// worth a type of its own was about naming the field a move lands in — an element that is watched is one the
+/// site has just produced, and it is named by whatever the errand already knows it by.
+/// </para>
 /// </remarks>
 public sealed record Effect(EffectKind Kind, string Pattern)
 {

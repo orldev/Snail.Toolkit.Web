@@ -29,6 +29,21 @@ public sealed class PageAgent(
     IOptions<AgentOptions> agent,
     ILogger<PageAgent> logger) : IPageAgent
 {
+    private const int Listed = 6;
+
+    private const string Enter = "Enter";
+
+    private const string Editable =
+        """
+        () => [...document.querySelectorAll('input:not([type=hidden]),select,textarea')]
+          .slice(0, 6)
+          .map(field => {
+            const named = field.id || field.name || field.getAttribute('aria-label')
+              || field.placeholder || field.tagName.toLowerCase();
+            return named + (field.offsetParent ? '' : ' (hidden)');
+          })
+        """;
+
     private readonly ScrapingOptions _scraping = scraping.Value;
     private readonly AgentOptions _agent = agent.Value;
 
@@ -76,11 +91,17 @@ public sealed class PageAgent(
                 ct.ThrowIfCancellationRequested();
 
                 var step = errand.Steps[position];
+                var wanted = await LocatedAsync(page, step.Where);
 
-                if (await TakenAsync(page, step, ct))
+                using var trail = Trail.Follows(page);
+
+                var reaction = await TakenAsync(wanted, step, ct);
+
+                if (reaction is Reaction.Taken)
                     continue;
 
-                return PageOutcome.Failed(Fruitless(errand, identity, step, position + 1));
+                return PageOutcome.Failed(
+                    await FruitlessAsync(page, errand, identity, step, position + 1, reaction, wanted, trail));
             }
 
             await Task.Delay(_agent.Settle, ct);
@@ -111,56 +132,134 @@ public sealed class PageAgent(
         }
     }
 
-    private async Task<bool> TakenAsync(IPage page, Step step, CancellationToken ct)
+    /// <summary>Resolves where a step lands, by selector or by the caption that names the field.</summary>
+    /// <remarks>
+    /// Playwright's own <see cref="IPage.GetByLabel(string, PageGetByLabelOptions)"/> is tried first and is
+    /// right whenever the markup binds a label to its field. It is not enough on its own: measured on a live
+    /// registry on 2026-09-12, the caption is a <c>label</c> element carrying no <c>for</c> attribute and no
+    /// field inside it — the field sits in a sibling container — so that call matched nothing while the first
+    /// field following the caption matched exactly one. The last candidate drops the requirement that the
+    /// caption be a <c>label</c> at all, since plenty of forms caption a field with a plain <c>div</c>.
+    /// </remarks>
+    private static async Task<ILocator> LocatedAsync(IPage page, Spot spot)
     {
-        for (var attempt = 1; attempt <= Math.Max(1, step.Attempts); attempt++)
-        {
-            if (await AttemptedAsync(page, step, ct))
-                return true;
+        if (spot.Kind is not SpotKind.Label)
+            return page.Locator(spot.Value);
 
-            logger.LogDebug(
-                "Attempt {Attempt} at {Kind} on '{Selector}' left the site unchanged", attempt, step.Kind, step.Selector);
+        foreach (var candidate in Candidates(page, spot.Value))
+        {
+            if (await candidate.CountAsync() > 0)
+                return candidate;
         }
 
-        return false;
+        return page.GetByLabel(spot.Value);
+    }
+
+    private static IEnumerable<ILocator> Candidates(IPage page, string caption)
+    {
+        yield return page.GetByLabel(caption);
+        yield return page.Locator(Follows("label", caption));
+        yield return page.Locator(Follows("*", caption));
+    }
+
+    /// <summary>The first field that follows a caption, taking the innermost element that carries its text.</summary>
+    /// <remarks>
+    /// <c>last()</c> is what makes the loose match safe: every ancestor of the caption contains its text too,
+    /// and the innermost of them is the caption itself, which is the one whose following field is meant.
+    /// </remarks>
+    private static string Follows(string tag, string caption)
+        => $"xpath=(//{tag}[contains(normalize-space(.), {Quoted(caption)})])[last()]"
+           + "/following::*[self::input or self::select or self::textarea][1]";
+
+    /// <summary>Writes a value as an XPath string literal.</summary>
+    /// <remarks>
+    /// XPath 1.0 has no escape character inside a literal, so a caption carrying both kinds of quote can only
+    /// be expressed as a concatenation of the pieces between them.
+    /// </remarks>
+    private static string Quoted(string text)
+    {
+        if (!text.Contains('\'', StringComparison.Ordinal))
+            return $"'{text}'";
+
+        if (!text.Contains('"', StringComparison.Ordinal))
+            return $"\"{text}\"";
+
+        return $"concat({string.Join(", \"'\", ", text.Split('\'').Select(part => $"'{part}'"))})";
+    }
+
+    private async Task<Reaction> TakenAsync(ILocator wanted, Step step, CancellationToken ct)
+    {
+        if (!await AppearedAsync(wanted, step))
+            return Reaction.Missing;
+
+        for (var attempt = 1; attempt <= Math.Max(1, step.Attempts); attempt++)
+        {
+            if (await AttemptedAsync(wanted, step, ct))
+                return Reaction.Taken;
+
+            logger.LogDebug(
+                "Attempt {Attempt} at {Kind} on {Where} left the site unchanged", attempt, step.Kind, step.Where);
+        }
+
+        return Reaction.Ignored;
+    }
+
+    /// <summary>Waits for the element to be on the page before anything is done to it.</summary>
+    private static async Task<bool> AppearedAsync(ILocator wanted, Step step)
+    {
+        try
+        {
+            await wanted.First.WaitForAsync(new LocatorWaitForOptions
+            {
+                Timeout = (float)step.Ready.TotalMilliseconds,
+                State = WaitForSelectorState.Visible
+            });
+
+            return true;
+        }
+        catch (Exception exception) when (exception is PlaywrightException or System.TimeoutException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Makes the move once and says whether the site answered for it.</summary>
     /// <remarks>
-    /// Both the move and the wait are caught here, so an element that never appeared is an attempt that produced
-    /// nothing rather than an exception: the step is then retried and, if it stays fruitless, named. Playwright
-    /// 1.62 raises <see cref="System.TimeoutException"/> from a locator wait — not the
+    /// Both the move and the wait are caught here, so an element that stopped matching is an attempt that
+    /// produced nothing rather than an exception: the step is then retried and, if it stays fruitless, named.
+    /// Playwright 1.62 raises <see cref="System.TimeoutException"/> from a locator wait — not the
     /// <see cref="PlaywrightException"/> its navigation failures use — and catching only the latter let a
     /// two-second wait escape as an unhandled exception.
     /// </remarks>
-    private async Task<bool> AttemptedAsync(IPage page, Step step, CancellationToken ct)
+    private async Task<bool> AttemptedAsync(ILocator wanted, Step step, CancellationToken ct)
     {
         try
         {
             if (step.Expected is not { } expected)
             {
-                await MoveAsync(page, step);
+                await MoveAsync(wanted, step);
 
                 return true;
             }
 
             if (expected.Kind is EffectKind.Request)
-                return await RequestedAsync(page, step, expected, ct);
+                return await RequestedAsync(wanted, step, expected, ct);
 
-            await MoveAsync(page, step);
+            await MoveAsync(wanted, step);
 
-            return await ShowedAsync(page, expected);
+            return await ShowedAsync(wanted.Page, expected);
         }
         catch (Exception exception) when (exception is PlaywrightException or System.TimeoutException)
         {
-            logger.LogDebug(exception, "{Kind} on '{Selector}' did not go through", step.Kind, step.Selector);
+            logger.LogDebug(exception, "{Kind} on {Where} did not go through", step.Kind, step.Where);
 
             return false;
         }
     }
 
-    private async Task<bool> RequestedAsync(IPage page, Step step, Effect expected, CancellationToken ct)
+    private static async Task<bool> RequestedAsync(ILocator wanted, Step step, Effect expected, CancellationToken ct)
     {
+        var page = wanted.Page;
         var asked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         void Watch(object? sender, IRequest request)
@@ -173,7 +272,7 @@ public sealed class PageAgent(
 
         try
         {
-            await MoveAsync(page, step);
+            await MoveAsync(wanted, step);
 
             using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -208,20 +307,39 @@ public sealed class PageAgent(
         return true;
     }
 
-    private static async Task MoveAsync(IPage page, Step step)
+    /// <summary>Makes one move on the element the step names.</summary>
+    /// <remarks>
+    /// <see cref="StepKind.Press"/> defaults to Enter because that is the case it exists for: measured against
+    /// five search engines on 2026-09-12, two of them offer no submitting element at all and a third ignores a
+    /// click on the one it has. <see cref="StepKind.Choose"/> goes through the browser's own selection rather
+    /// than through a click, since a native list is drawn outside the page and its options cannot be pressed.
+    /// </remarks>
+    private static async Task MoveAsync(ILocator wanted, Step step)
     {
-        var field = page.Locator(step.Selector).First;
-
         if (step.Kind is StepKind.Click)
         {
-            await field.ClickAsync();
+            await wanted.First.ClickAsync();
+
+            return;
+        }
+
+        if (step.Kind is StepKind.Press)
+        {
+            await wanted.First.PressAsync(step.Value is { Length: > 0 } key ? key : Enter);
+
+            return;
+        }
+
+        if (step.Kind is StepKind.Choose)
+        {
+            await wanted.First.SelectOptionAsync(new SelectOptionValue { Label = step.Value ?? string.Empty });
 
             return;
         }
 
         if (step.Kind is StepKind.Pick)
         {
-            await page.Locator(step.Selector)
+            await wanted
                 .Filter(new LocatorFilterOptions { HasTextString = step.Value })
                 .First
                 .ClickAsync();
@@ -229,8 +347,8 @@ public sealed class PageAgent(
             return;
         }
 
-        await field.ClickAsync();
-        await field.PressSequentiallyAsync(step.Value ?? string.Empty, new LocatorPressSequentiallyOptions
+        await wanted.First.ClickAsync();
+        await wanted.First.PressSequentiallyAsync(step.Value ?? string.Empty, new LocatorPressSequentiallyOptions
         {
             Delay = (float)step.Rhythm.TotalMilliseconds
         });
@@ -252,9 +370,28 @@ public sealed class PageAgent(
         });
     }
 
+    /// <summary>Reads the page the walkthrough ended on, once it is established that it is that page.</summary>
+    /// <remarks>
+    /// The document is inspected for a refusal here as well as on arrival, because a walkthrough can be shown
+    /// the door by the very move it was written to make. Measured against a search engine on 2026-09-12: every
+    /// step succeeded, the site accepted the submit, began loading the results and then redirected to a
+    /// challenge — and the agent, having checked only the landing page, reported success and handed back two
+    /// thousand characters of "prove you are not a robot" as the answer to the errand.
+    /// </remarks>
     private async Task<PageOutcome> ReadAsync(IPage page, Errand errand, WebIdentity identity, int? status)
     {
         var html = await page.ContentAsync();
+        var verdict = blocks.Inspect(html, page.Url);
+
+        if (verdict.IsBlocked)
+            return PageOutcome.Failed(new PageFailure(
+                FailureKind.Blocked, $"The walkthrough ended on a challenge or refusal ({verdict.Signal}).")
+            {
+                Address = errand.Address,
+                StatusCode = status,
+                UserAgent = identity.UserAgent
+            });
+
         var rendered = await page.EvaluateAsync<string?>("() => document.body ? document.body.innerText : ''");
 
         if (string.IsNullOrWhiteSpace(rendered))
@@ -281,20 +418,60 @@ public sealed class PageAgent(
         });
     }
 
-    private static PageFailure Fruitless(Errand errand, WebIdentity identity, Step step, int position)
+    /// <summary>Names the step that produced nothing, and shows the page it produced nothing on.</summary>
+    /// <remarks>
+    /// The state of the page is gathered here rather than left to the caller because by the time an outcome is
+    /// read the browser is gone. Answering "what was on the page instead" by hand took five throwaway scripts
+    /// on 2026-09-12, all of them asking what the agent already had in front of it.
+    /// </remarks>
+    private async Task<PageFailure> FruitlessAsync(
+        IPage page,
+        Errand errand,
+        WebIdentity identity,
+        Step step,
+        int position,
+        Reaction reaction,
+        ILocator wanted,
+        Trail trail)
     {
-        var expected = step.Expected is { } effect
-            ? $"{effect.Kind} matching '{effect.Pattern}'"
-            : "nothing";
+        var scene = await SceneAsync(page, wanted, trail);
+        var said = reaction is Reaction.Missing
+            ? $"never showed {step.Where} within {step.Ready.TotalSeconds:0.#}s"
+            : $"did not react to {step.Kind} at {step.Where} after {Tried(step)}; expected {Wanted(step)}";
+
+        logger.LogWarning("Step {Position} of {Total} produced nothing. {Scene}", position, errand.Steps.Count, scene);
 
         return new PageFailure(
             FailureKind.Empty,
-            $"Step {position} of {errand.Steps.Count} ({step.Kind} on '{step.Selector}') left the site unchanged "
-            + $"after {Math.Max(1, step.Attempts)} attempts; expected {expected}. The page may well have content, "
+            $"Step {position} of {errand.Steps.Count}: the site {said}. {scene} The page may well have content, "
             + "but it is not the answer to this errand.")
         {
             Address = errand.Address,
             UserAgent = identity.UserAgent
         };
     }
+
+    private async Task<Scene> SceneAsync(IPage page, ILocator wanted, Trail trail)
+    {
+        var matched = await wanted.CountAsync();
+        var visible = 0;
+
+        for (var index = 0; index < Math.Min(matched, Listed); index++)
+        {
+            if (await wanted.Nth(index).IsVisibleAsync())
+                visible++;
+        }
+
+        return new Scene(matched, visible, page.Url, await page.TitleAsync())
+        {
+            Fields = await page.EvaluateAsync<string[]>(Editable) ?? [],
+            Asked = trail.Asked
+        };
+    }
+
+    private static string Tried(Step step)
+        => Math.Max(1, step.Attempts) == 1 ? "one attempt" : $"{Math.Max(1, step.Attempts)} attempts";
+
+    private static string Wanted(Step step)
+        => step.Expected is { } effect ? $"{effect.Kind} matching '{effect.Pattern}'" : "nothing";
 }
