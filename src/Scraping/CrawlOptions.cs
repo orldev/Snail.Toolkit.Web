@@ -42,6 +42,16 @@ public sealed class CrawlOptions
     /// <summary>Gets or sets whether a published sitemap is used instead of following links.</summary>
     public bool IsSitemapPreferred { get; set; } = true;
 
+    /// <summary>Gets or sets whether the pages a sitemap lists are read newest first, by the dates the site gives them.</summary>
+    /// <remarks>
+    /// A newspaper's sitemap index runs for years. Measured on 2026-09-12: read in index order, a ceiling of
+    /// five hundred pages filled with whatever the site listed first — two hundred and sixty-four sponsored
+    /// articles from 2021 — while the news of the week never came up. Newest first opens the most recently
+    /// dated parts of an index before the rest and takes the most recently dated pages of what they list. A site
+    /// that dates nothing is read in its own order either way.
+    /// </remarks>
+    public bool IsNewestFirst { get; set; } = true;
+
     /// <summary>Gets or sets how many characters of each page's text the crawl keeps.</summary>
     /// <remarks>
     /// Deliberately far below what one page may have. This ceiling multiplies by the number of pages, so a

@@ -62,7 +62,20 @@ public class SitemapFileTests
         Assert.Empty(file.Pages);
         Assert.Equal(
             ["https://example.com/pages.xml", "https://example.com/news.xml"],
-            file.Sitemaps.Select(sitemap => sitemap.Canonical));
+            file.Sitemaps.Select(sitemap => sitemap.Address.Canonical));
+    }
+
+    /// <summary>
+    /// An index dates its parts, and a reader that wants the newest pages first needs that date to know which
+    /// part to open first — a newspaper's index runs for years.
+    /// </summary>
+    [Fact]
+    public void Parse_SitemapIndexPartWithALastModified_ReadsIt()
+    {
+        var file = SitemapFile.Parse(
+            "<sitemapindex><sitemap><loc>https://example.com/news.xml</loc><lastmod>2026-09-01</lastmod></sitemap></sitemapindex>");
+
+        Assert.Equal(new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), Assert.Single(file.Sitemaps).LastModified);
     }
 
     /// <summary>

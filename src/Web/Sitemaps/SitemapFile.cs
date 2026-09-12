@@ -8,7 +8,7 @@ namespace Snail.Toolkit.Web.Sitemaps;
 /// One sitemap document: the pages it lists, or the sitemaps it points at.
 /// </summary>
 /// <param name="Pages">The pages a <c>urlset</c> lists.</param>
-/// <param name="Sitemaps">The sitemaps a <c>sitemapindex</c> points at.</param>
+/// <param name="Sitemaps">The sitemaps a <c>sitemapindex</c> points at, each with the date the index gives it.</param>
 /// <remarks>
 /// A sitemap is why reading a whole domain is usually not a crawl at all: the site hands over the list of its
 /// own pages, including the ones no navigation links to, and the reader that already reads a list of addresses
@@ -24,7 +24,7 @@ namespace Snail.Toolkit.Web.Sitemaps;
 /// sitemap yielded nothing.
 /// </para>
 /// </remarks>
-public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyList<Link> Sitemaps)
+public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyList<SitemapEntry> Sitemaps)
 {
     /// <summary>A document that lists nothing, used when a site has no sitemap or an unreadable one.</summary>
     public static SitemapFile Empty { get; } = new([], []);
@@ -41,7 +41,7 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
             return Empty;
 
         List<SitemapEntry> pages = [];
-        List<Link> sitemaps = [];
+        List<SitemapEntry> sitemaps = [];
         HashSet<Link> seen = [];
 
         foreach (var element in root.Elements())
@@ -51,7 +51,7 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
 
             if (element.Name.LocalName.Equals("sitemap", StringComparison.OrdinalIgnoreCase))
             {
-                sitemaps.Add(address);
+                sitemaps.Add(new SitemapEntry(address, Modified(element)));
                 continue;
             }
 

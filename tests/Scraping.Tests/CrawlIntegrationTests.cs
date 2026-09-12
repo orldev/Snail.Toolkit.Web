@@ -74,7 +74,7 @@ public class CrawlIntegrationTests(SiteFixture site, ITestOutputHelper output)
 
         Assert.True(index.IsIndex);
 
-        var part = await host.Sitemaps.ReadAsync(Local(index.Sitemaps[0]), null);
+        var part = await host.Sitemaps.ReadAsync(Local(index.Sitemaps[0].Address), null);
 
         Assert.Equal(
             [Canonical("/grain.html"), Canonical("/barley.html")],

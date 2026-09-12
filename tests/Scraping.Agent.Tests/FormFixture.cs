@@ -59,6 +59,7 @@ public sealed class FormFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Captioned), "/usr/share/nginx/html/captioned.html")
             .WithResourceMapping(Bytes(Pages.Guarded), "/usr/share/nginx/html/guarded.html")
             .WithResourceMapping(Bytes(Pages.Keyed), "/usr/share/nginx/html/keyed.html")
+            .WithResourceMapping(Bytes(Pages.Widgeted), "/usr/share/nginx/html/widgeted.html")
             .WithResourceMapping(Bytes(Pages.Challenge), "/usr/share/nginx/html/challenge.html")
             .WithResourceMapping(Bytes(Pages.Minting), "/usr/share/nginx/html/minting.html")
             .WithResourceMapping(Bytes(Pages.Suggestions), "/usr/share/nginx/html/suggest.json")
@@ -117,6 +118,11 @@ public sealed class FormFixture : IAsyncLifetime
                     default_type application/json;
                     return 200 '{"args":"$args"}';
                 }
+
+                location /flaky {
+                    default_type application/json;
+                    return 503 '{"error":"busy"}';
+                }
             }
             """;
 
@@ -165,6 +171,46 @@ public sealed class FormFixture : IAsyncLifetime
                   document.getElementById('answer').textContent = where.value
                     ? 'Ledger ' + what + ' is held in ' + where.options[where.selectedIndex].text
                     : 'Choose a region first';
+                });
+              </script>
+            </body></html>
+            """;
+
+        /// <summary>A form whose list is hidden behind a widget of the site's own drawing.</summary>
+        /// <remarks>
+        /// Copies the German register portal as measured on 2026-09-12: the native <c>select</c> sits in a
+        /// container clipped to one pixel, the way PrimeFaces and Select2 keep it, and the site draws a label
+        /// and a panel of its own over it. The form submits the native one all the same. The answer names the
+        /// option's text, so a step that set the value on the wrong element, or on none, is caught by the answer.
+        /// </remarks>
+        public const string Widgeted =
+            """
+            <!doctype html>
+            <html><head><title>Register</title>
+            <style>.hidden-accessible{position:absolute;clip:rect(1px,1px,1px,1px);width:1px;height:1px;overflow:hidden}</style>
+            </head><body>
+              <form id="lookup">
+                <input id="what" name="what" autocomplete="off">
+                <div class="menu">
+                  <div class="hidden-accessible">
+                    <select id="where_input" name="where_input" tabindex="-1" aria-hidden="true">
+                      <option value="">choose a court</option>
+                      <option value="m">Munich</option>
+                      <option value="b">Berlin</option>
+                    </select>
+                  </div>
+                  <label id="where_label">choose a court</label>
+                </div>
+                <button id="find">Find</button>
+              </form>
+              <div id="answer"></div>
+              <script>
+                document.getElementById('lookup').addEventListener('submit', (event) => {
+                  event.preventDefault();
+                  const where = document.getElementById('where_input');
+                  document.getElementById('answer').textContent = where.value
+                    ? 'Entry ' + document.getElementById('what').value.trim() + ' at ' + where.options[where.selectedIndex].text
+                    : 'Choose a court first';
                 });
               </script>
             </body></html>

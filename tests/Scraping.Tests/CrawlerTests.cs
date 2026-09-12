@@ -122,6 +122,85 @@ public class CrawlerTests
         Assert.Contains(report.Pages, page => page.Value.Address.Canonical == $"{Site}/grain");
     }
 
+    /// <summary>
+    /// A newspaper's sitemap runs for years; read in its own order, a page ceiling fills with whatever the site
+    /// listed first. Measured on 2026-09-12: five hundred entries, two hundred and sixty-four of them sponsored
+    /// articles from 2021. Newest first reads what the site said last, and an undated page comes after any dated one.
+    /// </summary>
+    [Fact]
+    public async Task CrawlAsync_SitemapWithDates_ReadsTheNewestPagesUpToTheCeiling()
+    {
+        var crawler = Crawler(new StubReader(Ok), sitemap: _ => SitemapFile.Parse(
+            $"<urlset><url><loc>{Site}/old</loc><lastmod>2021-01-01</lastmod></url>"
+            + $"<url><loc>{Site}/undated</loc></url>"
+            + $"<url><loc>{Site}/new</loc><lastmod>2026-09-01</lastmod></url></urlset>"));
+
+        var report = await crawler.CrawlAsync(Scope(crawler) with { MaxPages = 2 });
+
+        Assert.Equal([Home, $"{Site}/new"], report.Pages.Select(page => page.Value.Address.Canonical).Order(StringComparer.Ordinal));
+        Assert.Equal(CrawlStop.PageLimit, report.Stop);
+    }
+
+    /// <summary>The parts of an index are opened newest first, so the ceiling is spent on the part the site dated last.</summary>
+    [Fact]
+    public async Task CrawlAsync_SitemapIndexWithDates_OpensTheNewestPartFirst()
+    {
+        var crawler = Crawler(
+            new StubReader(Ok),
+            sitemap: address => address.AbsolutePath switch
+            {
+                "/sitemap.xml" => SitemapFile.Parse(
+                    $"<sitemapindex><sitemap><loc>{Site}/old.xml</loc><lastmod>2021-01-01</lastmod></sitemap>"
+                    + $"<sitemap><loc>{Site}/new.xml</loc><lastmod>2026-09-01</lastmod></sitemap></sitemapindex>"),
+                "/old.xml" => SitemapFile.Parse($"<urlset><url><loc>{Site}/old-a</loc></url><url><loc>{Site}/old-b</loc></url></urlset>"),
+                "/new.xml" => SitemapFile.Parse($"<urlset><url><loc>{Site}/new-a</loc></url><url><loc>{Site}/new-b</loc></url></urlset>"),
+                _ => SitemapFile.Empty
+            });
+
+        var report = await crawler.CrawlAsync(Scope(crawler) with { MaxPages = 3 });
+
+        Assert.Equal(
+            [Home, $"{Site}/new-a", $"{Site}/new-b"],
+            report.Pages.Select(page => page.Value.Address.Canonical).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>With the ordering off, the site's own order is kept — which is what a site that dates nothing gets either way.</summary>
+    [Fact]
+    public async Task CrawlAsync_NewestFirstOff_KeepsTheSitesOwnOrder()
+    {
+        var crawler = Crawler(new StubReader(Ok), sitemap: _ => SitemapFile.Parse(
+            $"<urlset><url><loc>{Site}/old</loc><lastmod>2021-01-01</lastmod></url>"
+            + $"<url><loc>{Site}/new</loc><lastmod>2026-09-01</lastmod></url></urlset>"));
+
+        var report = await crawler.CrawlAsync(Scope(crawler) with { MaxPages = 2, IsNewestFirst = false });
+
+        Assert.Equal([Home, $"{Site}/old"], report.Pages.Select(page => page.Value.Address.Canonical).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>A section named as excluded is not read from the sitemap, whatever else the site lists.</summary>
+    [Fact]
+    public async Task CrawlAsync_ExcludedPath_IsNotReadFromTheSitemap()
+    {
+        var crawler = Crawler(new StubReader(Ok), sitemap: Urlset("/partner/a", "/news/b"));
+
+        var report = await crawler.CrawlAsync(Scope(crawler) with { Excluded = ["/partner/"] });
+
+        Assert.DoesNotContain(report.Pages, page => page.Value.Address.Canonical.Contains("/partner/", StringComparison.Ordinal));
+        Assert.Contains(report.Pages, page => page.Value.Address.Canonical == $"{Site}/news/b");
+    }
+
+    /// <summary>The same section is not followed either, when the site has no sitemap and is walked by links.</summary>
+    [Fact]
+    public async Task CrawlAsync_ExcludedPath_IsNotFollowedEither()
+    {
+        var crawler = Crawler(new StubReader(Linked("<a href='/partner/x'>x</a><a href='/news/y'>y</a>")));
+
+        var report = await crawler.CrawlAsync(Scope(crawler) with { Excluded = ["/partner/"] });
+
+        Assert.DoesNotContain(report.Pages, page => page.Value.Address.Canonical.Contains("/partner/", StringComparison.Ordinal));
+        Assert.Contains(report.Pages, page => page.Value.Address.Canonical == $"{Site}/news/y");
+    }
+
     [Fact]
     public async Task CrawlAsync_SiteWithoutASitemap_FollowsItsLinks()
     {

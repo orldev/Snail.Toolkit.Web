@@ -43,7 +43,8 @@ public enum StepKind
     /// Separate from <see cref="Pick"/> because a native list is not markup that can be pressed: the browser
     /// draws it outside the page, so clicking an <c>option</c> is unreliable where it works at all. The option
     /// is named by its visible text rather than by its value, because the value is an internal code and the
-    /// text is what a person reading the form would choose.
+    /// text is what a person reading the form would choose. The list need not be on screen: a site that draws
+    /// its own dropdown hides the native one behind it, and the hidden one is still what the form submits.
     /// </remarks>
     Choose
 }

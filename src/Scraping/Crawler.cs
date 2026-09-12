@@ -81,7 +81,8 @@ public sealed class Crawler(
             Budget = _crawling.Budget,
             MaxDepth = _crawling.MaxDepth,
             IncludesSubdomains = _crawling.IncludesSubdomains,
-            IsSitemapPreferred = _crawling.IsSitemapPreferred
+            IsSitemapPreferred = _crawling.IsSitemapPreferred,
+            IsNewestFirst = _crawling.IsNewestFirst
         };
     }
 
@@ -212,7 +213,7 @@ public sealed class Crawler(
 
         foreach (var link in links.From(page.Html, origin))
         {
-            if (IsInScope(visit, link) && visit.Seen.Add(link))
+            if (IsWanted(visit, link) && visit.Seen.Add(link))
                 yield return link;
         }
     }
@@ -241,9 +242,10 @@ public sealed class Crawler(
         var pending = new Queue<Link>(declared);
         HashSet<Link> opened = [];
         HashSet<Link> known = [visit.Scope.Start];
-        List<Link> found = [visit.Scope.Start];
+        List<SitemapEntry> found = [];
+        var room = visit.Scope.MaxPages - 1;
 
-        while (pending.Count > 0 && opened.Count < _crawling.MaxSitemaps)
+        while (pending.Count > 0 && opened.Count < _crawling.MaxSitemaps && found.Count < room)
         {
             var next = pending.Dequeue();
 
@@ -252,29 +254,20 @@ public sealed class Crawler(
 
             var file = await sitemaps.ReadAsync(document, proxy, ct);
 
-            foreach (var child in file.Sitemaps)
-                pending.Enqueue(child);
+            foreach (var child in Ordered(visit, file.Sitemaps))
+                pending.Enqueue(child.Address);
 
             foreach (var page in file.Pages)
             {
-                if (!IsInScope(visit, page.Address) || !known.Add(page.Address))
-                    continue;
-
-                if (found.Count == visit.Scope.MaxPages)
-                {
-                    visit.HasMore = true;
-
-                    return found;
-                }
-
-                found.Add(page.Address);
+                if (IsWanted(visit, page.Address) && known.Add(page.Address))
+                    found.Add(page);
             }
         }
 
-        if (pending.Count > 0)
+        if (pending.Count > 0 || found.Count > room)
             visit.HasMore = true;
 
-        if (found.Count == 1)
+        if (found.Count == 0)
         {
             logger.LogInformation("{Origin} published no sitemap worth reading; following its links instead",
                 origin);
@@ -282,8 +275,29 @@ public sealed class Crawler(
             return [];
         }
 
-        return found;
+        return [visit.Scope.Start, .. Ordered(visit, found).Take(room).Select(page => page.Address)];
     }
+
+    /// <summary>The entries in the order they are read: by the site's own dates, newest first, when that is asked for.</summary>
+    /// <remarks>
+    /// The sort is stable and an undated entry sorts last, so a site that dates nothing is read in its own order,
+    /// and one that dates only some of its pages has those read first. Applied to the parts of an index before
+    /// they are opened and to the pages they list before the ceiling is applied — reading every part to find
+    /// the newest pages would be a crawl of its own, so the newest parts are opened first and the newest of what
+    /// they list is taken.
+    /// </remarks>
+    private static IEnumerable<SitemapEntry> Ordered(Visit visit, IEnumerable<SitemapEntry> entries)
+        => visit.Scope.IsNewestFirst
+            ? entries.OrderByDescending(entry => entry.LastModified ?? DateTimeOffset.MinValue)
+            : entries;
+
+    /// <summary>Answers whether an address is one the crawl reads: on the site, and not in an excluded section.</summary>
+    private static bool IsWanted(Visit visit, Link link)
+        => IsInScope(visit, link) && !IsExcluded(visit, link);
+
+    private static bool IsExcluded(Visit visit, Link link)
+        => link.Address is { } address
+           && visit.Scope.Excluded.Any(prefix => address.AbsolutePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Answers whether an address belongs to the site being read.</summary>
     /// <remarks>

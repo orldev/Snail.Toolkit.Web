@@ -204,6 +204,37 @@ public class PageAgentTests(FormFixture site, ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A native list hidden behind a widget of the site's own drawing is still chosen, because it is what
+    /// the form submits.
+    /// </summary>
+    /// <remarks>
+    /// Measured on the German register portal on 2026-09-12. Its lists are PrimeFaces widgets: the native
+    /// <c>select</c> is clipped to a pixel behind a drawn label and panel, so the browser refused to choose on
+    /// it as something nobody could see; and going through the panel instead — a hundred and fifty courts in
+    /// a scrolling list — failed once in two runs when the panel did not open in time. The page here clips
+    /// its list the same way, and the answer names the option's text, so a choice made on the wrong element
+    /// is caught by the answer rather than passing silently.
+    /// </remarks>
+    [Fact]
+    public async Task PerformAsync_AListHiddenBehindAWidget_IsStillChosenBecauseItIsWhatTheFormSubmits()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Agent.PerformAsync(new Errand(Link.Of($"{FormFixture.BaseUrl}/widgeted.html"),
+        [
+            new Step(StepKind.Type, Spot.Css("#what")) { Value = "HRB 6684" },
+            new Step(StepKind.Choose, Spot.Css("#where_input")) { Value = "Munich" },
+            new Step(StepKind.Click, Spot.Css("#find"))
+            {
+                Expected = new Effect(EffectKind.Text, "Entry HRB 6684 at Munich")
+            }
+        ]));
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("Entry HRB 6684 at Munich", outcome.Value.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A press with no key named is a press of the return key.
     /// </summary>
     /// <remarks>

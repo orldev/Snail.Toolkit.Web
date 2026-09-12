@@ -205,6 +205,12 @@ public sealed class PageAgent(
     }
 
     /// <summary>Waits for the element to be on the page before anything is done to it.</summary>
+    /// <remarks>
+    /// Seen, for every move a person makes with the mouse or the keys. A native list is the exception: a
+    /// site that draws its own dropdown hides the <c>select</c> behind it — off the screen, clipped to a
+    /// pixel — and that hidden element is still the one the form submits, so for <see cref="StepKind.Choose"/>
+    /// it only has to be there.
+    /// </remarks>
     private static async Task<bool> AppearedAsync(ILocator wanted, Step step)
     {
         try
@@ -212,7 +218,7 @@ public sealed class PageAgent(
             await wanted.First.WaitForAsync(new LocatorWaitForOptions
             {
                 Timeout = (float)step.Ready.TotalMilliseconds,
-                State = WaitForSelectorState.Visible
+                State = step.Kind is StepKind.Choose ? WaitForSelectorState.Attached : WaitForSelectorState.Visible
             });
 
             return true;
@@ -312,7 +318,14 @@ public sealed class PageAgent(
     /// <see cref="StepKind.Press"/> defaults to Enter because that is the case it exists for: measured against
     /// five search engines on 2026-09-12, two of them offer no submitting element at all and a third ignores a
     /// click on the one it has. <see cref="StepKind.Choose"/> goes through the browser's own selection rather
-    /// than through a click, since a native list is drawn outside the page and its options cannot be pressed.
+    /// than through a click, since a native list is drawn outside the page and its options cannot be pressed;
+    /// and it is made without the browser's check that the list can be seen, because the lists worth choosing
+    /// from are mostly hidden — a site that draws its own dropdown (PrimeFaces, Select2 and their kind) keeps
+    /// the native <c>select</c> clipped to a pixel behind it, and that is the element the form submits. The
+    /// German register's form was the measurement, on 2026-09-12: its court list is a hundred and fifty items
+    /// in a scrolling panel with a filter box, and going through the widget — a click to open the panel, a
+    /// click on the item — failed once in two runs when the panel did not open in time; choosing on the
+    /// hidden list is exact and needs no panel.
     /// </remarks>
     private static async Task MoveAsync(ILocator wanted, Step step)
     {
@@ -332,7 +345,9 @@ public sealed class PageAgent(
 
         if (step.Kind is StepKind.Choose)
         {
-            await wanted.First.SelectOptionAsync(new SelectOptionValue { Label = step.Value ?? string.Empty });
+            await wanted.First.SelectOptionAsync(
+                new SelectOptionValue { Label = step.Value ?? string.Empty },
+                new LocatorSelectOptionOptions { Force = true });
 
             return;
         }
