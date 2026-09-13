@@ -422,3 +422,7 @@ ASALocalRun/
 
 # Local History for Visual Studio
 .localhistory/
+# Браузерная сборка: архив и профили — артефакты, не исходники
+/browser/out/
+/browser/profile/
+*.tar.xz
