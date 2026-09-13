@@ -10,6 +10,8 @@ using Snail.Toolkit.Web.Scraping.Extensions;
 using Snail.Toolkit.Web.Text;
 using Xunit.Abstractions;
 
+using Snail.Toolkit.Web.Tests.Browsers;
+
 namespace Snail.Toolkit.Web.Scraping.Tests;
 
 /// <summary>
@@ -147,7 +149,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     /// <c>userAgentData</c> exists only in a secure context: over plain http it reads as absent, and an assertion
     /// against it would pass while proving nothing.
     /// </remarks>
-    [Fact]
+    [ChromiumFact]
     public async Task ReadAsync_ClientHints_NameTheBrandTheHeadersClaim()
     {
         await using var host = Host(
@@ -277,10 +279,13 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         services.AddScraping(options =>
         {
             options.BrowserServer = site.BrowserServer;
+            options.Engine = site.Engine;
             options.MaxRetryAttempts = 0;
             options.NavigationTimeoutMs = 20_000;
             tune?.Invoke(options);
         });
+
+        services.MatchingFingerprint();
 
         services.Configure<HumanBehaviorOptions>(options => options.Enabled = false);
         services.Configure<PolitenessOptions>(options => options.MinDelayPerHost = TimeSpan.Zero);

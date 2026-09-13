@@ -1,0 +1,59 @@
+# Tests run against the patched browser here and against the stock one locally.
+#
+# The runner is amd64, which is the architecture the patched image is built for, so it costs nothing extra --
+# measured on an arm64 laptop the same suite takes 1m43s under emulation against 12s on the stock image. That
+# difference is emulation, not the engine, and it does not exist here.
+name: tests
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    env:
+      # The patched build: reports navigator.webdriver === false natively, with no trace of a substitution.
+      # The tag names the browser version, the Playwright version and the architecture, and all three have to
+      # match what this project references -- a server answers a client of another version with 428 and nothing
+      # else. BrowserImage refuses a mismatched tag before anything starts.
+      SNAIL_BROWSER_IMAGE: ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
+      SNAIL_BROWSER_ENGINE: Firefox
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The image is private. GITHUB_TOKEN reaches it only once the package is linked to this repository in
+      # its GitHub settings; without that link a personal access token with read:packages is needed instead.
+      - name: Sign in to the container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: dotnet build --configuration Release -warnaserror
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Pack
+        run: dotnet pack --configuration Release --no-build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: src/**/bin/Release/*.nupkg
+          if-no-files-found: error

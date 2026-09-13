@@ -1,3 +1,5 @@
+using Snail.Toolkit.Web.Scraping.Browsers;
+
 namespace Snail.Toolkit.Web.Scraping;
 
 /// <summary>
@@ -20,6 +22,16 @@ public sealed class ScrapingOptions
     /// callers to put here.
     /// </remarks>
     public string? BrowserServer { get; set; }
+
+    /// <summary>Gets or sets which browser engine pages are read with.</summary>
+    /// <remarks>
+    /// Chromium by default, because everything the toolkit aligns is aligned for it: client hints are set over
+    /// CDP, which no other engine answers, and the launch switches are Chromium's own. Firefox earns its place
+    /// where the browser must not announce itself — <c>navigator.webdriver</c> is compiled into Playwright's
+    /// Firefox and no preference turns it off — and such a build is reached through <see cref="BrowserServer"/>,
+    /// since a launched Firefox is Playwright's own and carries the announcement.
+    /// </remarks>
+    public Engine Engine { get; set; } = Engine.Chromium;
 
     /// <summary>Gets or sets whether launched browsers run without a window.</summary>
     public bool Headless { get; set; } = true;

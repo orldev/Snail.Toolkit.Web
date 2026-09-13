@@ -51,11 +51,46 @@ docker run --rm -v "$PWD/browser/out:/out" ff-juggler-nowd
 публикуется: это станок, а не изделие.
 
 **Архитектура наследуется от машины:** на маке соберётся arm64, на Windows —
-amd64. Браузер запускается только на своей.
+amd64. Браузер запускается только на своей, и смешать нельзя: arm64-образ с
+amd64-браузером внутри собирается молча и падает при первом запуске сообщением
+про отсутствующий `/lib64/ld-linux-x86-64.so.2`. Рантайм это теперь ловит на
+сборке и говорит прямо, что архив не той архитектуры.
+
+Собрать на маке образ целиком под amd64 можно — `docker build --platform
+linux/amd64 …`, — и он поедет через Rosetta. Для «посмотреть» годится, для
+замеров отпечатка нет: мерить будете эмуляцию.
 
 Падение линковки с `killed` или `out of memory` — это OOM: пересоберите образ с
 меньшим `JOBS`. Правило — не больше, чем ГБ памяти делить на два. Дерево и
 тулчейн закэшированы и заново не качаются.
+
+### Шаг 1б. Вторая архитектура
+
+Браузер компилируется под ту машину, где собирают, и арм-образ с amd64-браузером
+внутри не заработает никогда. Кросс-сборка через QEMU не годится: компиляция
+Firefox под эмуляцией идёт ночь и обычно разваливается. Значит нужна вторая
+машина нужной архитектуры — своя или арендованная на два часа.
+
+**На маке (arm64)** сборка родная, но её надо подготовить:
+
+```bash
+# Docker Desktop → Resources → Memory: 16 ГБ.
+# Виртуалке по умолчанию дают около восьми, а линковка libxul столько не
+# переживёт — упадёт с killed на последнем шаге многочасовой сборки.
+docker system prune -a          # освобождает место под дерево и объектный каталог
+
+docker build --build-arg JOBS=8 -t ff-juggler-nowd browser
+docker run --rm -v "$PWD/browser/out:/out" ff-juggler-nowd
+```
+
+**На арендованной виртуалке** — то же самое, но машина не ваша и не занята на два
+часа. Hetzner CAX41 (16 ядер, 32 ГБ, arm64) стоит около четырёх евроцентов в час,
+CCX33 (8 ядер, 32 ГБ, amd64) — около десяти. Обе архитектуры выходят примерно в
+четверть евро. На свежей виртуалке к тому же обычный Docker без Docker Desktop,
+то есть без его помощника учётных данных и связанных с ним сюрпризов.
+
+После этого в `out/` лежат оба архива, и рантайм сам берёт нужный: он выбирает
+по архитектуре образа, а не первый попавшийся.
 
 ### Шаг 2. Собрать рантайм — после каждой правки настроек
 
@@ -81,6 +116,11 @@ docker run --rm -e WARM=1 -e HEADFUL=1 -e FRESH=1 \
 скриптом, `TZ` и `SCREEN` — менять среду, `FRESH=1` — чистить профиль. Ими
 получены все таблицы в [PATCHES.md](PATCHES.md).
 
+`DIRECT=1` при `WARM=1` меняет одно — путь входа: вместо главной с набором в поле
+браузер идёт сразу на `/search?q=…`, как ходит провайдер тулкита. Профиль, адрес
+и сборка при этом те же, поэтому расхождение с тёплым входом говорит именно о
+пути, а не о трёх осях разом.
+
 ### Шаг 4. Запустить
 
 ```bash
@@ -102,9 +142,14 @@ docker logs ff-juggler
 # токен классический, с правом write:packages
 echo "$CR_PAT" | docker login ghcr.io -u orldev --password-stdin
 
-docker tag  ff-juggler:155.0 ghcr.io/orldev/ff-juggler:155.0
-docker push ghcr.io/orldev/ff-juggler:155.0
+docker tag  ff-juggler:155.0 ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
+docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
 ```
+
+В теге три вещи, которые обязаны совпасть: версия браузера, версия Playwright и
+архитектура. Версия Playwright там не для порядка — клиент другой версии получит
+от сервера `428 Precondition Required` и больше ничего, а тег, который об этом
+молчит, приглашает к этой ошибке.
 
 В PowerShell первая строка — `$env:CR_PAT | docker login ghcr.io -u orldev --password-stdin`.
 
@@ -115,14 +160,17 @@ docker push ghcr.io/orldev/ff-juggler:155.0
 манифест один:
 
 ```bash
-docker push ghcr.io/orldev/ff-juggler:155.0-arm64   # собрано на маке
-docker push ghcr.io/orldev/ff-juggler:155.0-amd64   # собрано на машине с Windows
+docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-arm64   # собрано на arm64
+docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64   # собрано на amd64
 
-docker manifest create ghcr.io/orldev/ff-juggler:155.0 \
-  --amend ghcr.io/orldev/ff-juggler:155.0-amd64 \
-  --amend ghcr.io/orldev/ff-juggler:155.0-arm64
-docker manifest push ghcr.io/orldev/ff-juggler:155.0
+docker manifest create ghcr.io/orldev/ff-juggler:155.0-pw1.62 \
+  --amend ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64 \
+  --amend ghcr.io/orldev/ff-juggler:155.0-pw1.62-arm64
+docker manifest push ghcr.io/orldev/ff-juggler:155.0-pw1.62
 ```
+
+Дальше `docker pull ghcr.io/orldev/ff-juggler:155.0-pw1.62` сам возьмёт нужную:
+мак получит arm64, сервер — amd64.
 
 Кросс-сборку через QEMU не предлагаю: компиляция Firefox под эмуляцией идёт не
 часы, а ночь, и разваливается на Rust или на линковке чаще, чем доходит до конца.
@@ -159,7 +207,7 @@ docker save ff-juggler:155.0 | gzip | ssh server 'gunzip | docker load'
 | --- | --- |
 | сборочный образ `ff-juggler-nowd` | 11 ГБ |
 | архив на выходе | 82 МБ |
-| рантайм-образ | ~800 МБ |
+| рантайм-образ, amd64 | 919 МБ |
 | из них сам браузер | 307 МБ |
 | скачивание из реестра | ~300 МБ |
 

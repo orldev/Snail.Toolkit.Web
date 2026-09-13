@@ -1,5 +1,7 @@
 using System.Text;
 using DotNet.Testcontainers.Builders;
+using Snail.Toolkit.Web.Tests.Browsers;
+using Snail.Toolkit.Web.Scraping.Browsers;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
 
@@ -31,6 +33,9 @@ public sealed class FormFixture : IAsyncLifetime
     /// <summary>The ws:// endpoint of the browser server.</summary>
     public string BrowserServer { get; private set; } = string.Empty;
 
+    /// <summary>The engine that server drives, which the toolkit has to be told about to connect at all.</summary>
+    public Engine Engine => BrowserImage.Engine;
+
     private static string Version =>
         typeof(Microsoft.Playwright.Playwright).Assembly.GetName().Version!.ToString(3);
 
@@ -39,13 +44,10 @@ public sealed class FormFixture : IAsyncLifetime
     {
         await _network.CreateAsync();
 
-        _browser = new ContainerBuilder($"mcr.microsoft.com/playwright:v{Version}")
+        _browser = new ContainerBuilder(BrowserImage.Name)
             .WithNetwork(_network)
             .WithPortBinding(ServerPort, true)
-            .WithCommand("/bin/sh", "-c",
-                $"npx -y playwright@{Version} run-server --port {ServerPort} --host 0.0.0.0")
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("Listening on ws://", strategy => strategy.WithTimeout(TimeSpan.FromMinutes(5))))
+            .Serving(ServerPort)
             .Build();
 
         await _browser.StartAsync();

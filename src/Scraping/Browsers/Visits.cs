@@ -34,7 +34,7 @@ public sealed class Visits(
         try
         {
             context = await lease.Browser.NewContextAsync(
-                BrowserContexts.For(identity, traits, _options.IgnoreCertificateErrors));
+                BrowserContexts.For(identity, traits, _options.Engine, _options.IgnoreCertificateErrors));
 
             context.SetDefaultNavigationTimeout(_options.NavigationTimeoutMs);
             context.SetDefaultTimeout(_options.NavigationTimeoutMs);

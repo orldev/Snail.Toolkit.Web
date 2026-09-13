@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using Snail.Toolkit.Web.Identity;
+using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Identity;
 
 namespace Snail.Toolkit.Web.Scraping.Stealth;
@@ -16,8 +18,12 @@ namespace Snail.Toolkit.Web.Scraping.Stealth;
 /// set through <c>Emulation.setUserAgentOverride</c>, which only Chromium answers. A header and a script that
 /// disagree are a stronger signal than either would be on its own, which is why failing to align is reported
 /// rather than passed over.
+///
+/// Chromium only, and the check is on the engine rather than on the exception it would raise:
+/// <c>NewCDPSessionAsync</c> throws on Firefox and WebKit, and a warning logged on every page of a Firefox run
+/// would say nothing anyone can act on.
 /// </remarks>
-public sealed class ClientHints(ILogger<ClientHints> logger) : IClientHints
+public sealed class ClientHints(IOptions<ScrapingOptions> options, ILogger<ClientHints> logger) : IClientHints
 {
     private const string Placeholder = "Not-A.Brand";
 
@@ -32,7 +38,7 @@ public sealed class ClientHints(ILogger<ClientHints> logger) : IClientHints
         ArgumentNullException.ThrowIfNull(identity);
         ArgumentNullException.ThrowIfNull(traits);
 
-        if (!identity.SupportsClientHints)
+        if (options.Value.Engine is not Engine.Chromium || !identity.SupportsClientHints)
             return;
 
         ct.ThrowIfCancellationRequested();

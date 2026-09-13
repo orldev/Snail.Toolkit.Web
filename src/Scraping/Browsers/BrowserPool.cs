@@ -86,19 +86,30 @@ public sealed class BrowserPool : IBrowserPool
 
         var driver = await DriverAsync(ct);
 
+        var chosen = Chosen(driver);
+
         slot.Browser = IsRemote
-            ? await driver.Chromium.ConnectAsync(_options.BrowserServer!, new BrowserTypeConnectOptions
+            ? await chosen.ConnectAsync(_options.BrowserServer!, new BrowserTypeConnectOptions
             {
                 Timeout = _options.NavigationTimeoutMs
             })
-            : await driver.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            : await chosen.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = _options.Headless,
-                Args = ChromiumArguments.For(_options)
+                Args = _options.Engine is Engine.Chromium ? ChromiumArguments.For(_options) : null
             });
 
-        _logger.LogInformation("Browser {Slot} is ready ({Mode})", slot.Index, IsRemote ? "connected" : "launched");
+        _logger.LogInformation(
+            "Browser {Slot} is ready: {Engine}, {Mode}",
+            slot.Index, _options.Engine, IsRemote ? "connected" : "launched");
     }
+
+    private IBrowserType Chosen(IPlaywright driver) => _options.Engine switch
+    {
+        Engine.Firefox => driver.Firefox,
+        Engine.WebKit => driver.Webkit,
+        _ => driver.Chromium
+    };
 
     private async Task<IPlaywright> DriverAsync(CancellationToken ct)
     {

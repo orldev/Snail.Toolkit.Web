@@ -8,6 +8,15 @@
     <PackageTags>scraping;playwright;browser;stealth;crawler</PackageTags>
   </PropertyGroup>
 
+  <!--
+    The context options are internal because which headers a browser sends is not a contract a consumer
+    configures. What they must never send is, which is why the test assembly is let in rather than the type
+    being made public.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Polly" />

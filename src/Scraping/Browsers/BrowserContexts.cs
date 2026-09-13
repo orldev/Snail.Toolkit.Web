@@ -14,12 +14,18 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// subresource, announced on every request the page made. <c>Accept</c> and <c>Accept-Encoding</c> are left to
 /// the browser for the same reason: it varies them per resource type and a fixed value is a mismatch the site
 /// can measure.
+///
+/// Client hints are gated on the engine as well as on the brand. The brand comes from the configured user
+/// agent, so a Firefox binary carrying a Chrome user agent would otherwise announce <c>Sec-Ch-Ua</c> on every
+/// request — headers Firefox never sends, from a browser claiming to be Chrome. That contradiction is read in
+/// one line on the server.
 /// </remarks>
 internal static class BrowserContexts
 {
     public static BrowserNewContextOptions For(
         WebIdentity identity,
         BrowserTraits traits,
+        Engine engine,
         bool ignoresCertificateErrors)
         => new()
         {
@@ -34,7 +40,7 @@ internal static class BrowserContexts
             ReducedMotion = ReducedMotion.NoPreference,
             JavaScriptEnabled = true,
             IgnoreHTTPSErrors = ignoresCertificateErrors,
-            ExtraHTTPHeaders = Headers(identity, traits),
+            ExtraHTTPHeaders = Headers(identity, traits, engine),
             Proxy = identity.Proxy is null
                 ? null
                 : new Proxy
@@ -45,14 +51,14 @@ internal static class BrowserContexts
                 }
         };
 
-    private static Dictionary<string, string> Headers(WebIdentity identity, BrowserTraits traits)
+    private static Dictionary<string, string> Headers(WebIdentity identity, BrowserTraits traits, Engine engine)
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["Accept-Language"] = identity.AcceptLanguage
         };
 
-        if (!identity.SupportsClientHints)
+        if (engine is not Engine.Chromium || !identity.SupportsClientHints)
             return headers;
 
         headers["Sec-Ch-Ua"] =

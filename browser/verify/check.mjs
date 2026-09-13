@@ -225,56 +225,77 @@ if (process.env.WARM === '1') {
 
   const page = context.pages()[0] ?? await context.newPage();
 
+  // DIRECT=1 меняет РОВНО ОДНО: путь входа. Вместо главной с набором в поле —
+  // сразу /search?q=…, как ходит провайдер тулкита. Сборка, профиль и адрес
+  // остаются те же, что дали шесть выдач; поэтому ответ читается как ответ про
+  // путь входа, а не про три оси разом — ошибка, уже стоившая одного вывода.
+  const direct = process.env.DIRECT === '1';
+  const query = 'postgresql documentation';
+
+  // Вердикт снимается ОДНИМ И ТЕМ ЖЕ разбором для обоих путей: плечи сравнимы
+  // только тогда, когда отличаются входом, а не способом прочесть результат.
+  const verdict = async () => {
+    const title = await page.title();
+    return page.url().includes('/sorry/') ? 'ОТКАЗ /sorry/'
+      : /captcha|robot|unusual traffic/i.test(title) ? `КАПЧА: ${title}`
+      : `прошло, ссылок с заголовком: ${await page.locator('a:has(h3)').count()}`;
+  };
+
+  const announced = () => page.evaluate(() => {
+    const own = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
+    const source = own?.get ? own.get.toString() : '';
+    return `${navigator.webdriver}, геттер ${/\[native code\]/.test(source) ? 'нативный' : 'ПОДМЕНЁН'}`;
+  });
+
   try {
-    console.log(`\nТёплый вход — ${stock ? 'ШТАТНЫЙ Playwright' : 'наша сборка'}${process.env.SPOOF === '1' ? ' + ПОДМЕНА webdriver' : ''}\n`);
+    console.log(`\n${direct ? 'ПРЯМОЙ вход на /search' : 'Тёплый вход'} — ${stock ? 'ШТАТНЫЙ Playwright' : 'наша сборка'}${process.env.SPOOF === '1' ? ' + ПОДМЕНА webdriver' : ''}\n`);
 
-    await page.goto('https://www.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);
-    const announced = await page.evaluate(() => {
-      const own = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
-      const source = own?.get ? own.get.toString() : '';
-      return `${navigator.webdriver}, геттер ${/\[native code\]/.test(source) ? 'нативный' : 'ПОДМЕНЁН'}`;
-    });
-    console.log(`  webdriver на странице    ${announced}`);
-    console.log(`  главная                  ${page.url()}`);
-    console.log(`                           ${await page.title()}`);
-
-    // Стена согласия приходит не всегда и на разных языках — отсюда список, а не
-    // один селектор, и мягкий пропуск, если ничего не совпало.
-    for (const selector of [
-      'button:has-text("Accept all")',
-      'button:has-text("Reject all")',
-      'button#L2AGLb',
-      'div[role="none"] button:has-text("Принять все")',
-    ]) {
-      const button = page.locator(selector).first();
-      if (await button.count() && await button.isVisible().catch(() => false)) {
-        await button.click({ timeout: 5000 }).catch(() => {});
-        console.log(`  согласие                 нажато: ${selector}`);
-        await page.waitForTimeout(2500);
-        break;
-      }
-    }
-
-    const field = page.locator('textarea[name="q"], input[name="q"]').first();
-    if (!(await field.count())) {
-      console.log('  поле поиска              НЕ НАЙДЕНО — до выдачи не дошли');
-    } else {
-      await field.click();
-      await page.waitForTimeout(600);
-      await field.type('postgresql documentation', { delay: 140 });
-      await page.waitForTimeout(900);
-      await field.press('Enter');
-      await page.waitForLoadState('domcontentloaded', { timeout: 45000 }).catch(() => {});
+    if (direct) {
+      await page.goto(`https://www.google.com/search?q=${encodeURIComponent(query)}`,
+        { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(4000);
-
-      const title = await page.title();
-      const verdict = page.url().includes('/sorry/') ? 'ОТКАЗ /sorry/'
-        : /captcha|robot|unusual traffic/i.test(title) ? `КАПЧА: ${title}`
-        : `прошло, ссылок с заголовком: ${await page.locator('a:has(h3)').count()}`;
-
-      console.log(`  выдача                   ${verdict}`);
+      console.log(`  webdriver на странице    ${await announced()}`);
+      console.log(`  выдача                   ${await verdict()}`);
       console.log(`                           ${page.url().slice(0, 90)}`);
+    } else {
+      await page.goto('https://www.google.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForTimeout(3000);
+      console.log(`  webdriver на странице    ${await announced()}`);
+      console.log(`  главная                  ${page.url()}`);
+      console.log(`                           ${await page.title()}`);
+
+      // Стена согласия приходит не всегда и на разных языках — отсюда список, а не
+      // один селектор, и мягкий пропуск, если ничего не совпало.
+      for (const selector of [
+        'button:has-text("Accept all")',
+        'button:has-text("Reject all")',
+        'button#L2AGLb',
+        'div[role="none"] button:has-text("Принять все")',
+      ]) {
+        const button = page.locator(selector).first();
+        if (await button.count() && await button.isVisible().catch(() => false)) {
+          await button.click({ timeout: 5000 }).catch(() => {});
+          console.log(`  согласие                 нажато: ${selector}`);
+          await page.waitForTimeout(2500);
+          break;
+        }
+      }
+
+      const field = page.locator('textarea[name="q"], input[name="q"]').first();
+      if (!(await field.count())) {
+        console.log('  поле поиска              НЕ НАЙДЕНО — до выдачи не дошли');
+      } else {
+        await field.click();
+        await page.waitForTimeout(600);
+        await field.type(query, { delay: 140 });
+        await page.waitForTimeout(900);
+        await field.press('Enter');
+        await page.waitForLoadState('domcontentloaded', { timeout: 45000 }).catch(() => {});
+        await page.waitForTimeout(4000);
+
+        console.log(`  выдача                   ${await verdict()}`);
+        console.log(`                           ${page.url().slice(0, 90)}`);
+      }
     }
 
     // Widevine качается по сети при первом запуске и остаётся в профиле. Здесь
@@ -288,8 +309,9 @@ if (process.env.WARM === '1') {
     const cookies = await context.cookies('https://www.google.com');
     console.log(`  куки после захода        ${cookies.map((c) => c.name).join(', ') || 'ни одной'}`);
 
-    const shot = await page.screenshot({ path: '/out/warm.png', fullPage: false })
-      .then(() => '/out/warm.png')
+    const file = direct ? '/out/direct.png' : '/out/warm.png';
+    const shot = await page.screenshot({ path: file, fullPage: false })
+      .then(() => file)
       .catch((error) => `НЕ СОХРАНЁН: ${error.message.split('\n')[0].slice(0, 60)}`);
     console.log(`  снимок                   ${shot}`);
   } catch (error) {
@@ -305,7 +327,8 @@ if (process.env.WARM === '1') {
 if (process.env.NET !== '1') {
   console.log('\nСеть не трогали.');
   console.log('  NET=1   — холодный замер с контролем: наша, штатная, наша.');
-  console.log('  WARM=1  — тёплый вход: постоянный профиль, главная, набор в поле.\n');
+  console.log('  WARM=1  — тёплый вход: постоянный профиль, главная, набор в поле.');
+  console.log('  WARM=1 DIRECT=1 — тот же профиль, но сразу /search: путь входа как у тулкита.\n');
   process.exit(0);
 }
 

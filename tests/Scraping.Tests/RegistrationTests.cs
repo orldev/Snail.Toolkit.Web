@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Robots;
 using Snail.Toolkit.Web.Scraping.Behavior;
+using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Extensions;
 using Snail.Toolkit.Web.Sitemaps;
 
@@ -182,6 +183,37 @@ public class RegistrationTests
 
         Assert.Equal(4, provider.GetRequiredService<IOptions<ScrapingOptions>>().Value.MaxBrowsers);
         Assert.NotNull(provider.GetRequiredService<ICrawler>());
+    }
+
+    /// <summary>
+    /// An engine other than Chromium with the built-in fingerprints is refused before the host starts.
+    /// </summary>
+    /// <remarks>
+    /// The built-in set is Chrome, and the user agent is sent whatever engine reads the page. Measured on
+    /// 13 September 2026, a patched Firefox carrying a Chrome user agent was answered with <c>/sorry/</c>
+    /// where the same recipe through bare Playwright returned results; the contradiction now fails loudly
+    /// instead of costing the results it was meant to fetch.
+    /// </remarks>
+    [Fact]
+    public void AddScraping_NonChromiumEngineWithoutItsOwnFingerprint_FailsValidation()
+    {
+        var provider = Built(new Dictionary<string, string?> { ["Web:Scraping:Engine"] = "Firefox" });
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<ScrapingOptions>>().Value);
+    }
+
+    [Fact]
+    public void AddScraping_NonChromiumEngineWithAMatchingFingerprint_PassesValidation()
+    {
+        var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Scraping:Engine"] = "Firefox",
+            ["Web:Identity:Fingerprints:0:UserAgent"] =
+                "Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0"
+        });
+
+        Assert.Equal(Engine.Firefox, provider.GetRequiredService<IOptions<ScrapingOptions>>().Value.Engine);
     }
 
     private static ServiceProvider Built(Dictionary<string, string?> settings)

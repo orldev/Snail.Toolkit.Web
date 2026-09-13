@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
+using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Robots;
@@ -112,6 +113,9 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => IsBrowserServer(settings.BrowserServer),
                 $"'{ScrapingOptions.SectionName}:{nameof(ScrapingOptions.BrowserServer)}' has to be the ws:// or wss:// endpoint of a Playwright browser server, not a proxy address.")
+            .Validate<IOptions<IdentityOptions>>(
+                (settings, identity) => Announces(settings.Engine, identity.Value),
+                $"'{ScrapingOptions.SectionName}:{nameof(ScrapingOptions.Engine)}' and '{IdentityOptions.SectionName}:{nameof(IdentityOptions.Fingerprints)}' name different browsers. Every configured user agent has to be one the chosen engine could have sent — a Gecko browser carrying a Chrome user agent is a contradiction any site reads in one line. The built-in fingerprints are Chrome, so an engine other than Chromium has to bring its own, such as 'Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0'.")
             .ValidateOnStart();
 
     private static void Validated(OptionsBuilder<CrawlOptions> builder)
@@ -161,4 +165,26 @@ public static class ServiceCollectionExtensions
     private static bool IsBrowserServer(string? value)
         => string.IsNullOrWhiteSpace(value)
            || (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme is "ws" or "wss");
+
+    private static bool Announces(Engine engine, IdentityOptions identity)
+    {
+        string[] agents =
+        [
+            .. identity.Fingerprints
+                .Select(fingerprint => fingerprint.UserAgent)
+                .Where(agent => !string.IsNullOrWhiteSpace(agent))
+        ];
+
+        return agents.Length == 0
+            ? engine is Engine.Chromium
+            : Array.TrueForAll(agents, agent => Announces(engine, agent));
+    }
+
+    private static bool Announces(Engine engine, string userAgent) => engine switch
+    {
+        Engine.Firefox => userAgent.Contains("Firefox/", StringComparison.Ordinal),
+        Engine.WebKit => !userAgent.Contains("Chrome/", StringComparison.Ordinal)
+                         && !userAgent.Contains("Firefox/", StringComparison.Ordinal),
+        _ => userAgent.Contains("Chrome/", StringComparison.Ordinal)
+    };
 }

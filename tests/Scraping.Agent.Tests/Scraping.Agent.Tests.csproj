@@ -5,6 +5,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\BrowserImage.cs" Link="BrowserImage.cs" />
+    <Compile Include="..\ChromiumFactAttribute.cs" Link="ChromiumFactAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Scraping.Agent\Scraping.Agent.csproj" />
   </ItemGroup>
 

@@ -5,6 +5,7 @@ using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Agent.Extensions;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Xunit.Abstractions;
+using Snail.Toolkit.Web.Tests.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Agent.Tests;
 
@@ -318,9 +319,12 @@ public class PageAgentTests(FormFixture site, ITestOutputHelper output)
         services.AddPageAgent(options =>
         {
             options.BrowserServer = site.BrowserServer;
+            options.Engine = site.Engine;
             options.MaxRetryAttempts = 0;
             options.NavigationTimeoutMs = 20_000;
         });
+
+        services.MatchingFingerprint();
 
         services.Configure<HumanBehaviorOptions>(options => options.Enabled = false);
         services.Configure<PolitenessOptions>(options => options.MinDelayPerHost = TimeSpan.Zero);

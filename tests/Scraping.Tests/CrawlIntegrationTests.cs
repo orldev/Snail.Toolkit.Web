@@ -9,6 +9,7 @@ using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Extensions;
 using Snail.Toolkit.Web.Sitemaps;
 using Xunit.Abstractions;
+using Snail.Toolkit.Web.Tests.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Tests;
 
@@ -126,9 +127,12 @@ public class CrawlIntegrationTests(SiteFixture site, ITestOutputHelper output)
         services.AddScraping(options =>
         {
             options.BrowserServer = site.BrowserServer;
+            options.Engine = site.Engine;
             options.MaxRetryAttempts = 0;
             options.NavigationTimeoutMs = 20_000;
         });
+
+        services.MatchingFingerprint();
 
         services.Configure<HumanBehaviorOptions>(options => options.Enabled = false);
         services.Configure<PolitenessOptions>(options => options.MinDelayPerHost = TimeSpan.Zero);
