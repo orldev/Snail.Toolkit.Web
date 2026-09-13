@@ -60,6 +60,17 @@ public sealed partial class IdentityRotation : IIdentityRotation
                 "No fingerprints configured; using {Count} built-in ones. Built-in user agents age into a "
                 + "detection signal of their own — set '{Section}:{Property}' and refresh it periodically.",
                 BuiltIn.Length, IdentityOptions.SectionName, nameof(IdentityOptions.Fingerprints));
+
+        var onUtc = _fingerprints.Count(fingerprint =>
+            string.Equals(fingerprint.Timezone, "UTC", StringComparison.OrdinalIgnoreCase));
+
+        if (onUtc > 0)
+            logger.LogWarning(
+                "{Count} fingerprint(s) report the UTC time zone. Consumer machines do not run UTC — it is "
+                + "what containers and servers default to — and it is measurably refused: from one address, "
+                + "with a fresh profile per attempt, Google answered /sorry/ on UTC and returned results on "
+                + "both America/New_York and Europe/Moscow. Give '{Section}:{Property}' a plausible zone.",
+                onUtc, IdentityOptions.SectionName, nameof(IdentityOptions.Fingerprints));
     }
 
     /// <inheritdoc />

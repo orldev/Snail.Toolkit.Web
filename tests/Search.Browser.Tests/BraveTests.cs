@@ -128,8 +128,11 @@ public class BraveTests
     }
 
     private static async Task<IReadOnlyList<SearchResult>> Found(string html)
-        => await Provider(new StubReader(_ => Fixture.Read(html))).FindAsync("grain");
+        => (await Provider(new StubReader(_ => Fixture.Read(html))).FindAsync("grain")).Value;
 
     private static Brave Provider(IPageReader reader, string domain = "search.brave.com")
-        => new(reader, Options.Create(new BraveOptions { Domain = domain }), NullLogger<Brave>.Instance);
+        => new(reader,
+            Options.Create(new BraveOptions { Domain = domain }),
+            Options.Create(new SearchOptions()),
+            NullLogger<Brave>.Instance);
 }

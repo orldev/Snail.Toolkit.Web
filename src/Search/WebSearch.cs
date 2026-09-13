@@ -126,26 +126,9 @@ public sealed class WebSearch(
 
         try
         {
-            var results = await provider.FindAsync(query, ct);
-            var duration = Stopwatch.GetElapsedTime(started);
+            var answer = await provider.FindAsync(query, ct);
 
-            cooldown.Answered(provider.Name);
-
-            if (results.Count == 0)
-            {
-                logger.LogDebug("{Provider} found nothing for '{Query}' in {Ms:F0}ms",
-                    provider.Name, query, duration.TotalMilliseconds);
-
-                return Record(provider, query, duration, "empty") with
-                {
-                    Failure = new SearchFailure(SearchFailureKind.NoResults)
-                };
-            }
-
-            logger.LogInformation("{Provider} found {Count} links for '{Query}' in {Ms:F0}ms",
-                provider.Name, results.Count, query, duration.TotalMilliseconds);
-
-            return Record(provider, query, duration, "ok") with { Results = results };
+            return Judged(provider, query, Stopwatch.GetElapsedTime(started), answer);
         }
         catch (OperationCanceledException)
         {
@@ -159,24 +142,11 @@ public sealed class WebSearch(
                 Failure = new SearchFailure(SearchFailureKind.Canceled)
             };
         }
-        catch (SearchRefusedException refusal)
-        {
-            var duration = Stopwatch.GetElapsedTime(started);
-            var rest = cooldown.Refused(provider.Name);
-
-            logger.LogWarning("{Provider} refused '{Query}' after {Ms:F0}ms and is left alone for {Rest}: {Reason}",
-                provider.Name, query, duration.TotalMilliseconds, rest, refusal.Reason);
-
-            return Record(provider, query, duration, "refused") with
-            {
-                Failure = new SearchFailure(SearchFailureKind.Refused, refusal.Reason)
-            };
-        }
         catch (Exception exception)
         {
             var duration = Stopwatch.GetElapsedTime(started);
 
-            logger.LogError(exception, "{Provider} failed for '{Query}' after {Ms:F0}ms",
+            logger.LogError(exception, "{Provider} threw for '{Query}' after {Ms:F0}ms",
                 provider.Name, query, duration.TotalMilliseconds);
 
             return Record(provider, query, duration, "faulted") with
@@ -184,6 +154,58 @@ public sealed class WebSearch(
                 Failure = new SearchFailure(SearchFailureKind.Faulted, exception.Message)
             };
         }
+    }
+
+    /// <summary>Reads what a provider answered, and decides what that costs the provider.</summary>
+    /// <remarks>
+    /// A refusal rests the engine and a fault does not: a fault is a defect on this side — a parser that no
+    /// longer follows the markup — and resting the engine over it would hide the one thing that needed fixing.
+    /// An answer of any kind, with results or without, ends a rest.
+    /// </remarks>
+    private SearchAttempt Judged(ISearchProvider provider, string query, TimeSpan duration, SearchAnswer answer)
+    {
+        if (!answer.IsSuccess)
+            return Unanswered(provider, query, duration, answer.Failure);
+
+        cooldown.Answered(provider.Name);
+
+        if (answer.Value.Count == 0)
+        {
+            logger.LogDebug("{Provider} found nothing for '{Query}' in {Ms:F0}ms",
+                provider.Name, query, duration.TotalMilliseconds);
+
+            return Record(provider, query, duration, "empty") with
+            {
+                Failure = new SearchFailure(SearchFailureKind.NoResults)
+            };
+        }
+
+        logger.LogInformation("{Provider} found {Count} links for '{Query}' in {Ms:F0}ms",
+            provider.Name, answer.Value.Count, query, duration.TotalMilliseconds);
+
+        return Record(provider, query, duration, "ok") with { Results = answer.Value };
+    }
+
+    private SearchAttempt Unanswered(
+        ISearchProvider provider,
+        string query,
+        TimeSpan duration,
+        SearchFailure failure)
+    {
+        if (failure.Kind is not SearchFailureKind.Refused)
+        {
+            logger.LogError("{Provider} failed for '{Query}' after {Ms:F0}ms: {Reason}",
+                provider.Name, query, duration.TotalMilliseconds, failure.Message);
+
+            return Record(provider, query, duration, "faulted") with { Failure = failure };
+        }
+
+        var rest = cooldown.Refused(provider.Name);
+
+        logger.LogWarning("{Provider} refused '{Query}' after {Ms:F0}ms and is left alone for {Rest}: {Reason}",
+            provider.Name, query, duration.TotalMilliseconds, rest, failure.Message);
+
+        return Record(provider, query, duration, "refused") with { Failure = failure };
     }
 
     private static SearchAttempt Record(ISearchProvider provider, string query, TimeSpan duration, string outcome)

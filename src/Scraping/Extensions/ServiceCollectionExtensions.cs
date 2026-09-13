@@ -33,19 +33,17 @@ public static class ServiceCollectionExtensions
 
             services.AddWeb(configuration);
 
-            var scraping = services.AddOptions<ScrapingOptions>()
-                .Bind(configuration.GetSection(ScrapingOptions.SectionName));
+            var scraping = services.BindOnce<ScrapingOptions>(configuration, ScrapingOptions.SectionName);
 
             if (configure is not null)
                 scraping.Configure(configure);
 
             Validated(scraping);
 
-            Validated(services.AddOptions<HumanBehaviorOptions>()
-                .Bind(configuration.GetSection(HumanBehaviorOptions.SectionName)));
+            Validated(services.BindOnce<HumanBehaviorOptions>(
+                configuration, HumanBehaviorOptions.SectionName));
 
-            Validated(services.AddOptions<CrawlOptions>()
-                .Bind(configuration.GetSection(CrawlOptions.SectionName)));
+            Validated(services.BindOnce<CrawlOptions>(configuration, CrawlOptions.SectionName));
 
             return services.AddScrapingParts();
         }
@@ -78,9 +76,11 @@ public static class ServiceCollectionExtensions
             services.AddSiteRules<HttpRobotsSource>();
 
             services.TryAddSingleton<ISitemapSource, HttpSitemapSource>();
+            services.TryAddSingleton<ISiteIndex, SitemapIndex>();
             services.TryAddSingleton<IStealthScript, StealthScript>();
             services.TryAddSingleton<IClientHints, ClientHints>();
             services.TryAddSingleton<IVisits, Visits>();
+            services.TryAddSingleton(typeof(IAttempts<>), typeof(Attempts<>));
             services.TryAddSingleton<IHumanBehavior, HumanBehavior>();
             services.TryAddSingleton<IPageReader, PageReader>();
             services.TryAddSingleton<ICrawler, Crawler>();

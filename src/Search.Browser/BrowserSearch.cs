@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
 
 namespace Snail.Toolkit.Web.Search.Browser;
@@ -21,7 +22,8 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// with <c>AddSearchProvider&lt;T&gt;()</c> and stay idempotent: a factory registration could not be deduplicated
 /// and a second call would ask the same engine twice per query.
 /// </remarks>
-public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearchProvider
+public abstract class BrowserSearch(IPageReader pages, IOptions<SearchOptions> search, ILogger logger)
+    : ISearchProvider
 {
     /// <inheritdoc />
     public abstract string Name { get; }
@@ -46,25 +48,34 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
     /// Markup that cannot be followed must answer with nothing rather than throw: the caller then records an
     /// answered attempt that found nothing, and an engine whose layout changed shows up in the metrics as one
     /// that suddenly always answers empty. An exception per query would only look like an outage.
+    /// <para>
+    /// The results are handed over whole and the ceiling is applied by the caller of this, so an engine
+    /// supplies a parser and nothing else. Until 2026-09-13 no ceiling was applied here at all:
+    /// <see cref="SearchOptions.MaxResultsPerProvider"/> was read by the two engines that fetch over HTTP and
+    /// by neither of the two that drive a browser, and Brave alone answered with a hundred links.
+    /// </para>
     /// </remarks>
     protected abstract IEnumerable<SearchResult> Parsed(string html);
 
     /// <inheritdoc />
-    /// <exception cref="PageRefusedException">The engine turned the request away.</exception>
-    /// <exception cref="PageUnreadException">The results page could not be read for any other reason.</exception>
-    public async Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
+    public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return [];
+            return SearchAnswer.Success([]);
 
         var outcome = await pages.ReadAsync(AddressOf(query), ct);
 
         if (!outcome.IsSuccess)
-            throw Unread(outcome.Failure);
+            return SearchAnswer.Failed(Unread(outcome.Failure));
 
         var page = outcome.Value;
 
-        IReadOnlyList<SearchResult> results = [.. Parsed(page.Html).Where(result => IsOutbound(result.Address))];
+        IReadOnlyList<SearchResult> results =
+        [
+            .. Parsed(page.Html)
+                .Where(result => IsOutbound(result.Address))
+                .Take(search.Value.MaxResultsPerProvider)
+        ];
 
         if (results.Count == 0)
             logger.LogWarning(
@@ -72,7 +83,7 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
                 + "a layout change looks like from here.",
                 Name, page.Html.Length);
 
-        return results;
+        return SearchAnswer.Success(results);
     }
 
     /// <summary>Answers whether a link leads off the results page rather than around it.</summary>
@@ -94,11 +105,11 @@ public abstract class BrowserSearch(IPageReader pages, ILogger logger) : ISearch
     /// DNS failure say nothing about the engine's patience, and the search — which rests an engine over a
     /// refusal — would otherwise leave a working engine out over a hiccup on this side.
     /// </remarks>
-    private Exception Unread(PageFailure failure)
+    private SearchFailure Unread(PageFailure failure)
     {
         if (failure is { Kind: FailureKind.Blocked } or { Kind: FailureKind.Navigation, StatusCode: 429 })
-            return new PageRefusedException(Name, failure);
+            return new SearchFailure(SearchFailureKind.Refused, $"{Name} could not be read. {failure}");
 
-        return new PageUnreadException(Name, failure);
+        return new SearchFailure(SearchFailureKind.Faulted, $"{Name} could not be read. {failure}");
     }
 }

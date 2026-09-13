@@ -27,16 +27,39 @@ public static class ServiceCollectionExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            services.AddOptions<IdentityOptions>()
-                .Bind(configuration.GetSection(IdentityOptions.SectionName));
-
-            services.AddOptions<PolitenessOptions>()
-                .Bind(configuration.GetSection(PolitenessOptions.SectionName));
-
-            services.AddOptions<RobotsOptions>()
-                .Bind(configuration.GetSection(RobotsOptions.SectionName));
+            services.BindOnce<IdentityOptions>(configuration, IdentityOptions.SectionName);
+            services.BindOnce<PolitenessOptions>(configuration, PolitenessOptions.SectionName);
+            services.BindOnce<RobotsOptions>(configuration, RobotsOptions.SectionName);
 
             return services.AddWeb();
+        }
+
+        /// <summary>Binds a settings section the first time it is asked for, and does nothing after that.</summary>
+        /// <remarks>
+        /// <c>TryAdd</c> guards the services; nothing guarded the settings. Binding appends to a
+        /// <see cref="List{T}"/> rather than replacing it, so every module that reaches the core's own section
+        /// added the configured entries again: measured on 2026-09-13, a consumer calling
+        /// <c>AddPageAgent</c> beside <c>AddBrowserSearch</c> got one configured proxy three times and passed
+        /// <c>--lang=en-US</c> to Chromium twice.
+        /// <para>
+        /// A marker per settings type is what makes the second call free. <see cref="ServiceCollectionDescriptorExtensions"/>
+        /// deduplicates only descriptors that name an implementation type, and a bound section is an instance,
+        /// so it can never be one of those.
+        /// </para>
+        /// </remarks>
+        public OptionsBuilder<TOptions> BindOnce<TOptions>(IConfiguration configuration, string section)
+            where TOptions : class
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            var builder = services.AddOptions<TOptions>();
+
+            if (services.Any(registration => registration.ServiceType == typeof(Bound<TOptions>)))
+                return builder;
+
+            services.AddSingleton(new Bound<TOptions>());
+
+            return builder.Bind(configuration.GetSection(section));
         }
 
         /// <summary>Registers everything the core provides, leaving the settings at their defaults.</summary>
@@ -110,6 +133,10 @@ public static class ServiceCollectionExtensions
             return services;
         }
     }
+
+    /// <summary>Records that one settings type has had its section bound already.</summary>
+    private sealed class Bound<TOptions>
+        where TOptions : class;
 
     /// <summary>Refuses to start the host on settings that cannot work.</summary>
     /// <remarks>

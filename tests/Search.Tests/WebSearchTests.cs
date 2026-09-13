@@ -149,9 +149,9 @@ public class WebSearchTests
         var recovering = new StubProvider("B", _ =>
         {
             if (refusalsLeft-- > 0)
-                throw new SearchRefusedException("B", "challenge page");
+                return SearchAnswer.Failed(new SearchFailure(SearchFailureKind.Refused, "challenge page"));
 
-            return [];
+            return SearchAnswer.Success([]);
         });
         var search = Search(Cooldown(clock), Answering("A", "https://example.com/a"), recovering);
 
@@ -289,27 +289,28 @@ public class WebSearchTests
         => new(Options.Create(new SearchOptions()), clock);
 
     private static ISearchProvider Answering(string name, params string[] urls)
-        => new StubProvider(name, _ => [.. urls.Select(url => new SearchResult
+        => new StubProvider(name, _ => SearchAnswer.Success([.. urls.Select(url => new SearchResult
         {
             Title = url,
             Address = Link.Of(url),
             Snippet = string.Empty,
             Provider = name
-        })]);
+        })]));
 
-    private static ISearchProvider Empty(string name) => new StubProvider(name, _ => []);
+    private static ISearchProvider Empty(string name) => new StubProvider(name, _ => SearchAnswer.Success([]));
 
     private static ISearchProvider Faulting(string name)
         => new StubProvider(name, _ => throw new InvalidOperationException("provider is down"));
 
     private static ISearchProvider Refusing(string name)
-        => new StubProvider(name, _ => throw new SearchRefusedException(name, "challenge page"));
+        => new StubProvider(name, _ =>
+            SearchAnswer.Failed(new SearchFailure(SearchFailureKind.Refused, "challenge page")));
 
-    private sealed class StubProvider(string name, Func<string, IReadOnlyList<SearchResult>> answer) : ISearchProvider
+    private sealed class StubProvider(string name, Func<string, SearchAnswer> answer) : ISearchProvider
     {
         public string Name => name;
 
-        public Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
+        public Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
             => Task.FromResult(answer(query));
     }
 }

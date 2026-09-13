@@ -176,4 +176,28 @@ public class RobotsFileTests
             User-agent: *
             {line}
             """).CrawlDelay("*"));
+
+    /// <summary>A rule written to take forever answers in the time a rule is given, and permits the fetch.</summary>
+    /// <remarks>
+    /// The expression comes from a file the site being read wrote. A pattern alternating literals and
+    /// wildcards backtracks catastrophically on a path that nearly matches it, so without a deadline one line
+    /// of one <c>robots.txt</c> holds the thread reading that site for as long as the site likes. The
+    /// deadline is a hundred milliseconds and a path match needs microseconds, so a second is a ceiling this
+    /// cannot reach unless the deadline is gone. Measured on 2026-09-13: this pattern against this path
+    /// answers in 105 ms with the deadline and was still running after five seconds without it.
+    /// </remarks>
+    [Fact]
+    public void IsAllowed_PatternWrittenToBacktrack_AnswersWithinTheDeadline()
+    {
+        var rules = RobotsFile.Parse("""
+            User-agent: *
+            Disallow: /a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*b
+            """);
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var isAllowed = rules.IsAllowed($"/{new string('a', 200)}c", "*");
+
+        Assert.True(System.Diagnostics.Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(1));
+        Assert.True(isAllowed);
+    }
 }

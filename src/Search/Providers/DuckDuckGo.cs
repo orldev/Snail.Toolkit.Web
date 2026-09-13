@@ -1,6 +1,7 @@
 using System.Globalization;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Search.Http;
 
 namespace Snail.Toolkit.Web.Search.Providers;
 
@@ -35,10 +36,10 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
     /// one either skips results or asks for the same page until the ceiling stops it.
     /// </para>
     /// </remarks>
-    public async Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
+    public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return [];
+            return SearchAnswer.Success([]);
 
         var wanted = options.Value.MaxResultsPerProvider;
         var client = clients.CreateClient(ProviderName);
@@ -49,7 +50,12 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
 
         for (var request = 0; request < MaxRequests && offset is { } start && found.Count < wanted; request++)
         {
-            var html = await PageAsync(client, query, start, ct);
+            var page = await PageAsync(client, query, start, ct);
+
+            if (!page.IsSuccess)
+                return SearchAnswer.Failed(page.Failure);
+
+            var html = page.Value;
             var added = found.Count;
 
             foreach (var result in Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted - added))
@@ -61,7 +67,7 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
             offset = NextOffset(html);
         }
 
-        return found;
+        return SearchAnswer.Success(found);
     }
 
     /// <summary>Reads the offset the page's own next-page control asks for, when it offers one.</summary>
@@ -91,14 +97,19 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
         return offsets.Length == 0 ? null : offsets.Max();
     }
 
-    private static async Task<string> PageAsync(HttpClient client, string query, int offset, CancellationToken ct)
+    private static async Task<Outcome<string, SearchFailure>> PageAsync(
+        HttpClient client,
+        string query,
+        int offset,
+        CancellationToken ct)
     {
         var address = $"https://html.duckduckgo.com/html/?q={Uri.EscapeDataString(query)}";
-        var response = await client.GetAsync(offset == 0 ? address : $"{address}&s={offset}", ct);
+        using var response = await client.GetAsync(offset == 0 ? address : $"{address}&s={offset}", ct);
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            return Outcome<string, SearchFailure>.Failed(Refusals.Of(ProviderName, response.StatusCode));
 
-        return await response.Content.ReadAsStringAsync(ct);
+        return Outcome<string, SearchFailure>.Success(await response.Content.ReadAsStringAsync(ct));
     }
 
     /// <summary>Reads the result blocks out of one page of markup.</summary>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Extensions;
 using Snail.Toolkit.Web.Scraping.Extensions;
 using Snail.Toolkit.Web.Search.Extensions;
 
@@ -36,8 +37,7 @@ public static class ServiceCollectionExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            Validated(services.AddOptions<GoogleOptions>()
-                .Bind(configuration.GetSection(GoogleOptions.SectionName)));
+            Validated(services.BindOnce<GoogleOptions>(configuration, GoogleOptions.SectionName));
 
             return services.AddSearchProvider<Google>();
         }
@@ -53,8 +53,7 @@ public static class ServiceCollectionExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            Validated(services.AddOptions<BraveOptions>()
-                .Bind(configuration.GetSection(BraveOptions.SectionName)));
+            Validated(services.BindOnce<BraveOptions>(configuration, BraveOptions.SectionName));
 
             return services.AddSearchProvider<Brave>();
         }

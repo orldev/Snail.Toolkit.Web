@@ -61,6 +61,7 @@ public sealed class FormFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Keyed), "/usr/share/nginx/html/keyed.html")
             .WithResourceMapping(Bytes(Pages.Widgeted), "/usr/share/nginx/html/widgeted.html")
             .WithResourceMapping(Bytes(Pages.Challenge), "/usr/share/nginx/html/challenge.html")
+            .WithResourceMapping(Bytes(Pages.Turning), "/usr/share/nginx/html/turning.html")
             .WithResourceMapping(Bytes(Pages.Minting), "/usr/share/nginx/html/minting.html")
             .WithResourceMapping(Bytes(Pages.Suggestions), "/usr/share/nginx/html/suggest.json")
             .WithResourceMapping(Bytes(Pages.Robots), "/usr/share/nginx/html/robots.txt")
@@ -242,6 +243,25 @@ public sealed class FormFixture : IAsyncLifetime
             <!doctype html>
             <html><head><title>Just a moment</title></head>
             <body><div id="cf-browser-verification">Checking your browser before accessing</div></body></html>
+            """;
+
+        /// <summary>A page that welcomes a visitor and shows them the door the moment they use it.</summary>
+        /// <remarks>
+        /// A miniature of what Google does, measured on 2026-09-13: the home page loads, the query is typed,
+        /// the form submit is accepted, the results begin to load — and then the site redirects to a challenge.
+        /// A fixture that refuses on arrival cannot reproduce it, because the arrival is already guarded.
+        /// </remarks>
+        public const string Turning =
+            """
+            <!doctype html>
+            <html><head><title>Search</title></head>
+            <body>
+              <form action="/challenge.html" method="get">
+                <label for="q">Search</label>
+                <input id="q" name="q" type="text">
+                <button id="go" type="submit">Go</button>
+              </form>
+            </body></html>
             """;
 
         /// <summary>A form whose fields are named by captions rather than by anything bound to them.</summary>

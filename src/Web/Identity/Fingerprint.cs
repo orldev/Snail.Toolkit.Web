@@ -18,7 +18,15 @@ public sealed class Fingerprint
     public string Locale { get; set; } = "en-US";
 
     /// <summary>Gets or sets the IANA time zone, such as <c>Europe/Moscow</c>.</summary>
-    public string Timezone { get; set; } = "UTC";
+    /// <remarks>
+    /// The default is a real zone rather than <c>UTC</c>, and that is not cosmetic. Measured on 13 September
+    /// 2026 from one residential address, a fresh browser profile per arm and one variable changed between
+    /// them: Google answered <c>/sorry/</c> on <c>UTC</c> and returned results on both
+    /// <c>America/New_York</c> and <c>Europe/Moscow</c>, the second disagreeing with the exit address. A zone
+    /// that contradicts the address is therefore not what is read — people travel and use VPNs — but
+    /// <c>UTC</c> is what containers and servers default to, and consumer machines do not run it.
+    /// </remarks>
+    public string Timezone { get; set; } = "America/New_York";
 
     /// <summary>Gets or sets the <c>Accept-Language</c> header value.</summary>
     public string AcceptLanguage { get; set; } = "en-US,en;q=0.9";

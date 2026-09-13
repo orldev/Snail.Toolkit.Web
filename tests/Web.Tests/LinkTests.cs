@@ -68,4 +68,39 @@ public class LinkTests
     {
         Assert.Equal("http://Example.com/a/", Link.Of("http://Example.com/a/").ToString());
     }
+
+    /// <summary>A password written into an address must not survive into anything that is read.</summary>
+    /// <remarks>
+    /// <see cref="Link.Canonical"/> is the key a crawl deduplicates by and the value the reader puts on the
+    /// <c>url.full</c> span tag, and <see cref="Link.ToString"/> is what a log line prints. Until 2026-09-13
+    /// credentials reached all three, so one link carrying them published them to the tracing backend and to
+    /// every log that named the link.
+    /// </remarks>
+    [Theory]
+    [InlineData("https://user:secret@example.com/a")]
+    [InlineData("http://user:secret@example.com:8443/a")]
+    [InlineData("https://user@example.com/a")]
+    public void Of_AddressCarryingCredentials_KeepsThemOutOfEveryFormThatIsRead(string url)
+    {
+        var link = Link.Of(url);
+
+        Assert.DoesNotContain("secret", link.Canonical, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", link.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("user", link.Canonical, StringComparison.Ordinal);
+        Assert.DoesNotContain("user", link.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>The transport still gets the credentials, because it is the one thing that needs them.</summary>
+    [Fact]
+    public void Of_AddressCarryingCredentials_LeavesThemOnTheParsedAddress()
+    {
+        Assert.Equal("user:secret", Link.Of("https://user:secret@example.com/a").Address!.UserInfo);
+    }
+
+    /// <summary>Credentials are not part of a page's identity: the same page is the same link with or without them.</summary>
+    [Fact]
+    public void Of_TheSamePageWithAndWithoutCredentials_IsOneLink()
+    {
+        Assert.Equal(Link.Of("https://example.com/a"), Link.Of("https://user:secret@example.com/a"));
+    }
 }

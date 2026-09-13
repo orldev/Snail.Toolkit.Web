@@ -28,7 +28,7 @@ public sealed record Link
     /// <summary>Gets the form two providers would agree on.</summary>
     public string Canonical { get; }
 
-    /// <summary>Gets the address as it was written.</summary>
+    /// <summary>Gets the address as it was written, less any credentials it carried.</summary>
     public string Text { get; }
 
     /// <summary>Gets the parsed address, or <see langword="null"/> when the text is not an absolute http address.</summary>
@@ -42,6 +42,13 @@ public sealed record Link
     /// Anything that is not an absolute http or https address is kept verbatim rather than rejected. A
     /// provider that hands back a relative or malformed href is still reporting something, and dropping it
     /// here would lose the fact silently — <see cref="IsAbsolute"/> is where the caller answers it.
+    /// <para>
+    /// Credentials survive into <see cref="Address"/> and into nothing else. Every other form of a link is
+    /// read by somebody: <see cref="Canonical"/> is the key a crawl deduplicates by and the value the reader
+    /// puts on the <c>url.full</c> span tag, and <see cref="Text"/> is what a log line prints. Until
+    /// 2026-09-13 a password written into an address reached all three, so one link with basic credentials
+    /// published them to the tracing backend and to every log that named the link.
+    /// </para>
     /// </remarks>
     public static Link Of(string url)
     {
@@ -57,6 +64,8 @@ public sealed record Link
         {
             Scheme = Uri.UriSchemeHttps,
             Host = address.Host.ToLowerInvariant(),
+            UserName = string.Empty,
+            Password = string.Empty,
             Fragment = string.Empty,
             Query = WithoutTracking(address.Query),
             Port = address.IsDefaultPort ? -1 : address.Port
@@ -65,7 +74,18 @@ public sealed record Link
         if (builder.Path.Length > 1)
             builder.Path = builder.Path.TrimEnd('/');
 
-        return new Link(builder.Uri.AbsoluteUri, text, address);
+        return new Link(builder.Uri.AbsoluteUri, Shown(address, text), address);
+    }
+
+    /// <summary>The address in the form it is safe to print: as written, unless it was written with credentials.</summary>
+    private static string Shown(Uri address, string text)
+    {
+        if (address.UserInfo.Length == 0)
+            return text;
+
+        var plain = new UriBuilder(address) { UserName = string.Empty, Password = string.Empty };
+
+        return plain.Uri.AbsoluteUri;
     }
 
     private static string WithoutTracking(string query)

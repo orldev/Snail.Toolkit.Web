@@ -14,15 +14,16 @@ namespace Snail.Toolkit.Web.Scraping.Agent;
 /// Opens a page, makes each move on it and refuses to call a move done until the site reacts.
 /// </summary>
 /// <remarks>
-/// The ceremony before the first move — identity, robots, politeness, a prepared context — is the reader's, taken
-/// through <see cref="IVisits"/> rather than rebuilt here, because the last defect in this area was a context that
-/// announced one browser in its headers and another in script after the two were set in two places.
+/// The ceremony before the first move — identity, robots, politeness, a prepared context — is not rebuilt here.
+/// The context comes through <see cref="IVisits"/>, because the last defect in this area was a context that
+/// announced one browser in its headers and another in script after the two were set in two places; everything
+/// around the attempt comes through <see cref="IAttempts{TValue}"/>, which is also where the errand gained a
+/// retry it never had — a browser that went away in the middle of a form used to lose the errand outright,
+/// while the same failure in a plain page read had been retried since the beginning.
 /// </remarks>
 public sealed class PageAgent(
+    IAttempts<PageContent> attempts,
     IVisits visits,
-    IIdentityRotation identities,
-    IPoliteness politeness,
-    ISiteRules rules,
     IBlockDetector blocks,
     ITextExtraction text,
     IOptions<ScrapingOptions> scraping,
@@ -44,29 +45,21 @@ public sealed class PageAgent(
           })
         """;
 
-    private readonly ScrapingOptions _scraping = scraping.Value;
     private readonly AgentOptions _agent = agent.Value;
 
+    private readonly ContentBudget _budget = scraping.Value.MaxContentCharacters > 0
+        ? ContentBudget.Of(scraping.Value.MaxContentCharacters)
+        : ContentBudget.Unlimited;
+
     /// <inheritdoc />
-    public async Task<PageOutcome> PerformAsync(Errand errand, CancellationToken ct = default)
+    public Task<PageOutcome> PerformAsync(Errand errand, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(errand);
 
-        if (errand.Address.Address is not { } target)
-            return PageOutcome.Failed(new PageFailure(
-                FailureKind.Navigation, "Not an absolute http or https address.") { Address = errand.Address });
-
-        var identity = identities.Next();
-
-        if (!await rules.IsAllowedAsync(target, identity.Proxy, ct))
-            return PageOutcome.Failed(new PageFailure(
-                FailureKind.RobotsDisallowed,
-                "The site's robots.txt forbids this URL for the configured agent.") { Address = errand.Address });
-
-        await using var turn = await politeness.EnterAsync(
-            target, await rules.DelayAsync(target, identity.Proxy, ct), ct);
-
-        return await WalkAsync(errand, target, identity, ct);
+        return attempts.AtAsync(
+            errand.Address,
+            (identity, target, token) => WalkAsync(errand, target, identity, token),
+            ct);
     }
 
     private async Task<PageOutcome> WalkAsync(Errand errand, Uri target, WebIdentity identity, CancellationToken ct)
@@ -112,23 +105,9 @@ public sealed class PageAgent(
         {
             throw;
         }
-        catch (System.TimeoutException exception)
+        catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
         {
-            return PageOutcome.Failed(new PageFailure(FailureKind.Timeout, exception.Message)
-            {
-                Address = errand.Address,
-                Cause = exception,
-                UserAgent = identity.UserAgent
-            });
-        }
-        catch (PlaywrightException exception)
-        {
-            return PageOutcome.Failed(new PageFailure(FailureKind.Unexpected, exception.Message)
-            {
-                Address = errand.Address,
-                Cause = exception,
-                UserAgent = identity.UserAgent
-            });
+            return PageOutcome.Failed(BrowserFailure.Of(exception, errand.Address, identity));
         }
     }
 
@@ -417,11 +396,7 @@ public sealed class PageAgent(
                 UserAgent = identity.UserAgent
             });
 
-        var budget = _scraping.MaxContentCharacters > 0
-            ? ContentBudget.Of(_scraping.MaxContentCharacters)
-            : ContentBudget.Unlimited;
-
-        var budgeted = budget.Apply(text.Clean(html));
+        var budgeted = _budget.Apply(text.Clean(html));
 
         return PageOutcome.Success(new PageContent(errand.Address, html, budgeted.Text, DateTimeOffset.UtcNow)
         {
@@ -438,6 +413,17 @@ public sealed class PageAgent(
     /// The state of the page is gathered here rather than left to the caller because by the time an outcome is
     /// read the browser is gone. Answering "what was on the page instead" by hand took five throwaway scripts
     /// on 2026-09-12, all of them asking what the agent already had in front of it.
+    /// <para>
+    /// The document is inspected for a refusal first, because a step stops producing anything the moment the
+    /// site shows the door, and the two answers call for opposite reactions: a challenge is
+    /// <see cref="FailureKind.Blocked"/> and worth another identity, while <see cref="FailureKind.Empty"/> is
+    /// final and worth none. Measured against Google on 2026-09-13: the errand typed the query, the site
+    /// accepted the submit and began loading the results, then redirected to a reCAPTCHA — and the outcome
+    /// came back as a step that produced nothing, so the one fact worth acting on was left in the prose while
+    /// the kind a caller branches on said the opposite. The arrival is checked in
+    /// <see cref="RefusedAsync"/> and the finished page in <see cref="ReadAsync"/>; this is the third door,
+    /// and it was the one standing open.
+    /// </para>
     /// </remarks>
     private async Task<PageFailure> FruitlessAsync(
         IPage page,
@@ -449,12 +435,24 @@ public sealed class PageAgent(
         ILocator wanted,
         Trail trail)
     {
+        var verdict = blocks.Inspect(await page.ContentAsync(), page.Url);
         var scene = await SceneAsync(page, wanted, trail);
+
+        logger.LogWarning("Step {Position} of {Total} produced nothing. {Scene}", position, errand.Steps.Count, scene);
+
+        if (verdict.IsBlocked)
+            return new PageFailure(
+                FailureKind.Blocked,
+                $"Step {position} of {errand.Steps.Count} produced nothing because the site had answered with a "
+                + $"challenge or refusal ({verdict.Signal}). {scene}")
+            {
+                Address = errand.Address,
+                UserAgent = identity.UserAgent
+            };
+
         var said = reaction is Reaction.Missing
             ? $"never showed {step.Where} within {step.Ready.TotalSeconds:0.#}s"
             : $"did not react to {step.Kind} at {step.Where} after {Tried(step)}; expected {Wanted(step)}";
-
-        logger.LogWarning("Step {Position} of {Total} produced nothing. {Scene}", position, errand.Steps.Count, scene);
 
         return new PageFailure(
             FailureKind.Empty,

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Search.Http;
 
 namespace Snail.Toolkit.Web.Search.Providers;
 
@@ -34,10 +35,10 @@ public sealed partial class Bing(IHttpClientFactory clients, IOptions<SearchOpti
     public string Name => ProviderName;
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
+    public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
-            return [];
+            return SearchAnswer.Success([]);
 
         var wanted = options.Value.MaxResultsPerProvider;
         var client = clients.CreateClient(ProviderName);
@@ -46,12 +47,13 @@ public sealed partial class Bing(IHttpClientFactory clients, IOptions<SearchOpti
             $"https://www.bing.com/search?q={Uri.EscapeDataString(query)}&count={Math.Min(wanted, 30)}",
             ct);
 
-        answered.EnsureSuccessStatusCode();
+        if (!answered.IsSuccessStatusCode)
+            return SearchAnswer.Failed(Refusals.Of(ProviderName, answered.StatusCode));
 
         var html = await answered.Content.ReadAsStringAsync(ct);
         var seen = new HashSet<Link>();
 
-        return [.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)];
+        return SearchAnswer.Success([.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)]);
     }
 
     /// <summary>Reads the result blocks out of one page of markup.</summary>

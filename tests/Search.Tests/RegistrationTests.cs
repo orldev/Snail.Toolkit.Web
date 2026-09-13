@@ -185,7 +185,7 @@ public class RegistrationTests
     {
         public string Name => "Elsewhere";
 
-        public Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<SearchResult>>([]);
+        public Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
+            => Task.FromResult(SearchAnswer.Success([]));
     }
 }

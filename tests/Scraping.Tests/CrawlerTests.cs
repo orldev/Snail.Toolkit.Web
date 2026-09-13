@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Robots;
+using Snail.Toolkit.Web.Scraping.Sitemaps;
 using Snail.Toolkit.Web.Sitemaps;
 using Snail.Toolkit.Web.Text;
 
@@ -393,6 +394,47 @@ public class CrawlerTests
         Assert.Equal("Wheat prices", Page(report, Home).Title);
     }
 
+    /// <summary>A scope that cannot be walked is refused, never thrown at the caller.</summary>
+    /// <remarks>
+    /// Every ceiling on a scope is <c>required</c> and the caller sets it, so nothing validated at start-up
+    /// covers one. The ceilings were read without being checked, and a budget of zero reached
+    /// <c>CancelAfter</c>, which answered a setting mistake with an <see cref="ArgumentOutOfRangeException"/>
+    /// out of the middle of a crawl rather than with the report the rest of this class answers in.
+    /// </remarks>
+    [Fact]
+    public async Task CrawlAsync_ScopeAllowedToReadNoPages_IsRefusedAndSaysWhy()
+    {
+        var report = await Refusal(scope => scope with { MaxPages = 0 });
+
+        Assert.Equal(CrawlStop.Refused, report.Stop);
+        Assert.Contains("no pages", report.Pages.Single().Failure!.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task CrawlAsync_ScopeWithNoTimeToSpend_IsRefused(int seconds)
+    {
+        var report = await Refusal(scope => scope with { Budget = TimeSpan.FromSeconds(seconds) });
+
+        Assert.Equal(CrawlStop.Refused, report.Stop);
+    }
+
+    [Fact]
+    public async Task CrawlAsync_ScopeFollowingLinksToANegativeDepth_IsRefused()
+    {
+        var report = await Refusal(scope => scope with { MaxDepth = -1 });
+
+        Assert.Equal(CrawlStop.Refused, report.Stop);
+    }
+
+    private static async Task<CrawlReport> Refusal(Func<CrawlScope, CrawlScope> narrow)
+    {
+        var crawler = Crawler(new StubReader(Ok));
+
+        return await crawler.CrawlAsync(narrow(Scope(crawler)));
+    }
+
     private static CrawlScope Scope(ICrawler crawler) => crawler.ScopeOf(Link.Of(Site));
 
     private static CrawlPage Page(CrawlReport report, string canonical)
@@ -428,10 +470,13 @@ public class CrawlerTests
         int text = 0)
         => new(
             reader,
-            new StubRules(),
-            new StubSitemaps(sitemap ?? (_ => SitemapFile.Empty)),
+            new SitemapIndex(
+                new StubRules(),
+                new StubSitemaps(sitemap ?? (_ => SitemapFile.Empty)),
+                new StubIdentities(),
+                Options.Create(new CrawlOptions()),
+                NullLogger<SitemapIndex>.Instance),
             new LinkExtraction(),
-            new StubIdentities(),
             Options.Create(new ScrapingOptions { MaxDegreeOfParallelism = parallelism }),
             Options.Create(new CrawlOptions { MaxTextCharacters = text }),
             NullLogger<Crawler>.Instance);

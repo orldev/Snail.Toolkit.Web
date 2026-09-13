@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Extensions;
 using Snail.Toolkit.Web.Scraping.Extensions;
 
 namespace Snail.Toolkit.Web.Scraping.Agent.Extensions;
@@ -20,8 +21,7 @@ public static class ServiceCollectionExtensions
 
             services.AddScraping(configuration);
 
-            Validated(services.AddOptions<AgentOptions>()
-                .Bind(configuration.GetSection(AgentOptions.SectionName)));
+            Validated(services.BindOnce<AgentOptions>(configuration, AgentOptions.SectionName));
 
             services.TryAddSingleton<IPageAgent, PageAgent>();
             services.TryAddSingleton<ISiteCalls, SiteCalls>();

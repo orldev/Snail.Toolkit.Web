@@ -75,6 +75,27 @@ public class RegistrationTests
         Assert.Equal(4, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
+    /// <summary>Registration is idempotent in its settings too, not only in its services.</summary>
+    /// <remarks>
+    /// Browser search is HTTP search plus a page reader, so one call reaches the core's registration twice and
+    /// binds its sections twice. Binding appends to a list rather than replacing it: measured on 2026-09-13,
+    /// two configured proxies came back as four and a Chromium switch was passed twice. The test above covers
+    /// the services, which <c>TryAdd</c> already guarded — this one covers the half that was not guarded.
+    /// </remarks>
+    [Fact]
+    public async Task AddBrowserSearch_ReachingTheCoreThroughBothHalves_BindsTheIdentityListOnce()
+    {
+        await using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Identity:Proxies:0"] = "http://one.example:8080",
+            ["Web:Identity:Proxies:1"] = "http://two.example:8080"
+        });
+
+        var identity = provider.GetRequiredService<IOptions<Identity.IdentityOptions>>().Value;
+
+        Assert.Equal(["http://one.example:8080", "http://two.example:8080"], identity.Proxies);
+    }
+
     /// <summary>
     /// The second browser engine is configured and validated the same way as the first.
     /// </summary>

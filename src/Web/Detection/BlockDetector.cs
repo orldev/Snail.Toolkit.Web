@@ -10,9 +10,15 @@ namespace Snail.Toolkit.Web.Detection;
 /// with <c>/sorry/</c> and sends European visitors to a consent host, and neither page carries any of the
 /// markup markers. An earlier version watched the body alone, so a refusal arrived as a successful fetch whose
 /// parse found nothing, and the failure was recorded as "empty" rather than "blocked".
-/// The generic words <c>captcha</c> and <c>blocked</c> are deliberately absent from the markup list: an
-/// article that discusses captchas would match them, and a false block is worse than a missed one — it burns
-/// a proxy and a retry.
+/// The generic words <c>captcha</c> and <c>blocked</c> are deliberately absent from both lists: an article
+/// that discusses captchas would match them, and a false block is worse than a missed one — it burns a proxy
+/// and a retry.
+/// <para>
+/// That rule was written for the markup and broken by the URL beside it, where the bare word stood until
+/// 2026-09-13: any address carrying it — <c>/blog/how-captcha-works</c> — was called a refusal, and because
+/// a refusal is transient the reader then spent three identities proving it again. A signal belongs here only
+/// when the words are a refusal wherever they appear, which is why what is left are whole paths and hosts.
+/// </para>
 /// </remarks>
 public sealed partial class BlockDetector : IBlockDetector
 {
@@ -37,7 +43,8 @@ public sealed partial class BlockDetector : IBlockDetector
         "/sorry/",
         "consent.google.com",
         "/challenge-platform/",
-        "captcha"
+        "/cdn-cgi/challenge",
+        "challenges.cloudflare.com"
     ];
 
     /// <inheritdoc />

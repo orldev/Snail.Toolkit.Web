@@ -25,8 +25,16 @@ public sealed class CrawlOptions
     /// <remarks>
     /// A crawl that hits this keeps everything it read and says the time ran out, because a partial answer to
     /// "what is on this site" is worth having and an exception is not.
+    /// <para>
+    /// Forty minutes rather than ten, decided on 2026-09-13. A page costs eight to nine seconds on the defaults
+    /// — a second of politeness, one request per host, behaviour simulated — so ten minutes bought about
+    /// seventy pages against a ceiling of five hundred: the ceiling was decoration and every crawl of a real
+    /// site ended as <see cref="CrawlStop.TimeLimit"/> whatever <see cref="MaxPages"/> said. This is still
+    /// short of what the ceiling allows, and deliberately so: the two are a budget and a limit, not one number
+    /// written twice, and a crawl is an operation whose price the caller is meant to see.
+    /// </para>
     /// </remarks>
-    public TimeSpan Budget { get; set; } = TimeSpan.FromMinutes(10);
+    public TimeSpan Budget { get; set; } = TimeSpan.FromMinutes(40);
 
     /// <summary>Gets or sets how many links deep the crawl follows when it has to follow links at all.</summary>
     /// <remarks>Ignored on a site with a sitemap: there is no depth in a list.</remarks>

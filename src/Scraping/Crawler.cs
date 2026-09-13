@@ -3,9 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Robots;
-using Snail.Toolkit.Web.Sitemaps;
 using Snail.Toolkit.Web.Streaming;
 using Snail.Toolkit.Web.Text;
 
@@ -16,20 +13,18 @@ namespace Snail.Toolkit.Web.Scraping;
 /// </summary>
 /// <remarks>
 /// The fan-out itself lives in the core, where search reuses it. What is decided here is how many pages may be
-/// open at once, where a site's addresses come from, and when to stop.
+/// open at once, how far the walk goes, and when to stop.
 /// <para>
-/// Following links is the fallback, not the plan. A site that publishes a sitemap hands over its own list of
-/// pages — including the ones nothing links to — and reading that list is the batch this class already does.
-/// The link walk exists for sites that publish none, and it runs level by level so that the frontier, not the
-/// call stack, holds what is left to read.
+/// Where a site's addresses come from is <see cref="ISiteIndex"/>'s, not this class's. Following links is the
+/// fallback, not the plan: a site that publishes a list hands over its own pages — including the ones nothing
+/// links to — and reading that list is the batch this class already does. The link walk exists for sites that
+/// publish none, and it runs level by level so that the frontier, not the call stack, holds what is left to read.
 /// </para>
 /// </remarks>
 public sealed class Crawler(
     IPageReader reader,
-    ISiteRules rules,
-    ISitemapSource sitemaps,
+    ISiteIndex index,
     ILinkExtraction links,
-    IIdentityRotation identities,
     IOptions<ScrapingOptions> scraping,
     IOptions<CrawlOptions> crawling,
     ILogger<Crawler> logger) : ICrawler
@@ -93,17 +88,17 @@ public sealed class Crawler(
 
         var started = Stopwatch.GetTimestamp();
 
-        if (scope.Start.Address is not { } start)
-            return Refused(scope, started);
+        if (Impossible(scope) is { } reason)
+            return Refused(scope, started, reason);
 
-        var visit = new Visit(scope, start);
+        var visit = new Visit(scope);
 
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
         budget.CancelAfter(scope.Budget);
 
         try
         {
-            await VisitAsync(visit, start, budget.Token);
+            await VisitAsync(visit, budget.Token);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -127,23 +122,23 @@ public sealed class Crawler(
         };
     }
 
-    private async Task VisitAsync(Visit visit, Uri start, CancellationToken ct)
+    private async Task VisitAsync(Visit visit, CancellationToken ct)
     {
-        var proxy = identities.Next().Proxy;
-        var listed = await ListedAsync(visit, start, proxy, ct);
+        var listed = await index.ListedAsync(visit.Scope, visit.Scope.MaxPages - 1, ct);
 
-        if (listed.Count > 0)
+        if (!listed.IsPublished)
         {
-            visit.IsFromSitemap = true;
-
-            await LevelAsync(visit, listed, depth: 0, isFollowing: false, ct);
-
-            visit.Stop = visit.IsFull ? CrawlStop.PageLimit : CrawlStop.Exhausted;
+            await FollowAsync(visit, ct);
 
             return;
         }
 
-        await FollowAsync(visit, ct);
+        visit.IsFromSitemap = true;
+        visit.HasMore = listed.HasMore;
+
+        await LevelAsync(visit, listed.Pages, depth: 0, isFollowing: false, ct);
+
+        visit.Stop = visit.IsFull ? CrawlStop.PageLimit : CrawlStop.Exhausted;
     }
 
     /// <summary>Walks the site level by level, reading everything one link further out each time.</summary>
@@ -213,111 +208,9 @@ public sealed class Crawler(
 
         foreach (var link in links.From(page.Html, origin))
         {
-            if (IsWanted(visit, link) && visit.Seen.Add(link))
+            if (visit.Scope.Covers(link) && visit.Seen.Add(link))
                 yield return link;
         }
-    }
-
-    /// <summary>Asks the site for its own list of pages before walking it.</summary>
-    /// <remarks>
-    /// The list is read even where <c>robots.txt</c> is not obeyed: permission and self-description are
-    /// different questions, and a site that offers an index is worth taking up on it either way.
-    /// </remarks>
-    private async Task<IReadOnlyList<Link>> ListedAsync(
-        Visit visit,
-        Uri start,
-        ProxyEndpoint? proxy,
-        CancellationToken ct)
-    {
-        if (!visit.Scope.IsSitemapPreferred)
-            return [];
-
-        var origin = new Uri($"{start.Scheme}://{start.Authority}");
-        var published = await rules.RulesAsync(start, proxy, ct);
-
-        var declared = published.Sitemaps.Count > 0
-            ? published.Sitemaps
-            : [Link.Of(new Uri(origin, "/sitemap.xml").AbsoluteUri)];
-
-        var pending = new Queue<Link>(declared);
-        HashSet<Link> opened = [];
-        HashSet<Link> known = [visit.Scope.Start];
-        List<SitemapEntry> found = [];
-        var room = visit.Scope.MaxPages - 1;
-
-        while (pending.Count > 0 && opened.Count < _crawling.MaxSitemaps && found.Count < room)
-        {
-            var next = pending.Dequeue();
-
-            if (next.Address is not { } document || !opened.Add(next))
-                continue;
-
-            var file = await sitemaps.ReadAsync(document, proxy, ct);
-
-            foreach (var child in Ordered(visit, file.Sitemaps))
-                pending.Enqueue(child.Address);
-
-            foreach (var page in file.Pages)
-            {
-                if (IsWanted(visit, page.Address) && known.Add(page.Address))
-                    found.Add(page);
-            }
-        }
-
-        if (pending.Count > 0 || found.Count > room)
-            visit.HasMore = true;
-
-        if (found.Count == 0)
-        {
-            logger.LogInformation("{Origin} published no sitemap worth reading; following its links instead",
-                origin);
-
-            return [];
-        }
-
-        return [visit.Scope.Start, .. Ordered(visit, found).Take(room).Select(page => page.Address)];
-    }
-
-    /// <summary>The entries in the order they are read: by the site's own dates, newest first, when that is asked for.</summary>
-    /// <remarks>
-    /// The sort is stable and an undated entry sorts last, so a site that dates nothing is read in its own order,
-    /// and one that dates only some of its pages has those read first. Applied to the parts of an index before
-    /// they are opened and to the pages they list before the ceiling is applied — reading every part to find
-    /// the newest pages would be a crawl of its own, so the newest parts are opened first and the newest of what
-    /// they list is taken.
-    /// </remarks>
-    private static IEnumerable<SitemapEntry> Ordered(Visit visit, IEnumerable<SitemapEntry> entries)
-        => visit.Scope.IsNewestFirst
-            ? entries.OrderByDescending(entry => entry.LastModified ?? DateTimeOffset.MinValue)
-            : entries;
-
-    /// <summary>Answers whether an address is one the crawl reads: on the site, and not in an excluded section.</summary>
-    private static bool IsWanted(Visit visit, Link link)
-        => IsInScope(visit, link) && !IsExcluded(visit, link);
-
-    private static bool IsExcluded(Visit visit, Link link)
-        => link.Address is { } address
-           && visit.Scope.Excluded.Any(prefix => address.AbsolutePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Answers whether an address belongs to the site being read.</summary>
-    /// <remarks>
-    /// A leading <c>www.</c> is dropped before the subdomain comparison, so a crawl started at
-    /// <c>www.example.com</c> with subdomains on still covers <c>docs.example.com</c>. No public suffix list is
-    /// consulted: the site is whatever the starting address named, never a guess at the company behind it.
-    /// </remarks>
-    private static bool IsInScope(Visit visit, Link link)
-    {
-        if (link.Address is not { } address)
-            return false;
-
-        if (string.Equals(address.Host, visit.Host, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (!visit.Scope.IncludesSubdomains)
-            return false;
-
-        return string.Equals(address.Host, visit.Root, StringComparison.OrdinalIgnoreCase)
-               || address.Host.EndsWith($".{visit.Root}", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Turns one read into what the report keeps, or into nothing when it is a page already kept.</summary>
@@ -339,14 +232,14 @@ public sealed class Crawler(
         if (!visit.Kept.Add(address) || IsSaidAlready(visit, page.Text))
             return null;
 
-        var budgeted = _budget.Apply(page.Text);
+        var budgeted = _budget.Apply(page.Text, page.OriginalLength);
 
         return Outcome<CrawlPage, PageFailure>.Success(
             new CrawlPage(address, depth, budgeted.Text, page.FetchedAt)
             {
                 Title = page.Title,
-                IsTruncated = page.IsTruncated || budgeted.IsTruncated,
-                OriginalLength = Math.Max(page.OriginalLength, budgeted.OriginalLength)
+                IsTruncated = budgeted.IsTruncated,
+                OriginalLength = budgeted.OriginalLength
             });
     }
 
@@ -372,7 +265,7 @@ public sealed class Crawler(
         if ((page.Final.Address ?? page.Requested.Address) is not { } origin)
             return page.Final;
 
-        if (links.CanonicalOf(page.Html, origin) is not { } canonical || !IsInScope(visit, canonical))
+        if (links.CanonicalOf(page.Html, origin) is not { } canonical || !visit.Scope.IsOnTheSite(canonical))
             return page.Final;
 
         visit.Seen.Add(canonical);
@@ -380,17 +273,32 @@ public sealed class Crawler(
         return canonical;
     }
 
-    private static CrawlReport Refused(CrawlScope scope, long started)
+    /// <summary>What makes a scope impossible to crawl, or nothing when it is one that can be walked.</summary>
+    /// <remarks>
+    /// A scope is built by the caller — every ceiling on it is <c>required</c>, and <see cref="ScopeOf"/> is
+    /// only the convenient way to start from the configured ones — so nothing validated at start-up covers it.
+    /// The ceilings were read without being checked, and a budget of zero reached
+    /// <see cref="CancellationTokenSource.CancelAfter(TimeSpan)"/>, which answers a setting mistake with an
+    /// <see cref="ArgumentOutOfRangeException"/> out of the middle of a crawl. A refusal is the shape the rest
+    /// of this class already answers in.
+    /// </remarks>
+    private static string? Impossible(CrawlScope scope) => scope switch
+    {
+        { Start.IsAbsolute: false } => "Not an absolute http or https address.",
+        { MaxPages: <= 0 } => "A crawl allowed to read no pages has nothing to do.",
+        { MaxDepth: < 0 } => "A crawl cannot follow links to a depth below zero.",
+        _ when scope.Budget <= TimeSpan.Zero => "A crawl needs a time budget above zero to read anything.",
+        _ => null
+    };
+
+    private static CrawlReport Refused(CrawlScope scope, long started, string reason)
         => new()
         {
             Start = scope.Start,
             Pages =
             [
                 Outcome<CrawlPage, PageFailure>.Failed(
-                    new PageFailure(FailureKind.Navigation, "Not an absolute http or https address.")
-                    {
-                        Address = scope.Start
-                    })
+                    new PageFailure(FailureKind.Navigation, reason) { Address = scope.Start })
             ],
             Stop = CrawlStop.Refused,
             IsFromSitemap = false,
@@ -398,15 +306,9 @@ public sealed class Crawler(
         };
 
     /// <summary>Everything one crawl knows while it runs.</summary>
-    private sealed class Visit(CrawlScope scope, Uri start)
+    private sealed class Visit(CrawlScope scope)
     {
         public CrawlScope Scope { get; } = scope;
-
-        public string Host { get; } = start.Host;
-
-        public string Root { get; } = start.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
-            ? start.Host[4..]
-            : start.Host;
 
         public HashSet<Link> Seen { get; } = [];
 

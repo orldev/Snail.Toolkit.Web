@@ -170,22 +170,44 @@ public sealed class RobotsFile
         return _groups.GetValueOrDefault("*");
     }
 
+    /// <summary>One <c>Allow</c> or <c>Disallow</c> line, matched the way the site wrote it.</summary>
+    /// <remarks>
+    /// The expression is built from a file the site being read wrote, so it is hostile input and gets a
+    /// deadline. A pattern of alternating literals and wildcards — <c>/a*b*c*d*e*</c> becomes
+    /// <c>^/a.*b.*c.*d.*e.*</c> — backtracks catastrophically on a path that nearly matches, and without a
+    /// deadline one line of one <c>robots.txt</c> stops the thread reading that site for as long as it likes.
+    /// A rule that runs out of time counts as not matching, which permits the fetch: the same way round as a
+    /// <c>robots.txt</c> that cannot be downloaded at all, and for the same reason — failing closed on a file
+    /// the site wrote badly stops a crawl silently and looks exactly like a bug.
+    /// </remarks>
     private sealed class Rule
     {
+        private static readonly TimeSpan Deadline = TimeSpan.FromMilliseconds(100);
+
         private readonly Regex _matcher;
 
         public Rule(bool isAllow, string pattern)
         {
             IsAllow = isAllow;
             Pattern = pattern;
-            _matcher = new Regex(Translate(pattern), RegexOptions.CultureInvariant);
+            _matcher = new Regex(Translate(pattern), RegexOptions.CultureInvariant, Deadline);
         }
 
         public bool IsAllow { get; }
 
         public string Pattern { get; }
 
-        public bool Matches(string path) => _matcher.IsMatch(path);
+        public bool Matches(string path)
+        {
+            try
+            {
+                return _matcher.IsMatch(path);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
 
         private static string Translate(string pattern)
         {

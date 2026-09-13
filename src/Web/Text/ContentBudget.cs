@@ -36,14 +36,42 @@ public sealed record ContentBudget
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        if (text.Length <= MaxCharacters)
-            return new BudgetedText(text, false, text.Length);
+        return Apply(text, text.Length);
+    }
 
-        var kept = text[..MaxCharacters];
+    /// <summary>Applies the budget to text that has already been through one, naming the length it really had.</summary>
+    /// <remarks>
+    /// A crawl budgets what the reader budgeted, because reading one page and reading a site are worth
+    /// different amounts of text. Applying a second ceiling to the first one's output produced a marker that
+    /// described the first cut rather than the page: measured on 2026-09-13, nine hundred characters came back
+    /// announced as "60 of 164", and a model reading that believes it saw a third of a short page rather than
+    /// a fifteenth of a long one. The earlier announcement is stripped before the cut rather than after, so
+    /// the ceiling can never land in the middle of it and leave half a sentence claiming a length.
+    /// </remarks>
+    public BudgetedText Apply(string text, int originalLength)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentOutOfRangeException.ThrowIfNegative(originalLength);
 
-        return new BudgetedText(
-            $"{kept}\n\n{Marker}: {MaxCharacters} of {text.Length} characters",
-            true,
-            text.Length);
+        var said = Announced(text);
+        var original = Math.Max(originalLength, said.Length);
+
+        if (said.Length > MaxCharacters)
+            return new BudgetedText(Marked(said[..MaxCharacters], original), true, original);
+
+        return said.Length == original
+            ? new BudgetedText(said, false, original)
+            : new BudgetedText(Marked(said, original), true, original);
+    }
+
+    private static string Marked(string kept, int original)
+        => $"{kept}\n\n{Marker}: {kept.Length} of {original} characters";
+
+    /// <summary>The text without the announcement a previous budget left on the end of it.</summary>
+    private static string Announced(string text)
+    {
+        var marker = text.LastIndexOf($"\n\n{Marker}: ", StringComparison.Ordinal);
+
+        return marker < 0 ? text : text[..marker];
     }
 }

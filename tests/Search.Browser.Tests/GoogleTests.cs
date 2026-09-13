@@ -98,8 +98,11 @@ public class GoogleTests
     }
 
     private static async Task<IReadOnlyList<SearchResult>> Found(string html)
-        => await Provider(new StubReader(_ => Fixture.Read(html))).FindAsync("grain");
+        => (await Provider(new StubReader(_ => Fixture.Read(html))).FindAsync("grain")).Value;
 
     private static Google Provider(IPageReader reader, string domain = "www.google.com")
-        => new(reader, Options.Create(new GoogleOptions { Domain = domain }), NullLogger<Google>.Instance);
+        => new(reader,
+            Options.Create(new GoogleOptions { Domain = domain }),
+            Options.Create(new SearchOptions()),
+            NullLogger<Google>.Instance);
 }

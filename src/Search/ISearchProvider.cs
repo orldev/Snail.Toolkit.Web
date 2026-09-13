@@ -18,10 +18,20 @@ public interface ISearchProvider
     /// </remarks>
     string Name { get; }
 
-    /// <summary>Runs one query and answers with links.</summary>
+    /// <summary>Runs one query and answers with links, or with the reason there are none.</summary>
     /// <remarks>
-    /// Throws on transport failure rather than swallowing it: the caller records the attempt, and a provider
-    /// that returned an empty list on a 503 would be indistinguishable from one that simply found nothing.
+    /// Failure is data here as it is everywhere else in this toolkit. A provider used to be contracted to throw,
+    /// and three exception types existed to carry what an outcome carries: the search then had to tell a refusal
+    /// from a fault by catching the right base class, and the two engines that fetch over HTTP never threw the
+    /// refusal at all — they called <c>EnsureSuccessStatusCode</c>, so a 429 arrived as a fault and the engine
+    /// asking to be left alone was never left alone.
+    /// <para>
+    /// An empty list is success: the provider answered and the answer held nothing, which is a fact about the
+    /// query rather than about the engine. Cancellation is still an exception, because that is what the TPL and
+    /// ASP.NET Core expect of it.
+    /// </para>
     /// </remarks>
-    Task<IReadOnlyList<SearchResult>> FindAsync(string query, CancellationToken ct = default);
+    Task<Outcome<IReadOnlyList<SearchResult>, SearchFailure>> FindAsync(
+        string query,
+        CancellationToken ct = default);
 }

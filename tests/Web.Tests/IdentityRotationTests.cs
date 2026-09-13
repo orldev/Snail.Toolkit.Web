@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
@@ -88,9 +89,67 @@ public class IdentityRotationTests
         Assert.Throws<OptionsValidationException>(() => new ProxyRotation(options));
     }
 
+    /// <summary>
+    /// Measured on 13 September 2026 from one residential address, a fresh browser profile per attempt:
+    /// Google answered /sorry/ on UTC and returned results on both America/New_York and Europe/Moscow. UTC is
+    /// what a container defaults to, so it is the one zone a fingerprint must not fall into by omission.
+    /// </summary>
+    [Fact]
+    public void Timezone_LeftUnset_IsNotTheZoneContainersDefaultTo()
+        => Assert.NotEqual("UTC", new Fingerprint().Timezone, StringComparer.OrdinalIgnoreCase);
+
+    [Fact]
+    public void Rotation_FingerprintOnUtc_WarnsAboutTheZone()
+    {
+        var logger = new RecordingLogger<IdentityRotation>();
+
+        _ = Rotation(logger, new Fingerprint { UserAgent = KnownAgent, Timezone = "UTC" });
+
+        Assert.Contains(logger.Warnings, warning => warning.Contains("UTC", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rotation_FingerprintOnARealZone_SaysNothingAboutUtc()
+    {
+        var logger = new RecordingLogger<IdentityRotation>();
+
+        _ = Rotation(logger, new Fingerprint { UserAgent = KnownAgent, Timezone = "Europe/London" });
+
+        Assert.DoesNotContain(logger.Warnings, warning => warning.Contains("UTC", StringComparison.Ordinal));
+    }
+
+    private const string KnownAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
+    private static IdentityRotation Rotation(ILogger<IdentityRotation> logger, params Fingerprint[] fingerprints)
+        => new(
+            Options.Create(new IdentityOptions { Fingerprints = [.. fingerprints] }),
+            new ProxyRotation(Options.Create(new IdentityOptions())),
+            logger);
+
     private static IdentityRotation Rotation(params Fingerprint[] fingerprints)
         => new(
             Options.Create(new IdentityOptions { Fingerprints = [.. fingerprints] }),
             new ProxyRotation(Options.Create(new IdentityOptions())),
             NullLogger<IdentityRotation>.Instance);
+
+    private sealed class RecordingLogger<T> : ILogger<T>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel is LogLevel.Warning)
+                Warnings.Add(formatter(state, exception));
+        }
+    }
 }

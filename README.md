@@ -95,9 +95,10 @@ Project folders are short so the solution reads well in an IDE. The names that r
 2. `Search` does not depend on `Scraping` — that is what `Search.Browser` is for, so that a consumer using
    only HTTP providers never pays for a browser driver.
 3. Fetching `robots.txt` belongs to the transport, not to the core.
-4. `Scraping.Agent` drives pages through `Scraping`'s own `IVisits` rather than opening contexts of its own.
-   Setting an identity in two places is what once left a context announcing one browser in its headers and
-   another in script.
+4. `Scraping.Agent` drives pages through `Scraping`'s own `IVisits` and `IAttempts<T>` rather than arranging a
+   visit of its own. Setting an identity in two places is what once left a context announcing one browser in
+   its headers and another in script; writing the attempt out by hand in three places is what left the agent
+   without the retry the page reader had carried from the beginning.
 
 ## Versioning
 

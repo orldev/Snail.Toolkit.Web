@@ -73,7 +73,7 @@ public class DuckDuckGoTests
     {
         var clients = new StubClients(Page);
 
-        Assert.Empty(await Provider(clients).FindAsync("   "));
+        Assert.Empty((await Provider(clients).FindAsync("   ")).Value);
         Assert.Null(clients.Requested);
     }
 
@@ -90,21 +90,41 @@ public class DuckDuckGoTests
     [Fact]
     public async Task FindAsync_MoreResultsThanAllowed_StopsAtTheCeiling()
     {
-        var results = await Provider(new StubClients(Page), maxResults: 1).FindAsync("grain");
+        var answer = await Provider(new StubClients(Page), maxResults: 1).FindAsync("grain");
 
-        Assert.Single(results);
+        Assert.Single(answer.Value);
     }
 
     /// <summary>
-    /// A transport failure is thrown, not swallowed: a provider that answered an empty list on a 503 would be
-    /// indistinguishable from one that simply found nothing.
+    /// A status that is not success is reported, never swallowed: a provider that answered an empty list on a
+    /// 503 would be indistinguishable from one that simply found nothing.
     /// </summary>
-    [Fact]
-    public async Task FindAsync_ProviderRefuses_Throws()
+    /// <remarks>
+    /// The three statuses here are the engine asking to be left alone rather than failing, so they come back as
+    /// a refusal and the search rests the engine. Until 2026-09-13 this provider called
+    /// <c>EnsureSuccessStatusCode</c>, so every one of them arrived as a fault — which leaves the record
+    /// untouched — and the engine that had just asked for a pause was asked again at once.
+    /// </remarks>
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task FindAsync_EngineAskingToBeLeftAlone_IsARefusal(HttpStatusCode status)
     {
-        var clients = new StubClients(Page, HttpStatusCode.ServiceUnavailable);
+        var answer = await Provider(new StubClients(Page, status)).FindAsync("grain");
 
-        await Assert.ThrowsAsync<HttpRequestException>(() => Provider(clients).FindAsync("grain"));
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure?.Kind);
+    }
+
+    /// <summary>A status that says nothing about the engine's patience is a fault, and rests nobody.</summary>
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task FindAsync_EngineThatSimplyFailed_IsAFault(HttpStatusCode status)
+    {
+        var answer = await Provider(new StubClients(Page, status)).FindAsync("grain");
+
+        Assert.Equal(SearchFailureKind.Faulted, answer.Failure?.Kind);
     }
 
     /// <summary>
@@ -116,12 +136,12 @@ public class DuckDuckGoTests
     {
         var clients = new PagedClients();
 
-        var results = await Provider(clients, maxResults: 4).FindAsync("grain");
+        var answer = await Provider(clients, maxResults: 4).FindAsync("grain");
 
-        Assert.Equal(4, results.Count);
+        Assert.Equal(4, answer.Value.Count);
         Assert.Equal(
             ["https://example.com/0", "https://example.com/1", "https://example.com/2", "https://example.com/3"],
-            results.Select(result => result.Address.Canonical));
+            answer.Value.Select(result => result.Address.Canonical));
     }
 
     /// <summary>The offset comes from the page's own next-page control, never from a page size guessed here.</summary>
@@ -164,9 +184,9 @@ public class DuckDuckGoTests
     {
         var clients = new PagedClients(repeats: true);
 
-        var results = await Provider(clients, maxResults: 30).FindAsync("grain");
+        var answer = await Provider(clients, maxResults: 30).FindAsync("grain");
 
-        Assert.Equal(2, results.Count);
+        Assert.Equal(2, answer.Value.Count);
         Assert.Equal(2, clients.Asked.Count);
     }
 

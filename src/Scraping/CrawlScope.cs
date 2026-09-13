@@ -37,4 +37,44 @@ public sealed record CrawlScope
     /// which section of a site is noise is a fact about that site alone; the start itself is never excluded.
     /// </remarks>
     public IReadOnlyList<string> Excluded { get; init; } = [];
+
+    /// <summary>Answers whether an address is one this crawl reads: on the site, and not in an excluded section.</summary>
+    /// <remarks>
+    /// Asked of an address from the site's own list and of one found in a link alike, so a section left out is
+    /// left out however the crawl arrived at it. The predicates live on the scope rather than in the crawl
+    /// because they are what the scope means, and because the crawl is not the only thing that asks.
+    /// </remarks>
+    public bool Covers(Link link) => IsOnTheSite(link) && !IsExcluded(link);
+
+    /// <summary>Answers whether an address belongs to the site being read.</summary>
+    /// <remarks>
+    /// A leading <c>www.</c> is dropped before the subdomain comparison, so a crawl started at
+    /// <c>www.example.com</c> with subdomains on still covers <c>docs.example.com</c>. No public suffix list is
+    /// consulted: the site is whatever the starting address named, never a guess at the company behind it.
+    /// </remarks>
+    public bool IsOnTheSite(Link link)
+    {
+        ArgumentNullException.ThrowIfNull(link);
+
+        if (link.Address is not { } address || Start.Address is not { } start)
+            return false;
+
+        if (string.Equals(address.Host, start.Host, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!IncludesSubdomains)
+            return false;
+
+        var root = Bare(start.Host);
+
+        return string.Equals(address.Host, root, StringComparison.OrdinalIgnoreCase)
+               || address.Host.EndsWith($".{root}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsExcluded(Link link)
+        => link.Address is { } address
+           && Excluded.Any(prefix => address.AbsolutePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+    private static string Bare(string host)
+        => host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? host[4..] : host;
 }

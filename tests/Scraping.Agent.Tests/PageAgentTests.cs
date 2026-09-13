@@ -175,6 +175,42 @@ public class PageAgentTests(FormFixture site, ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A step produces nothing because the site showed the door, and the outcome says so rather than calling
+    /// the page empty.
+    /// </summary>
+    /// <remarks>
+    /// The test above covers a walkthrough whose every step reacted; this covers the commoner shape, where the
+    /// challenge is itself what stops a step from reacting. Measured against Google on 2026-09-13: the errand
+    /// typed the query, the site accepted the submit and began loading the results, then redirected to a
+    /// reCAPTCHA — and the outcome came back <see cref="FailureKind.Empty"/>, which is final and worth no
+    /// second attempt, when the truth was <see cref="FailureKind.Blocked"/>, which is worth another identity.
+    /// The refusal was named in the prose all along; the kind a caller branches on said the opposite.
+    /// </remarks>
+    [Fact]
+    public async Task PerformAsync_StepThatProducedNothingBecauseOfAChallenge_ReportsBlockedRatherThanEmpty()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Agent.PerformAsync(new Errand(Link.Of($"{FormFixture.BaseUrl}/turning.html"),
+        [
+            new Step(StepKind.Type, Spot.Css("#q")) { Value = "postgresql" },
+            new Step(StepKind.Click, Spot.Css("#go"))
+            {
+                Attempts = 1,
+                Expected = new Effect(EffectKind.Text, "results for postgresql")
+                {
+                    Within = TimeSpan.FromSeconds(3)
+                }
+            }
+        ]));
+
+        Assert.False(outcome.IsSuccess);
+        Assert.Equal(FailureKind.Blocked, outcome.Failure.Kind);
+        Assert.True(outcome.Failure.IsTransient);
+        Assert.Contains("cf-browser-verification", outcome.Failure.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A form with no button is walked through by pressing a key, and a real list is chosen from.
     /// </summary>
     /// <remarks>

@@ -23,8 +23,7 @@ public static class ServiceCollectionExtensions
 
             services.AddWeb(configuration);
 
-            var search = services.AddOptions<SearchOptions>()
-                .Bind(configuration.GetSection(SearchOptions.SectionName));
+            var search = services.BindOnce<SearchOptions>(configuration, SearchOptions.SectionName);
 
             if (configure is not null)
                 search.Configure(configure);

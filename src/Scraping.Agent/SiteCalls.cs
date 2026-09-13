@@ -1,13 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
-using Polly;
-using Polly.Retry;
 using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Politeness;
-using Snail.Toolkit.Web.Robots;
 using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Agent;
@@ -20,29 +15,18 @@ namespace Snail.Toolkit.Web.Scraping.Agent;
 /// service checks — origin, cookies, the token the page minted — belongs to the page and cannot be reproduced
 /// from outside. Measured on a registry on 2026-09-11: the same body sent over plain HTTP is refused outright,
 /// while from inside the page it is answered in full.
+/// <para>
+/// The identity, the site's ruling, its turn and the retry are <see cref="IAttempts{TValue}"/>'s. Measured on
+/// 2026-09-12 before that existed: of five runs against a live registry through this class, four answered in
+/// eleven or twelve seconds and one died on a navigation timeout that never reproduced.
+/// </para>
 /// </remarks>
 public sealed class SiteCalls(
+    IAttempts<string> attempts,
     IVisits visits,
-    IIdentityRotation identities,
-    IPoliteness politeness,
-    ISiteRules rules,
     IBlockDetector blocks,
-    IOptions<ScrapingOptions> options,
     ILogger<SiteCalls> logger) : ISiteCalls
 {
-    /// <summary>
-    /// The retry a call gets, on the same terms the page reader has always had.
-    /// </summary>
-    /// <remarks>
-    /// Measured on 2026-09-12: of five runs against a live registry through this class, four answered in
-    /// eleven or twelve seconds and one died on a navigation timeout that never reproduced. The page reader
-    /// survives exactly that, having carried a Polly pipeline from the start, while a call through the browser
-    /// had none — so one hiccup lost the whole answer. The predicate is the same one, so the same rule
-    /// decides: a refusal, a timeout, an unavailable browser or a proxy fault is worth another identity; a
-    /// 404, an empty body or a robots ban is the site's final answer and is not asked twice.
-    /// </remarks>
-    private readonly ResiliencePipeline<Outcome<string, PageFailure>> _pipeline = BuildPipeline(options, logger);
-
     private const string Script =
         """
         async ([path, method, contentType, body, token, parameter]) => {
@@ -67,74 +51,14 @@ public sealed class SiteCalls(
         """;
 
     /// <inheritdoc />
-    public async Task<Outcome<string, PageFailure>> SendAsync(SiteCall call, CancellationToken ct = default)
+    public Task<Outcome<string, PageFailure>> SendAsync(SiteCall call, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(call);
 
-        if (call.Page.Address is not { } target)
-            return Outcome<string, PageFailure>.Failed(new PageFailure(
-                FailureKind.Navigation, "Not an absolute http or https address.") { Address = call.Page });
-
-        return await _pipeline.ExecuteAsync(async token => await AttemptAsync(call, target, token), ct);
-    }
-
-    /// <summary>One whole attempt: a fresh identity, the site's own rules, its turn, and the call.</summary>
-    /// <remarks>
-    /// Everything a retry could change sits inside it. The identity is drawn per attempt, because that is what
-    /// makes a second one worth making, and the robots ruling and the politeness gate follow that identity
-    /// rather than one left over from an attempt that failed.
-    /// </remarks>
-    private async Task<Outcome<string, PageFailure>> AttemptAsync(SiteCall call, Uri target, CancellationToken ct)
-    {
-        var identity = identities.Next();
-
-        if (!await rules.IsAllowedAsync(target, identity.Proxy, ct))
-            return Outcome<string, PageFailure>.Failed(new PageFailure(
-                FailureKind.RobotsDisallowed,
-                "The site's robots.txt forbids this URL for the configured agent.") { Address = call.Page });
-
-        await using var turn = await politeness.EnterAsync(
-            target, await rules.DelayAsync(target, identity.Proxy, ct), ct);
-
-        return await AskAsync(call, target, identity, ct);
-    }
-
-    /// <summary>
-    /// The pipeline a call is made through, or none at all when retries are switched off.
-    /// </summary>
-    /// <remarks>
-    /// Polly rejects a retry strategy configured with zero attempts, so «do not retry» has to be the absence
-    /// of a strategy rather than a strategy of none — the same shape the page reader uses.
-    /// </remarks>
-    private static ResiliencePipeline<Outcome<string, PageFailure>> BuildPipeline(
-        IOptions<ScrapingOptions> options,
-        ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        var settings = options.Value;
-
-        if (settings.MaxRetryAttempts <= 0)
-            return ResiliencePipeline<Outcome<string, PageFailure>>.Empty;
-
-        return new ResiliencePipelineBuilder<Outcome<string, PageFailure>>()
-            .AddRetry(new RetryStrategyOptions<Outcome<string, PageFailure>>
-            {
-                ShouldHandle = new PredicateBuilder<Outcome<string, PageFailure>>()
-                    .HandleResult(outcome => !outcome.IsSuccess && outcome.Failure.IsTransient),
-                MaxRetryAttempts = settings.MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                UseJitter = true,
-                Delay = settings.RetryDelay,
-                OnRetry = arguments =>
-                {
-                    logger.LogWarning("Retry {Attempt} of a site call after {Failure}",
-                        arguments.AttemptNumber + 1, arguments.Outcome.Result?.Failure);
-
-                    return default;
-                }
-            })
-            .Build();
+        return attempts.AtAsync(
+            call.Page,
+            (identity, target, token) => AskAsync(call, target, identity, token),
+            ct);
     }
 
     private async Task<Outcome<string, PageFailure>> AskAsync(
@@ -175,9 +99,9 @@ public sealed class SiteCalls(
         {
             throw;
         }
-        catch (Exception exception) when (exception is PlaywrightException or System.TimeoutException)
+        catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
         {
-            return Refused(call, identity, FailureKind.Unexpected, exception.Message, null);
+            return Outcome<string, PageFailure>.Failed(BrowserFailure.Of(exception, call.Page, identity));
         }
     }
 
@@ -193,7 +117,7 @@ public sealed class SiteCalls(
 
             return Outcome<string, PageFailure>.Success(token);
         }
-        catch (Exception exception) when (exception is PlaywrightException or System.TimeoutException)
+        catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
         {
             logger.LogWarning(
                 "The page would not mint a '{Action}' credential, so its service was never asked", mint.Action);

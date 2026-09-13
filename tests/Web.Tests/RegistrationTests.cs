@@ -78,11 +78,38 @@ public class RegistrationTests
             () => services.GetRequiredService<IOptions<PolitenessOptions>>().Value);
     }
 
+    /// <summary>A section bound twice must not hand the caller every configured entry twice.</summary>
+    /// <remarks>
+    /// Every module reaches the core's own registration, so the core's sections are bound once per module.
+    /// Binding appends to a list rather than replacing it, and the registration tests that existed covered
+    /// only the services, which <c>TryAdd</c> already guarded. Measured on 2026-09-13: two modules turned one
+    /// configured proxy into three, and the rotation that exists to spread load across addresses spent three
+    /// turns of every round on the same one.
+    /// </remarks>
+    [Fact]
+    public void AddWeb_CalledOncePerModule_BindsEachListOnce()
+    {
+        using var services = Built(collection => collection.AddWeb(Settings()));
+
+        var identity = services.GetRequiredService<IOptions<IdentityOptions>>().Value;
+
+        Assert.Equal(["http://one.example:8080"], identity.Proxies);
+    }
+
     private static ServiceProvider Built(
         Action<IServiceCollection>? extra = null,
         Dictionary<string, string?>? settings = null)
     {
-        var configuration = new ConfigurationBuilder()
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddWeb(Settings(settings));
+        extra?.Invoke(services);
+
+        return services.BuildServiceProvider();
+    }
+
+    private static IConfiguration Settings(Dictionary<string, string?>? extra = null)
+        => new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Web:Politeness:MaxConcurrentPerHost"] = "4",
@@ -90,16 +117,8 @@ public class RegistrationTests
                 ["Web:Robots:IsObeyed"] = "true",
                 ["Web:Identity:Proxies:0"] = "http://one.example:8080"
             })
-            .AddInMemoryCollection(settings ?? [])
+            .AddInMemoryCollection(extra ?? [])
             .Build();
-
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddWeb(configuration);
-        extra?.Invoke(services);
-
-        return services.BuildServiceProvider();
-    }
 
     private sealed class OpenSource : IRobotsSource
     {

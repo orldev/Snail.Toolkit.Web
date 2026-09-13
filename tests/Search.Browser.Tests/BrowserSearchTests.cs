@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;
@@ -29,23 +30,23 @@ public class BrowserSearchTests
     {
         var reader = new StubReader(_ => throw new InvalidOperationException("should not be asked"));
 
-        Assert.Empty(await Engine(reader).FindAsync("   "));
+        Assert.Empty((await Engine(reader).FindAsync("   ")).Value);
     }
 
     /// <summary>
-    /// Reading answers with failure as data while a provider is contracted to throw. The exception names the
-    /// engine because a caller running several of them needs to know which wall it hit — and a challenge page
-    /// is thrown as the refusal the search rests an engine over.
+    /// A challenge page comes back as the refusal the search rests an engine over, and names the engine,
+    /// because a caller running several of them needs to know which wall it hit.
     /// </summary>
     [Fact]
-    public async Task FindAsync_PageRefused_ThrowsNamingTheEngineAndCarryingTheFailure()
+    public async Task FindAsync_PageRefused_IsARefusalNamingTheEngineAndTheWall()
     {
         var reader = new StubReader(_ => Fixture.Refused(FailureKind.Blocked, "consent wall"));
 
-        var refusal = await Assert.ThrowsAsync<PageRefusedException>(() => Engine(reader).FindAsync("grain"));
+        var answer = await Engine(reader).FindAsync("grain");
 
-        Assert.Equal("Elsewhere", refusal.Provider);
-        Assert.Equal(FailureKind.Blocked, refusal.Failure.Kind);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure?.Kind);
+        Assert.Contains("Elsewhere", answer.Failure!.Message!, StringComparison.Ordinal);
+        Assert.Contains("consent wall", answer.Failure.Message!, StringComparison.Ordinal);
     }
 
     /// <summary>A 429 is the engine saying "later" in the status line, and is a refusal for the same reason a challenge is.</summary>
@@ -54,29 +55,30 @@ public class BrowserSearchTests
     {
         var reader = new StubReader(_ => Fixture.Refused(FailureKind.Navigation, "too many requests", status: 429));
 
-        var refusal = await Assert.ThrowsAsync<PageRefusedException>(() => Engine(reader).FindAsync("grain"));
+        var answer = await Engine(reader).FindAsync("grain");
 
-        Assert.Equal(429, refusal.Failure.StatusCode);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure?.Kind);
+        Assert.Contains("429", answer.Failure!.Message!, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// A timeout says nothing about the engine's patience: resting it over one would leave a working engine out
-    /// of the next searches over a hiccup on this side. It is still thrown, because an empty list would read as
-    /// "nothing found" — just not as the refusal the search reacts to.
+    /// of the next searches over a hiccup on this side. It is still a failure rather than an empty answer,
+    /// because an empty list reads as "nothing found" — just not as the refusal the search reacts to.
     /// </summary>
     [Theory]
     [InlineData(FailureKind.Timeout)]
     [InlineData(FailureKind.BrowserUnavailable)]
     [InlineData(FailureKind.Proxy)]
     [InlineData(FailureKind.Navigation)]
-    public async Task FindAsync_PageThatCouldNotBeRead_ThrowsButNotAsARefusal(FailureKind kind)
+    public async Task FindAsync_PageThatCouldNotBeRead_IsAFaultAndNotARefusal(FailureKind kind)
     {
         var reader = new StubReader(_ => Fixture.Refused(kind, "our side"));
 
-        var unread = await Assert.ThrowsAsync<PageUnreadException>(() => Engine(reader).FindAsync("grain"));
+        var answer = await Engine(reader).FindAsync("grain");
 
-        Assert.IsNotAssignableFrom<SearchRefusedException>(unread);
-        Assert.Equal(kind, unread.Failure.Kind);
+        Assert.Equal(SearchFailureKind.Faulted, answer.Failure?.Kind);
+        Assert.Contains(kind.ToString(), answer.Failure!.Message!, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -120,14 +122,34 @@ public class BrowserSearchTests
         Assert.Empty(logger.Warnings);
     }
 
-    private static async Task<IReadOnlyList<SearchResult>> Found(string page)
-        => await Engine(new StubReader(_ => Fixture.Read(page))).FindAsync("grain");
+    /// <summary>One engine may not crowd the rest out of the answer, however much it found.</summary>
+    /// <remarks>
+    /// The ceiling was read by the two engines that fetch over HTTP and by neither of the two that drive a
+    /// browser, and a browser engine is the one that answers with most: measured on 2026-09-12, Brave returned
+    /// a hundred links to one query while the setting stood at thirty.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_EngineThatFoundMoreThanTheCeiling_AnswersWithTheCeiling()
+    {
+        var page = string.Join('\n', Enumerable.Range(0, 50).Select(index => $"https://example.com/{index}"));
 
-    private static Elsewhere Engine(IPageReader reader, ILogger? logger = null)
-        => new(reader, logger ?? NullLogger.Instance);
+        var answer = await Engine(new StubReader(_ => Fixture.Read(page)), maxResults: 5).FindAsync("grain");
+
+        Assert.Equal(5, answer.Value.Count);
+        Assert.Equal("https://example.com/0", answer.Value[0].Address.Text);
+    }
+
+    private static async Task<IReadOnlyList<SearchResult>> Found(string page)
+        => (await Engine(new StubReader(_ => Fixture.Read(page))).FindAsync("grain")).Value;
+
+    private static Elsewhere Engine(IPageReader reader, ILogger? logger = null, int maxResults = 30)
+        => new(reader,
+            Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }),
+            logger ?? NullLogger.Instance);
 
     /// <summary>An engine that supplies only an address and a parser, so the base carries everything else.</summary>
-    private sealed class Elsewhere(IPageReader pages, ILogger logger) : BrowserSearch(pages, logger)
+    private sealed class Elsewhere(IPageReader pages, IOptions<SearchOptions> search, ILogger logger)
+        : BrowserSearch(pages, search, logger)
     {
         public override string Name => "Elsewhere";
 

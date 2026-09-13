@@ -16,7 +16,8 @@ namespace Snail.Toolkit.Web.Search.Browser;
 public sealed class Google(
     IPageReader pages,
     IOptions<GoogleOptions> options,
-    ILogger<Google> logger) : BrowserSearch(pages, logger)
+    IOptions<SearchOptions> search,
+    ILogger<Google> logger) : BrowserSearch(pages, search, logger)
 {
     /// <summary>The name this provider is registered and configured under.</summary>
     public const string ProviderName = "Google";

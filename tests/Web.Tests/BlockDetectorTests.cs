@@ -56,6 +56,23 @@ public class BlockDetectorTests
         Assert.Null(verdict.Signal);
     }
 
+    /// <summary>The address is held to the same rule as the markup: no word an ordinary page may carry.</summary>
+    /// <remarks>
+    /// The guard above chose an address without the word, and so never noticed that the bare word stood in the
+    /// URL list until 2026-09-13. An article about captchas was read as a refusal, and a refusal is transient,
+    /// so the reader spent three identities proving it again before giving up.
+    /// </remarks>
+    [Theory]
+    [InlineData("https://news.example/blog/how-captcha-works")]
+    [InlineData("https://news.example/tags/captcha")]
+    [InlineData("https://news.example/search?q=captcha")]
+    public void Inspect_AddressNamingCaptchaInOrdinaryProse_ReportsClear(string address)
+    {
+        var verdict = _detector.Inspect("<html><body><p>A page about challenges.</p></body></html>", address);
+
+        Assert.False(verdict.IsBlocked);
+    }
+
     /// <summary>
     /// The hidden field an invisible reCAPTCHA injects is not a challenge.
     /// </summary>

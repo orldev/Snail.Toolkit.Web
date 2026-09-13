@@ -23,7 +23,8 @@ namespace Snail.Toolkit.Web.Search.Browser;
 public sealed class Brave(
     IPageReader pages,
     IOptions<BraveOptions> options,
-    ILogger<Brave> logger) : BrowserSearch(pages, logger)
+    IOptions<SearchOptions> search,
+    ILogger<Brave> logger) : BrowserSearch(pages, search, logger)
 {
     /// <summary>The name this provider is registered and configured under.</summary>
     public const string ProviderName = "Brave";
