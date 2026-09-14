@@ -292,6 +292,8 @@ public class AttemptsTests
 
     private sealed class CountingPoliteness : IPoliteness
     {
+        public DateTimeOffset OpensAt(Uri url) => DateTimeOffset.MinValue;
+
         public int Entered { get; private set; }
 
         public int Left { get; private set; }

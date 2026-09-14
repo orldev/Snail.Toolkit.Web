@@ -46,6 +46,16 @@ public static class ServiceCollectionExtensions
         /// deduplicates only descriptors that name an implementation type, and a bound section is an instance,
         /// so it can never be one of those.
         /// </para>
+        /// <para>
+        /// WHAT IS BOUND HERE IS READ ONCE. Every consumer of these settings takes <c>IOptions</c> and keeps
+        /// <c>.Value</c> from its constructor, so a change on disk reaches a running process only through a
+        /// restart. That is a decision rather than an omission, and it is worth stating because the alternative
+        /// is half a decision: several of these numbers are not re-readable at all without inventing a
+        /// behaviour for the change — a semaphore cannot be resized while callers wait on it, and a Polly
+        /// pipeline is assembled once per process by design. A library where some settings reload and others
+        /// silently do not is harder to reason about than one where none do, and nothing measured so far asks
+        /// for the first.
+        /// </para>
         /// </remarks>
         public OptionsBuilder<TOptions> BindOnce<TOptions>(IConfiguration configuration, string section)
             where TOptions : class

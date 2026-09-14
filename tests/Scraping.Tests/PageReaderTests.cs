@@ -104,6 +104,13 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     /// The requests are counted at the site rather than at the reader, because "one refusal cost four
     /// requests" is a fact about what reached the site, and the reader is the party whose count is in doubt.
     /// </para>
+    /// <para>
+    /// The assertions name the failure they saw rather than only its status. This one went red once in five
+    /// full runs of the solution on 2026-09-14 — where six suites start their containers at the same time and
+    /// never in a run of this suite alone — and the message said only which number differed, so which of a
+    /// contended navigation and a miscounted request it was could not be told afterwards. It has not been
+    /// reproduced; what changed here is only that the next occurrence will say what came back.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task ReadAsync_SiteAskingForLongerThanWeWait_AnswersAtOnceAndAsksOnce()
@@ -117,9 +124,9 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         var elapsed = DateTimeOffset.UtcNow - started;
 
         Assert.False(outcome.IsSuccess);
-        Assert.Equal(429, outcome.Failure.StatusCode);
+        Assert.True(outcome.Failure.StatusCode is 429, $"the site answered {outcome.Failure}");
         Assert.Equal(TimeSpan.FromSeconds(30), outcome.Failure.RetryAfter);
-        Assert.True(elapsed < TimeSpan.FromSeconds(10), elapsed.ToString());
+        Assert.True(elapsed < TimeSpan.FromSeconds(10), $"{elapsed} for {outcome.Failure}");
         Assert.Equal(1, await site.TimesAskedForAsync("/busy-for-ages.html", since));
     }
 

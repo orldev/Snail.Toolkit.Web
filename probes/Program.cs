@@ -15,6 +15,7 @@ Func<string, Task>? chosen = name switch
     "resolving" => Resolving.ReportAsync,
     "counting" => Counting.ReportAsync,
     "answering" => Answering.ReportAsync,
+    "contexts" => Contexts.ReportAsync,
     _ => null
 };
 
@@ -26,6 +27,7 @@ if (chosen is null)
     Console.WriteLine("  resolving    чем платит раскрытие: нужна ли сессия и терпит ли движок подряд");
     Console.WriteLine("  counting     считает ли движок запросы, а не страницы");
     Console.WriteLine("  answering    поиск целиком, так как его позовёт потребитель");
+    Console.WriteLine("  contexts     чего стоит контекст рядом с процессом: память и время открытия");
     Console.WriteLine();
     Console.WriteLine("  dotnet run --project probes -- <проба> [ws://адрес-сервера/]");
 

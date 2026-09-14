@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 
 namespace Snail.Toolkit.Web.Politeness;
@@ -12,15 +11,24 @@ namespace Snail.Toolkit.Web.Politeness;
 /// default for most hosts and a longer one for those named in <see cref="PolitenessOptions.HostDelays"/>,
 /// decided once, when the host's gate is created.
 /// </remarks>
-public sealed class HostPoliteness(IOptions<PolitenessOptions> options) : IPoliteness, IDisposable
+public sealed class HostPoliteness : IPoliteness, IDisposable
 {
-    private readonly PolitenessOptions _options = options.Value;
-    private readonly Dictionary<string, TimeSpan> _gentler = new(options.Value.HostDelays, StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, Gate> _gates = new(StringComparer.OrdinalIgnoreCase);
-    private long _sweepDue = DateTimeOffset.MinValue.UtcTicks;
+    private readonly PolitenessOptions _options;
+    private readonly Dictionary<string, TimeSpan> _gentler;
+    private readonly Remembered<Gate> _gates;
 
     /// <summary>How many hosts are currently remembered.</summary>
     internal int RememberedHosts => _gates.Count;
+
+    /// <summary>Builds the gate from the configured pacing.</summary>
+    public HostPoliteness(IOptions<PolitenessOptions> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        _options = options.Value;
+        _gentler = new Dictionary<string, TimeSpan>(_options.HostDelays, StringComparer.OrdinalIgnoreCase);
+        _gates = new Remembered<Gate>(_options.ForgetHostAfter, (gate, since) => gate.IsIdleSince(since));
+    }
 
     /// <inheritdoc />
     public async Task<IAsyncDisposable> EnterAsync(
@@ -58,51 +66,39 @@ public sealed class HostPoliteness(IOptions<PolitenessOptions> options) : IPolit
         GateFor(url.Host).RestUntil(DateTimeOffset.UtcNow + gap);
     }
 
-    /// <summary>This host's gate, forgetting the hosts nobody has spoken to in a while first.</summary>
-    /// <remarks>
-    /// A gate per host and nothing that ever removed one: a crawl of many sites grew this map for as long as it
-    /// ran, and the hosts of the web are not a finite set. What bounds it now is time rather than a count — the
-    /// map holds the hosts touched within <see cref="PolitenessOptions.ForgetHostAfter"/>, which is the set
-    /// that pacing decisions can still depend on. A count would have had to be guessed; this is derived from
-    /// what the gate is for.
-    /// <para>
-    /// Sweeping happens on the arrival of an unknown host, and at most once a quarter of that window, because
-    /// a sweep reads the whole map and doing that per new host would be quadratic over a crawl.
-    /// </para>
-    /// </remarks>
-    private Gate GateFor(string host)
-    {
-        if (_gates.TryGetValue(host, out var known))
-            return known;
-
-        ForgetIdleHosts();
-
-        return _gates.GetOrAdd(host, name => new Gate(Math.Max(1, _options.MaxConcurrentPerHost), FloorFor(name)));
-    }
-
-    /// <summary>Drops the gates that no longer decide anything.</summary>
+    /// <summary>This host's gate, made the first time the host is mentioned.</summary>
     /// <remarks>
     /// A gate is dropped only when nobody is inside it, it is not holding the host back, and its last turn
-    /// ended longer ago than the window — so a rest a site asked for cannot be forgotten by a sweep, and
-    /// neither can a host with a request in flight. An idle gate carries no decision: recreating it gives the
-    /// same answer as keeping it.
+    /// ended longer ago than <see cref="PolitenessOptions.ForgetHostAfter"/> — so a rest a site asked for
+    /// cannot be forgotten, and neither can a host with a request in flight. An idle gate carries no decision:
+    /// recreating it gives the same answer as keeping it.
     /// </remarks>
-    private void ForgetIdleHosts()
+    private Gate GateFor(string host)
+        => _gates.Of(host, name => new Gate(Math.Max(1, _options.MaxConcurrentPerHost), FloorFor(name)));
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A host never spoken to opens at once: it has no gate yet, and creating one to answer a question about
+    /// what to do next would fill the map with hosts nobody went on to visit.
+    /// <para>
+    /// A host with every slot taken has no knowable opening — it depends on a request still running — and is
+    /// answered with one gap from now. That is an estimate and it is the useful one: it ranks a host that is
+    /// merely busy ahead of one resting longer than a gap, and behind one standing free, which is the whole of
+    /// what a chooser needs from it.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset OpensAt(Uri url)
     {
-        var now = DateTimeOffset.UtcNow;
-        var due = Interlocked.Read(ref _sweepDue);
+        ArgumentNullException.ThrowIfNull(url);
 
-        if (now.UtcTicks < due)
-            return;
+        if (!_gates.TryGet(url.Host, out var gate))
+            return DateTimeOffset.MinValue;
 
-        if (Interlocked.CompareExchange(ref _sweepDue, (now + _options.ForgetHostAfter / 4).UtcTicks, due) != due)
-            return;
+        var free = gate.Slots.CurrentCount > 0
+            ? gate.ReleasedAt + gate.Floor
+            : DateTimeOffset.UtcNow + gate.Floor;
 
-        var idleSince = now - _options.ForgetHostAfter;
-
-        foreach (var (host, gate) in _gates)
-            if (gate.IsIdleSince(idleSince))
-                _gates.TryRemove(new KeyValuePair<string, Gate>(host, gate));
+        return free > gate.RestingUntil ? free : gate.RestingUntil;
     }
 
     private static async Task DelayAsync(Gate gate, TimeSpan? requested, CancellationToken ct)

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Streaming;
 using Snail.Toolkit.Web.Text;
 
@@ -25,6 +26,7 @@ public sealed class Crawler(
     IPageReader reader,
     ISiteIndex index,
     ILinkExtraction links,
+    IPoliteness politeness,
     IOptions<ScrapingOptions> scraping,
     IOptions<CrawlOptions> crawling,
     ILogger<Crawler> logger) : ICrawler
@@ -45,12 +47,29 @@ public sealed class Crawler(
         ArgumentNullException.ThrowIfNull(addresses);
 
         return Fanout.OverAsync(
-            addresses,
+            Spread.OverHosts(addresses, HostOf, _scraping.MaxDegreeOfParallelism, OpensAt),
             async (address, token) => await reader.ReadAsync(address, token),
             Unexpected,
             _scraping.MaxDegreeOfParallelism,
             ct);
     }
+
+    /// <summary>The host an address is paced by, and an empty name for one that has none.</summary>
+    /// <remarks>
+    /// A relative link has no host and cannot be fetched either; grouping them all together keeps them in the
+    /// order they arrived, which is what the reader will answer about them anyway.
+    /// </remarks>
+    private static string HostOf(Link address) => address.Address?.Host ?? string.Empty;
+
+    /// <summary>When this address's host would let a worker in.</summary>
+    /// <remarks>
+    /// Asked to choose what to read next, never to decide whether it may be read: the gate still grants every
+    /// turn. What it prevents is a run that stops while nothing is wrong with it — workers handed the few
+    /// sites that have just answered <c>429</c> sit out the rest together while the rest of the list goes
+    /// unread.
+    /// </remarks>
+    private DateTimeOffset OpensAt(Link address)
+        => address.Address is { } url ? politeness.OpensAt(url) : DateTimeOffset.MinValue;
 
     /// <summary>The page a reader could not even fail properly on.</summary>
     /// <remarks>

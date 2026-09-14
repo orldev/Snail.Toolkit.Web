@@ -50,20 +50,26 @@ public sealed class ScrapingOptions
     /// </remarks>
     public bool IgnoreCertificateErrors { get; set; }
 
-    /// <summary>Gets or sets how many URLs may be read at once across all hosts.</summary>
+    /// <summary>Gets or sets how many pages may be open at once across all hosts.</summary>
     /// <remarks>
+    /// The only ceiling there is, and that is the change made on 2026-09-14. There used to be two — this one,
+    /// which sized the workers, and <c>MaxBrowsers</c>, which sized the pool — and the effective parallelism
+    /// was the smaller of them, which at the defaults was ONE while this said three. A setting that promises
+    /// what another setting silently withdraws is worse than no setting.
+    /// <para>
+    /// What it costs is memory, and the number to raise it by is measurable rather than guessable. Measured on
+    /// 2026-09-14 by <c>probes/contexts</c>: on stock Playwright the first page costs 284 MB and every further
+    /// one 70, with nothing degrading up to sixteen; on our own browser image, on a machine emulating another
+    /// architecture, 178 MB a page. Run that probe against the image a deployment actually uses and divide the
+    /// memory it can spare. Four is a default that fits a small container, not a recommendation.
+    /// </para>
+    /// <para>
     /// Across all hosts is the whole of it. Reading many pages of one site — a crawl, or a batch of links from
     /// one domain — is paced by <c>Web:Politeness:MaxConcurrentPerHost</c> instead, and raising this alone
     /// only adds workers that queue at the same per-host gate.
+    /// </para>
     /// </remarks>
-    public int MaxDegreeOfParallelism { get; set; } = 3;
-
-    /// <summary>Gets or sets how many browser processes the pool may hold.</summary>
-    /// <remarks>
-    /// One browser served every worker before, so a single crash took the whole engine down until the process
-    /// restarted, and one throttle value applied to every context at once.
-    /// </remarks>
-    public int MaxBrowsers { get; set; } = 1;
+    public int MaxDegreeOfParallelism { get; set; } = 4;
 
     /// <summary>Gets or sets the navigation budget in milliseconds.</summary>
     public int NavigationTimeoutMs { get; set; } = 45_000;

@@ -97,9 +97,6 @@ public static class ServiceCollectionExtensions
                 settings => settings.MaxDegreeOfParallelism > 0,
                 $"'{ScrapingOptions.SectionName}:{nameof(ScrapingOptions.MaxDegreeOfParallelism)}' has to be positive.")
             .Validate(
-                settings => settings.MaxBrowsers > 0,
-                $"'{ScrapingOptions.SectionName}:{nameof(ScrapingOptions.MaxBrowsers)}' has to be positive.")
-            .Validate(
                 settings => settings.NavigationTimeoutMs > 0,
                 $"'{ScrapingOptions.SectionName}:{nameof(ScrapingOptions.NavigationTimeoutMs)}' has to be positive.")
             .Validate(

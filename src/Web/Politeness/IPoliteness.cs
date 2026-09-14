@@ -34,4 +34,25 @@ public interface IPoliteness
     /// </para>
     /// </remarks>
     void Rest(Uri url, TimeSpan gap);
+
+    /// <summary>The soonest this host could let a caller in, as far as is known.</summary>
+    /// <param name="url">The address in question; only its host matters.</param>
+    /// <remarks>
+    /// For choosing what to do next, never for deciding whether it may be done: <see cref="EnterAsync"/>
+    /// remains the only thing that grants a turn, and an answer here can be out of date by the time it is read.
+    /// Being approximate is what makes it useful — a caller about to wait at a shut gate can spend the same
+    /// moment on a site that is open, and where the guess was wrong it waits at the gate exactly as it would
+    /// have anyway.
+    /// <para>
+    /// An instant rather than a yes or no, and that distinction was measured rather than reasoned. A yes-or-no
+    /// answer calls a host busy for the twenty milliseconds of its own gap and a host resting for five seconds
+    /// by the same word, so a chooser with nothing open in front of it picks between them at random — and picks
+    /// the five seconds a third of the time. What is being ranked is how long the wait would be.
+    /// </para>
+    /// <para>
+    /// Without it a run can stop while there is nothing wrong with it: workers handed addresses regardless of
+    /// whose gate is shut all sit out a refusal together while a hundred other sites go unread.
+    /// </para>
+    /// </remarks>
+    DateTimeOffset OpensAt(Uri url);
 }

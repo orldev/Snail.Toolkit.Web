@@ -103,13 +103,6 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         return Recorded(outcome, target, started, activity);
     }
 
-    /// <summary>Passes on a gap the site asked for, so the next caller waits rather than this one alone.</summary>
-    /// <remarks>
-    /// Written into the gate rather than into the retry delay, because the two are not the same promise. A
-    /// retry delay binds this operation; the gate binds the host, and a <c>429</c> answered to one worker is
-    /// not a fact about that worker. The retry then needs nothing of its own — every attempt enters the gate,
-    /// and finds it closed for as long as the site asked.
-    /// </remarks>
     /// <summary>Answers whether repeating the work could do better than repeating the refusal.</summary>
     /// <remarks>
     /// A site that names a gap has answered for the next several seconds, and the only question left is
@@ -127,6 +120,13 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         return outcome.Failure.RetryAfter is not { } gap || gap <= longestRest;
     }
 
+    /// <summary>Passes on a gap the site asked for, so the next caller waits rather than this one alone.</summary>
+    /// <remarks>
+    /// Written into the gate rather than into the retry delay, because the two are not the same promise. A
+    /// retry delay binds this operation; the gate binds the host, and a <c>429</c> answered to one worker is
+    /// not a fact about that worker. The retry then needs nothing of its own — every attempt enters the gate,
+    /// and finds it closed for as long as the site asked.
+    /// </remarks>
     private void Rest(Uri target, Outcome<TValue, PageFailure> outcome)
     {
         if (outcome.IsSuccess || outcome.Failure.RetryAfter is not { } gap)

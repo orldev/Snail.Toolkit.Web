@@ -8,6 +8,16 @@ namespace Snail.Toolkit.Web.Scraping;
 /// <see cref="Timeout"/> asks for a longer budget, <see cref="RobotsDisallowed"/> asks for nothing at all.
 /// The engine this came from answered every one of these with an empty string, so a caller could see that a
 /// page was missing but never why.
+/// <para>
+/// THERE IS DELIBERATELY NO KIND FOR CANCELLATION, and the reason is that every way a read can be cut short
+/// already has a name of its own. A caller cancelling propagates as <see cref="OperationCanceledException"/>,
+/// which is what the TPL and ASP.NET Core expect and what <c>CrawlerTests</c> holds this library to. A crawl
+/// outliving its own budget is <see cref="CrawlStop.TimeLimit"/> in the report, told apart from the caller's
+/// cancellation by the one guard that can tell them apart — whose token was cancelled. A navigation outliving
+/// <see cref="ScrapingOptions.NavigationTimeoutMs"/> is <see cref="Timeout"/>. A search outliving
+/// <c>SearchOptions.Timeout</c> is <c>SearchFailureKind.Canceled</c>. A kind added here would be one nothing
+/// could produce, which is worse than the gap it was meant to fill.
+/// </para>
 /// </remarks>
 public enum FailureKind
 {

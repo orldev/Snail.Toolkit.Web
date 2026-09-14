@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
 
@@ -12,14 +11,29 @@ namespace Snail.Toolkit.Web.Robots;
 /// re-read <c>robots.txt</c> per URL would announce itself twice per page, and one that never re-read it would
 /// obey a year-old file.
 /// </remarks>
-public sealed class SiteRules(IRobotsSource source, IOptions<RobotsOptions> options) : ISiteRules
+public sealed class SiteRules : ISiteRules
 {
-    private readonly RobotsOptions _options = options.Value;
-    private readonly ConcurrentDictionary<string, Entry> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private long _sweepDue = DateTimeOffset.MinValue.UtcTicks;
+    private readonly IRobotsSource _source;
+    private readonly RobotsOptions _options;
+    private readonly Remembered<Entry> _cache;
 
     /// <summary>How many origins are currently remembered.</summary>
     internal int RememberedOrigins => _cache.Count;
+
+    /// <summary>Builds the cache from the configured lifetime.</summary>
+    /// <remarks>
+    /// Age is counted from when a read started rather than from when it finished, which is the earlier of the
+    /// two and so forgets an entry a download's worth of time early. That costs at most one extra fetch, and
+    /// only for an origin nobody asked about for a whole lifetime — which was going to be re-read anyway.
+    /// </remarks>
+    public SiteRules(IRobotsSource source, IOptions<RobotsOptions> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        _source = source;
+        _options = options.Value;
+        _cache = new Remembered<Entry>(_options.CacheLifetime, (entry, since) => entry.StartedAt <= since);
+    }
 
     /// <inheritdoc />
     public async ValueTask<bool> IsAllowedAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
@@ -71,59 +85,26 @@ public sealed class SiteRules(IRobotsSource source, IOptions<RobotsOptions> opti
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                _cache.TryRemove(new KeyValuePair<string, Entry>(origin.AbsoluteUri, entry));
+                _cache.Forget(origin.AbsoluteUri, entry);
                 throw;
             }
 
             if (DateTimeOffset.UtcNow - cached.ReadAt <= _options.CacheLifetime)
                 return cached.Rules;
 
-            _cache.TryRemove(new KeyValuePair<string, Entry>(origin.AbsoluteUri, entry));
+            _cache.Forget(origin.AbsoluteUri, entry);
         }
     }
 
-    /// <summary>This origin's entry, forgetting the ones that have outlived their lifetime first.</summary>
+    /// <summary>This origin's entry, started the first time the origin is asked about.</summary>
     /// <remarks>
     /// An entry was only ever dropped by someone asking for that same origin again, so a crawl across many
     /// sites kept every file it had ever read for as long as the process ran — including the ones that had
-    /// expired an hour earlier and would never be asked for again. The map now holds the origins read within
+    /// expired an hour earlier and would never be asked for again. What is kept now is the origins read within
     /// <see cref="RobotsOptions.CacheLifetime"/>, which is exactly the set an answer can still come from.
-    /// <para>
-    /// Sweeping happens when an unknown origin arrives, and at most once a quarter of that lifetime: a sweep
-    /// reads the whole map, and doing that per new origin would be quadratic over a crawl.
-    /// </para>
     /// </remarks>
     private Entry EntryFor(Uri origin, ProxyEndpoint? proxy)
-    {
-        if (_cache.TryGetValue(origin.AbsoluteUri, out var known))
-            return known;
-
-        ForgetExpired();
-
-        return _cache.GetOrAdd(origin.AbsoluteUri, _ => new Entry(Deferred(origin, proxy), DateTimeOffset.UtcNow));
-    }
-
-    /// <summary>Drops the entries no answer could come from any more.</summary>
-    /// <remarks>
-    /// Age is counted from when the read started rather than when it finished, which is the earlier of the
-    /// two and so forgets an entry a download's worth of time early. That costs at most one extra fetch, and
-    /// only for an origin nobody asked about for a whole lifetime — which was going to be re-read anyway.
-    /// </remarks>
-    private void ForgetExpired()
-    {
-        var now = DateTimeOffset.UtcNow;
-        var due = Interlocked.Read(ref _sweepDue);
-
-        if (now.UtcTicks < due)
-            return;
-
-        if (Interlocked.CompareExchange(ref _sweepDue, (now + _options.CacheLifetime / 4).UtcTicks, due) != due)
-            return;
-
-        foreach (var (origin, entry) in _cache)
-            if (now - entry.StartedAt > _options.CacheLifetime)
-                _cache.TryRemove(new KeyValuePair<string, Entry>(origin, entry));
-    }
+        => _cache.Of(origin.AbsoluteUri, _ => new Entry(Deferred(origin, proxy), DateTimeOffset.UtcNow));
 
     /// <summary>Starts one read per origin, detached from any single caller's cancellation.</summary>
     /// <remarks>
@@ -136,7 +117,7 @@ public sealed class SiteRules(IRobotsSource source, IOptions<RobotsOptions> opti
 
     private async Task<Cached> ReadAsync(Uri origin, ProxyEndpoint? proxy)
     {
-        var rules = await source.ReadAsync(origin, proxy, CancellationToken.None);
+        var rules = await _source.ReadAsync(origin, proxy, CancellationToken.None);
 
         return new Cached(rules, DateTimeOffset.UtcNow);
     }

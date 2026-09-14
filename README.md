@@ -42,6 +42,11 @@ builder.Services.AddScraping(builder.Configuration);    // Snail.Toolkit.Web.Scr
 }
 ```
 
+Settings are read once, when the host starts. Every option class is bound and snapshotted at that
+point, so a change to `appsettings.json` reaches a running process only when it is restarted — there is
+no live reload anywhere in the toolkit, and a setting that appears to have been ignored has usually been
+edited under a process that read it an hour ago.
+
 Asking a question, and reading a page:
 
 ```csharp

@@ -177,11 +177,11 @@ public class RegistrationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddScraping(options => options.MaxBrowsers = 4);
+        services.AddScraping(options => options.MaxDegreeOfParallelism = 4);
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(4, provider.GetRequiredService<IOptions<ScrapingOptions>>().Value.MaxBrowsers);
+        Assert.Equal(4, provider.GetRequiredService<IOptions<ScrapingOptions>>().Value.MaxDegreeOfParallelism);
         Assert.NotNull(provider.GetRequiredService<ICrawler>());
     }
 

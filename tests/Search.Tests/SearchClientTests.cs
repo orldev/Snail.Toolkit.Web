@@ -133,6 +133,8 @@ public class SearchClientTests
 
     private sealed class CountingPoliteness : IPoliteness
     {
+        public DateTimeOffset OpensAt(Uri url) => DateTimeOffset.MinValue;
+
         public TimeSpan? Rested { get; private set; }
 
         public Task<IAsyncDisposable> EnterAsync(Uri url, TimeSpan? requested = null, CancellationToken ct = default)
