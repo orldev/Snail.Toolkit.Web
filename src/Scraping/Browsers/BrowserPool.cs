@@ -117,7 +117,31 @@ public sealed class BrowserPool : IBrowserPool
         if (Volatile.Read(ref _browser) is { IsConnected: true } live)
             return live;
 
-        await _opening.WaitAsync(ct);
+        try
+        {
+            return await OpeningAsync(ct);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException
+                                          && !ct.IsCancellationRequested)
+        {
+            throw new ObjectDisposedException(nameof(BrowserPool));
+        }
+    }
+
+    /// <summary>Opens the browser under one caller, with the shutdown able to call the wait off.</summary>
+    /// <remarks>
+    /// Every way this can end while the pool is closing is answered by its caller in one place, which is the
+    /// shape <see cref="QueuedAsync"/> already uses and for the same reason. There are three of them and the
+    /// third is easy to miss: the wait can be cancelled, the semaphore can be disposed, and reading
+    /// <see cref="CancellationTokenSource.Token"/> off a <see cref="CancellationTokenSource"/> that has been
+    /// disposed throws as well — so the linked source has to be built inside the guard rather than beside it,
+    /// or a caller arriving late is told a <c>CancellationTokenSource</c> was disposed and left to guess whose.
+    /// </remarks>
+    private async Task<IBrowser> OpeningAsync(CancellationToken ct)
+    {
+        using var opening = CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown.Token);
+
+        await _opening.WaitAsync(opening.Token);
 
         try
         {
@@ -130,7 +154,17 @@ public sealed class BrowserPool : IBrowserPool
                 await CloseAsync();
             }
 
-            var opened = await OpenedAsync(ct);
+            var opened = await Opened(opening.Token);
+
+            // The pool can close while this is still opening, and then CloseAsync has already read the field
+            // and written null. Storing the browser here would put it somewhere nothing looks again: the
+            // process it launched, or the connection it holds, outlives the pool that made it.
+            if (Volatile.Read(ref _isDisposed) == 1)
+            {
+                await Closed(opened);
+
+                throw new ObjectDisposedException(nameof(BrowserPool));
+            }
 
             Volatile.Write(ref _browser, opened);
 
@@ -145,6 +179,50 @@ public sealed class BrowserPool : IBrowserPool
             _opening.Release();
         }
     }
+
+    /// <summary>The browser, or release from waiting for one that cannot be called off.</summary>
+    /// <remarks>
+    /// Playwright's <c>ConnectAsync</c> and <c>LaunchAsync</c> take a timeout and no cancellation token, so a
+    /// browser that has begun opening cannot be told to stop. Waiting for it anyway is what made shutdown
+    /// wait out the whole connect timeout — forty-five seconds at the defaults, against a pool that had
+    /// already closed.
+    /// <para>
+    /// The caller is therefore released at once and the attempt is left to finish on its own, where the
+    /// browser it produces is closed rather than abandoned. That is the difference between a connect nobody
+    /// is waiting for and a browser process nobody owns.
+    /// </para>
+    /// </remarks>
+    private async Task<IBrowser> Opened(CancellationToken ct)
+    {
+        var opening = OpenedAsync(ct);
+
+        try
+        {
+            return await opening.WaitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            Abandon(opening);
+
+            throw;
+        }
+    }
+
+    /// <summary>Closes a browser that finished opening after everybody stopped waiting for it.</summary>
+    private void Abandon(Task<IBrowser> opening)
+        => _ = opening.ContinueWith(
+            ended =>
+            {
+                if (ended.IsCompletedSuccessfully)
+                    return Closed(ended.Result);
+
+                _ = ended.Exception;
+
+                return Task.CompletedTask;
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
     private async Task<IBrowser> OpenedAsync(CancellationToken ct)
     {
@@ -178,6 +256,16 @@ public sealed class BrowserPool : IBrowserPool
     /// a second driver: another node process, started and then forgotten, for the whole life of the pool.
     /// <see cref="Lazy{T}"/> runs its factory exactly once and publishes it safely by default, which is the
     /// whole of what the semaphore was there for.
+    /// <para>
+    /// KNOWN AND NOT FIXED, so that it is not rediscovered as news: exactly once includes once unsuccessfully.
+    /// The factory returns a <see cref="Task{TResult}"/> rather than throwing, so a driver that fails to start
+    /// is a faulted task cached for the life of the pool, and every later <see cref="RentAsync"/> awaits that
+    /// same fault — one transient failure at start-up is a pool that never works again. It is left alone
+    /// because nothing here can demonstrate it: <see cref="Playwright.CreateAsync"/> is static, so no test in
+    /// this suite can make it fail, and a retry written against a failure nobody can produce is a guess about
+    /// the hot path rather than a fix. Making it testable means giving the pool a driver factory to be handed,
+    /// which is the change to weigh — not a retry bolted on here.
+    /// </para>
     /// </remarks>
     private readonly Lazy<Task<IPlaywright>> _driver = new(Playwright.CreateAsync);
 
@@ -253,9 +341,12 @@ public sealed class BrowserPool : IBrowserPool
 
         Volatile.Write(ref _browser, null);
 
-        if (browser is null)
-            return;
+        if (browser is not null)
+            await Closed(browser);
+    }
 
+    private async Task Closed(IBrowser browser)
+    {
         try
         {
             await browser.CloseAsync();
@@ -290,9 +381,13 @@ public sealed class BrowserPool : IBrowserPool
     /// reaper is awaited for its ending rather than its answer; and the driver and the tokens are released in a
     /// <c>finally</c>, because a browser that refuses to close would otherwise leak the process that hosts it.
     /// <para>
-    /// The page semaphore is deliberately left undisposed, for the reason its counterpart in the politeness
-    /// gate is: a lease released after shutdown would meet a disposed object, and nothing here holds a handle
-    /// worth reclaiming.
+    /// NEITHER semaphore is disposed, for the reason their counterpart in the politeness gate is not: a
+    /// caller released after shutdown would meet a disposed object, and nothing here holds a handle worth
+    /// reclaiming. That was true of the page semaphore from the start and was not extended to the opening
+    /// one, which cost more than an unhelpful exception. <see cref="SemaphoreSlim.Dispose()"/> does not wake
+    /// anybody waiting on it — a caller queued behind an opening browser was left on a gate nobody would
+    /// open again and never returned at all, which is word for word the failure the page semaphore already
+    /// had a paragraph about. MEASURED on 2026-09-15: the test host had to be killed.
     /// </para>
     /// </remarks>
     public async ValueTask DisposeAsync()
@@ -323,7 +418,6 @@ public sealed class BrowserPool : IBrowserPool
             if (_driver.IsValueCreated && _driver.Value.IsCompletedSuccessfully)
                 (await _driver.Value).Dispose();
 
-            _opening.Dispose();
             _shutdown.Dispose();
         }
     }

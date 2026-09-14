@@ -79,10 +79,7 @@ public sealed class LinkExtraction : ILinkExtraction
         if (string.IsNullOrWhiteSpace(html))
             return null;
 
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
-
-        return document;
+        return Markup.Read(html);
     }
 
     /// <summary>Answers whether the document as a whole allows its links to be followed.</summary>

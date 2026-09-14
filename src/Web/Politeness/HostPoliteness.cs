@@ -56,6 +56,23 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Two steps — find the gate, then write the rest on it — and until 2026-09-15 the host could stop being
+    /// remembered between them, which is not a shorter rest but none at all: the next caller built a gate
+    /// that had never heard of the refusal and went straight at a site that had just asked to be left alone.
+    /// <para>
+    /// What answers it is in <c>Remembered</c>, not here: an entry younger than the forgetting window is
+    /// never swept, so a gate made a moment ago is still the gate everyone finds. A confirm-and-retry loop
+    /// around these two lines was written first and then TAKEN OUT, and the reason is recorded here because
+    /// it is the obvious thing to propose again. MEASURED on 2026-09-15 by removing each cure separately: at
+    /// the most eager forgetting the settings now permit — one millisecond — the residency rule alone brings
+    /// sixty-four callers over fifty rounds to zero violations, and removing the loop while keeping residency
+    /// changes nothing across five runs. It defended only <c>ForgetHostAfter</c> of zero, where no residency
+    /// rule can hold because a gate is stale the instant it is made, and which start-up validation now
+    /// refuses. A retry loop on the path every page takes, justified by no test that can tell it apart, is a
+    /// worse trade than the rule that is doing the work.
+    /// </para>
+    /// </remarks>
     public void Rest(Uri url, TimeSpan gap)
     {
         ArgumentNullException.ThrowIfNull(url);

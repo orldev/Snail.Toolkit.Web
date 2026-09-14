@@ -173,6 +173,11 @@ public static class ServiceCollectionExtensions
                 settings => settings.LongestRest >= TimeSpan.Zero,
                 $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.LongestRest)}' cannot be negative.")
             .Validate(
+                settings => settings.ForgetHostAfter > TimeSpan.Zero,
+                $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.ForgetHostAfter)}' has to be positive: "
+                + "a gate forgotten the moment it is made carries no pacing decision, so every request to a host "
+                + "would meet a fresh one and the configured gap would never be waited.")
+            .Validate(
                 settings => settings.HostDelays.Values.All(gap => gap >= TimeSpan.Zero),
                 $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.HostDelays)}' holds a negative gap.")
             .Validate(
@@ -192,5 +197,8 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => !string.IsNullOrWhiteSpace(settings.UserAgent),
                 $"'{RobotsOptions.SectionName}:{nameof(RobotsOptions.UserAgent)}' is required.")
+            .Validate(
+                settings => settings.LongestCrawlDelay > TimeSpan.Zero,
+                $"'{RobotsOptions.SectionName}:{nameof(RobotsOptions.LongestCrawlDelay)}' has to be positive.")
             .ValidateOnStart();
 }

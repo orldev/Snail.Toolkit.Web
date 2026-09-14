@@ -34,6 +34,17 @@ public sealed class Crawler(
     /// <summary>How much text a page needs before two identical ones are taken for one document.</summary>
     private const int DistinctiveText = 200;
 
+    /// <summary>The longest budget a crawl can be given, which is the longest a timer will hold.</summary>
+    /// <remarks>
+    /// <see cref="CancellationTokenSource.CancelAfter(TimeSpan)"/> refuses anything past <c>uint.MaxValue - 1</c>
+    /// milliseconds — about 49.7 days — and <see cref="TimeSpan.MaxValue"/> is exactly what a caller reaches
+    /// for to mean "no limit". <see cref="Impossible"/> read the bottom of this range from the day it was
+    /// written and not the top, so a budget above it threw <see cref="ArgumentOutOfRangeException"/> out of
+    /// <see cref="CrawlAsync"/> naming a parameter called <c>delay</c> that no caller of this API has heard
+    /// of, while every other impossible scope came back as a report saying why.
+    /// </remarks>
+    private static readonly TimeSpan LongestBudget = TimeSpan.FromDays(49);
+
     private readonly ScrapingOptions _scraping = scraping.Value;
     private readonly CrawlOptions _crawling = crawling.Value;
 
@@ -321,6 +332,7 @@ public sealed class Crawler(
         { MaxPages: <= 0 } => "A crawl allowed to read no pages has nothing to do.",
         { MaxDepth: < 0 } => "A crawl cannot follow links to a depth below zero.",
         _ when scope.Budget <= TimeSpan.Zero => "A crawl needs a time budget above zero to read anything.",
+        _ when scope.Budget > LongestBudget => "A crawl budget longer than a timer can hold cannot be started.",
         _ => null
     };
 

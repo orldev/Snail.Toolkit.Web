@@ -35,6 +35,14 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
     /// the document mid-tag, and the callers that read markup — every browser-backed search engine — then lose
     /// every link past the cut while the page still looks like it parsed.
     /// </para>
+    /// <para>
+    /// SO NOTHING HERE BOUNDS THE MARKUP, and that is why the one bound it does have is a refusal rather than
+    /// a cut. Parsing is quadratic in nesting depth, so markup nested a thousand tags deep costs seconds of
+    /// CPU per page — and this is the only place that can say so in the caller's own vocabulary. Left to
+    /// itself the refusal would have arrived as an empty text and been reported as
+    /// <see cref="FailureKind.Empty"/>: a page that published a great deal, described as having published
+    /// nothing.
+    /// </para>
     /// </remarks>
     public PageOutcome Judged(Document document)
     {
@@ -48,17 +56,30 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
                 UserAgent = document.Identity.UserAgent
             });
 
-        var budgeted = _budget.Apply(text.Clean(document.Html));
+        try
+        {
+            var budgeted = _budget.Apply(text.Clean(document.Html));
 
-        return PageOutcome.Success(
-            new PageContent(document.Address, document.Html, budgeted.Text, DateTimeOffset.UtcNow)
+            return PageOutcome.Success(
+                new PageContent(document.Address, document.Html, budgeted.Text, DateTimeOffset.UtcNow)
+                {
+                    Final = Link.Of(document.FinalUrl),
+                    Title = text.Title(document.Html),
+                    StatusCode = document.StatusCode,
+                    UserAgent = document.Identity.UserAgent,
+                    IsTruncated = budgeted.IsTruncated,
+                    OriginalLength = budgeted.OriginalLength
+                });
+        }
+        catch (MarkupTooDeepException refused)
+        {
+            return PageOutcome.Failed(new PageFailure(FailureKind.Unreadable, refused.Message)
             {
-                Final = Link.Of(document.FinalUrl),
-                Title = text.Title(document.Html),
+                Address = document.Address,
                 StatusCode = document.StatusCode,
                 UserAgent = document.Identity.UserAgent,
-                IsTruncated = budgeted.IsTruncated,
-                OriginalLength = budgeted.OriginalLength
+                Cause = refused
             });
+        }
     }
 }

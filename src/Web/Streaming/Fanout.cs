@@ -18,6 +18,9 @@ namespace Snail.Toolkit.Web.Streaming;
 /// </remarks>
 public static class Fanout
 {
+    /// <summary>How long a consumer that has left waits for work it has already cancelled.</summary>
+    private static readonly TimeSpan Grace = TimeSpan.FromSeconds(5);
+
     /// <summary>Streams the results of <paramref name="work"/> over <paramref name="source"/>, as they finish.</summary>
     /// <remarks>
     /// An item that throws becomes the result <c>failed</c> gives for it, and the batch carries on.
@@ -62,7 +65,39 @@ public static class Fanout
         finally
         {
             await producing.CancelAsync();
-            await producer;
+
+            await Ended(producer);
+        }
+    }
+
+    /// <summary>Waits for the producer to finish, and stops waiting if it will not.</summary>
+    /// <remarks>
+    /// Tying the producer to the enumeration is what keeps it from blocking forever on a channel nobody reads,
+    /// and awaiting it here is how that tie is honoured — a consumer that leaves early should not walk away
+    /// from work still holding a lease. What it must not do is make leaving conditional on the work agreeing
+    /// to stop. Cancellation has already been asked for; work that does not watch its token would otherwise
+    /// hold the caller for as long as it likes, and the caller has said it no longer wants the answer.
+    /// <para>
+    /// Both callers inside this toolkit are bounded by something else — Playwright's navigation timeout on one
+    /// side, a Polly total-request timeout on the other — so this is for the consumer who fans out over
+    /// something that is not. The grace period is long enough that an orderly stop is always awaited and short
+    /// enough that a disorderly one is not mistaken for progress; the work is then left to finish on its own,
+    /// where its exception is observed rather than raised at a caller that has already gone.
+    /// </para>
+    /// </remarks>
+    private static async Task Ended(Task producer)
+    {
+        try
+        {
+            await producer.WaitAsync(Grace);
+        }
+        catch (TimeoutException)
+        {
+            _ = producer.ContinueWith(
+                ended => ended.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 

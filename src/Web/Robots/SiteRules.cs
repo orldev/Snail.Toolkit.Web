@@ -58,7 +58,10 @@ public sealed class SiteRules : ISiteRules
 
         var rules = await CachedAsync(url, proxy, ct);
 
-        return rules.CrawlDelay(_options.UserAgent);
+        if (rules.CrawlDelay(_options.UserAgent) is not { } asked)
+            return null;
+
+        return asked < _options.LongestCrawlDelay ? asked : _options.LongestCrawlDelay;
     }
 
     /// <inheritdoc />

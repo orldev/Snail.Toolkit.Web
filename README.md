@@ -95,7 +95,10 @@ and it knows about neither Playwright nor `HttpClient`:
   Request rate is the signal a site reads first, and no amount of fingerprinting hides it.
 - **Robots** — parsing and matching; *fetching* `robots.txt` belongs to whichever transport is in use.
 - **Block detection** — challenge, consent and refusal pages recognised in the body and in the final URL.
-- **Text extraction** — readable text with its paragraph structure intact.
+- **Text extraction** — readable text with its paragraph structure intact. Markup nested more than a thousand
+  tags deep is refused rather than parsed, and the read reports `FailureKind.Unreadable`: parsing is quadratic
+  in depth, so a page of 161 KB nested five thousand deep costs four hundred milliseconds of pure CPU where a
+  catalogue of 2.3 MB costs a quarter of that. Size is the wrong axis and there is no ceiling on it.
 - **URL identity** — one normalisation, so the link search deduplicates by is the link scraping throttles by.
 - **Outcome** — failure as data, never as an empty string.
 

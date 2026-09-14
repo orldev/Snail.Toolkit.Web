@@ -194,22 +194,4 @@ public static class Spread
                 cursor--;
         }
     }
-
-    /// <summary>The first host from the cursor round whose next item may be taken now, or -1 when none may.</summary>
-    private static int Open<T>(
-        Dictionary<string, Queue<T>> waiting,
-        List<string> hosts,
-        Func<T, bool> isOpen,
-        int cursor)
-    {
-        for (var step = 0; step < hosts.Count; step++)
-        {
-            var index = (cursor + step) % hosts.Count;
-
-            if (isOpen(waiting[hosts[index]].Peek()))
-                return index;
-        }
-
-        return -1;
-    }
 }

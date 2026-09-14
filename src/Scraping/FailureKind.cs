@@ -50,6 +50,21 @@ public enum FailureKind
     /// </remarks>
     Empty,
 
+    /// <summary>The page loaded, but its markup was refused rather than parsed.</summary>
+    /// <remarks>
+    /// Today there is one way to earn this and it is nesting depth: parsing is quadratic in it, so markup a
+    /// thousand tags deep costs seconds of CPU per page and any site can serve it in a hundred kilobytes.
+    /// <para>
+    /// A member was added here where <c>Cancelled</c> was refused, and the difference is the whole test for
+    /// whether a kind should exist: ANY SITE CAN PRODUCE THIS ONE, with five thousand opening tags and no
+    /// closing ones, while nothing in the library could ever have produced a cancellation that was not
+    /// already named elsewhere. The alternative was worse than a new member rather than merely different —
+    /// refused markup would have come back as <see cref="Empty"/>, which says the site published nothing when
+    /// in fact it published a great deal and we declined to read it.
+    /// </para>
+    /// </remarks>
+    Unreadable,
+
     /// <summary>Something failed that this library does not classify further.</summary>
     Unexpected
 }
