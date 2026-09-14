@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Robots;
+using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Sitemaps;
 using Snail.Toolkit.Web.Sitemaps;
 using Snail.Toolkit.Web.Text;
@@ -487,7 +488,10 @@ public class CrawlerTests
 
         public int Calls => Volatile.Read(ref _calls);
 
-        public async Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+        public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+            => ReadAsync(address, Appetite.Everything, ct);
+
+        public async Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
         {
             Interlocked.Increment(ref _calls);
 

@@ -19,39 +19,41 @@ public static class ServiceCollectionExtensions
         /// Pulls in both halves deliberately: browser search is HTTP search plus a page reader, and a consumer
         /// that asked for it wants the HTTP providers alongside rather than instead. Both registrations are
         /// idempotent, so calling them again elsewhere costs nothing.
+        /// <para>
+        /// Google is not here. It answers a form rather than an address — measured on 2026-09-13, its results
+        /// address returns <c>/sorry/</c> where its own form returns results — and walking a form needs the
+        /// page agent, which this package deliberately does not depend on. It ships in
+        /// <c>Snail.Toolkit.Web.Search.Browser.Agent</c>, and a deployment that wants both adds that one too.
+        /// </para>
         /// </remarks>
         public IServiceCollection AddBrowserSearch(IConfiguration configuration)
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            services.AddSearch(configuration);
-            services.AddScraping(configuration);
-
-            return services
-                .AddGoogle(configuration)
-                .AddBrave(configuration);
+            return services.AddBrave(configuration);
         }
 
-        /// <summary>Adds the Google provider on top of a search and a page reader already registered.</summary>
-        public IServiceCollection AddGoogle(IConfiguration configuration)
-        {
-            ArgumentNullException.ThrowIfNull(configuration);
-
-            Validated(services.BindOnce<GoogleOptions>(configuration, GoogleOptions.SectionName));
-
-            return services.AddSearchProvider<Google>();
-        }
-
-        /// <summary>Adds the Brave provider on top of a search and a page reader already registered.</summary>
+        /// <summary>Adds Brave, read at its own results address.</summary>
         /// <remarks>
         /// Registered beside Google rather than instead of it, because which engine answers a given client
         /// from a given address is a fact that changes: measured on 2026-09-12 Brave answered and Google did
-        /// not, and the aggregator is where that stops mattering. Each provider costs a page load, so a
-        /// deployment that wants only one of them adds it on its own instead of taking this pair.
+        /// not, and on 2026-09-14 Brave answered <c>429</c> from the same address while Google returned six
+        /// results. The aggregator is where that stops mattering. Each provider costs a page load, so a
+        /// deployment that wants only one of them adds it on its own instead of taking the set.
+        /// <para>
+        /// Pulls in search and the page reader rather than assuming them, so that saying one thing is enough —
+        /// the same way <c>AddGoogle</c> does in the package next door. Until 2026-09-14 this method registered
+        /// the provider alone, so a deployment that took the remark above at its word built a container that
+        /// resolved <see cref="Brave"/> into an <c>IPageReader</c> nobody had registered. That failure arrives
+        /// on the first query rather than at startup, because validation checks settings and not the graph.
+        /// </para>
         /// </remarks>
         public IServiceCollection AddBrave(IConfiguration configuration)
         {
             ArgumentNullException.ThrowIfNull(configuration);
+
+            services.AddSearch(configuration);
+            services.AddScraping(configuration);
 
             Validated(services.BindOnce<BraveOptions>(configuration, BraveOptions.SectionName));
 
@@ -64,13 +66,6 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => IsHost(settings.Domain),
                 $"'{BraveOptions.SectionName}:{nameof(BraveOptions.Domain)}' has to be a bare host such as 'search.brave.com', without a scheme or a path.")
-            .ValidateOnStart();
-
-    private static void Validated(OptionsBuilder<GoogleOptions> builder)
-        => builder
-            .Validate(
-                settings => IsHost(settings.Domain),
-                $"'{GoogleOptions.SectionName}:{nameof(GoogleOptions.Domain)}' has to be a bare host such as 'www.google.de', without a scheme or a path.")
             .ValidateOnStart();
 
     private static bool IsHost(string value)

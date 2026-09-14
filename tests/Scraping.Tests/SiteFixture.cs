@@ -91,6 +91,8 @@ public sealed class SiteFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Challenge), "/usr/share/nginx/html/challenge.html")
             .WithResourceMapping(Bytes(Pages.Blank), "/usr/share/nginx/html/blank.html")
             .WithResourceMapping(Bytes(Pages.Probe), "/usr/share/nginx/html/probe.html")
+            .WithResourceMapping(Bytes(Pages.Tracked), "/usr/share/nginx/html/tracked.html")
+            .WithResourceMapping(Bytes(Pages.Tracker), "/usr/share/nginx/html/tracker.js")
             .WithResourceMapping(Bytes(Pages.Robots), "/usr/share/nginx/html/robots.txt")
             .WithWaitStrategy(Wait.ForUnixContainer()
                 .UntilInternalTcpPortIsAvailable(80)
@@ -166,6 +168,21 @@ public sealed class SiteFixture : IAsyncLifetime
             """;
 
         public const string Blank = "<!doctype html><html><body></body></html>";
+
+        /// <summary>Says in its title whether the browser fetched the script beside it.</summary>
+        /// <remarks>
+        /// The script is a separate file rather than an inline one on purpose: inline scripts are part of the
+        /// document and cost no request, so a page carrying one could not tell a fetched subresource from a
+        /// refused one. The title is the signal because it survives into the markup the reader hands back.
+        /// </remarks>
+        public const string Tracked =
+            """
+            <!doctype html>
+            <html><head><title>quiet</title><script src="/tracker.js"></script></head>
+            <body><h1>Tracked</h1><p>Wheat prices rose.</p></body></html>
+            """;
+
+        public const string Tracker = "document.title = 'tracked';";
 
         public const string Robots =
             $"""

@@ -2,6 +2,7 @@ using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
+using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Search.Browser;
 
@@ -19,12 +20,22 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// That is the whole reason this class is short: what differs per engine is the address a query becomes and
 /// the markup it comes back as, and here neither needs any unwrapping.
 /// </para>
+/// <para>
+/// It also counts requests rather than pages, and for a while that looked like a refusal. On 2026-09-14 the
+/// address it had answered with a hundred links was met with <c>429</c> on every attempt, and the signature
+/// looked like the cause: a Gecko user agent was answered twice out of four while Chrome, Safari and an
+/// unsigned client were refused outright. The real cause was cheaper and entirely ours. One ordinary page load
+/// here costs 71 to 73 requests, and the budget was being spent inside it: measured with the arms alternating
+/// and a fresh context each, the full page was refused three times out of three while the document alone was
+/// answered three times out of three, carrying all eighteen results. Hence <see cref="Appetite.DocumentOnly"/>
+/// below — not a way around the engine, but the amount of it we actually needed.
+/// </para>
 /// </remarks>
 public sealed class Brave(
     IPageReader pages,
     IOptions<BraveOptions> options,
     IOptions<SearchOptions> search,
-    ILogger<Brave> logger) : BrowserSearch(pages, search, logger)
+    ILogger<Brave> logger) : BrowserSearch(search, logger)
 {
     /// <summary>The name this provider is registered and configured under.</summary>
     public const string ProviderName = "Brave";
@@ -36,7 +47,18 @@ public sealed class Brave(
     protected override string Domain => options.Value.Domain;
 
     /// <inheritdoc />
-    protected override Link AddressOf(string query)
+    /// <inheritdoc />
+    /// <remarks>
+    /// The document alone, because this engine counts requests rather than pages. Measured on 2026-09-14 from
+    /// one address, arms alternating and a fresh context each: the full page cost 71 to 73 requests and was
+    /// answered <c>429</c> three times out of three, the document alone cost one request and was answered
+    /// <c>200</c> three times out of three — with all eighteen result blocks in it, because the results are
+    /// rendered on the server. The engine was not refusing us; we were spending its budget inside one page.
+    /// </remarks>
+    protected override Task<PageOutcome> AnsweredAsync(string query, CancellationToken ct)
+        => pages.ReadAsync(AddressOf(query), Appetite.DocumentOnly, ct);
+
+    private Link AddressOf(string query)
         => Link.Of($"https://{Domain}/search?q={Uri.EscapeDataString(query)}");
 
     /// <inheritdoc />

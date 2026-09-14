@@ -15,5 +15,9 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 public interface IVisits
 {
     /// <summary>Rents a browser and hands back a page prepared under the given identity.</summary>
-    Task<IVisit> OpenAsync(WebIdentity identity, CancellationToken ct = default);
+    /// <remarks>
+    /// The appetite is stated rather than defaulted, so that a caller driving a page through its own scripts
+    /// says so where it can be read beside the code that depends on it.
+    /// </remarks>
+    Task<IVisit> OpenAsync(WebIdentity identity, Appetite appetite, CancellationToken ct = default);
 }

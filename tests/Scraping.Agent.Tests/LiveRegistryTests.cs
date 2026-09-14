@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Agent.Extensions;
 using Snail.Toolkit.Web.Scraping.Behavior;
+using Snail.Toolkit.Web.Tests;
 using Xunit.Abstractions;
 
 namespace Snail.Toolkit.Web.Scraping.Agent.Tests;

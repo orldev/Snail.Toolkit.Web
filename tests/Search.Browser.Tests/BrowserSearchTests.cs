@@ -139,6 +139,18 @@ public class BrowserSearchTests
         Assert.Equal("https://example.com/0", answer.Value[0].Address.Text);
     }
 
+    /// <summary>
+    /// An address that is not absolute carries no host, so the outbound filter reads it as the engine's own
+    /// and drops it. An engine whose page wraps its links has to turn them into addresses before this point.
+    /// </summary>
+    /// <remarks>
+    /// This is what Google did on 2026-09-14: a megabyte of markup, seven wrapped links, and an answer of no
+    /// results that looked exactly like a quiet day.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_AddressThatIsNotAbsolute_IsNotAResult()
+        => Assert.Empty(await Found("/goto?url=CAESWAHrOzAVblob"));
+
     private static async Task<IReadOnlyList<SearchResult>> Found(string page)
         => (await Engine(new StubReader(_ => Fixture.Read(page))).FindAsync("grain")).Value;
 
@@ -147,16 +159,18 @@ public class BrowserSearchTests
             Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }),
             logger ?? NullLogger.Instance);
 
-    /// <summary>An engine that supplies only an address and a parser, so the base carries everything else.</summary>
+    /// <summary>An engine that supplies only a fetch and a parser, so the base carries everything else.</summary>
     private sealed class Elsewhere(IPageReader pages, IOptions<SearchOptions> search, ILogger logger)
-        : BrowserSearch(pages, search, logger)
+        : BrowserSearch(search, logger)
     {
         public override string Name => "Elsewhere";
 
         protected override string Domain => "search.example";
 
-        protected override Link AddressOf(string query)
-            => Link.Of($"https://search.example/find?q={Uri.EscapeDataString(query)}");
+        protected override Task<PageOutcome> AnsweredAsync(string query, CancellationToken ct)
+            => pages.ReadAsync(
+                Link.Of($"https://search.example/find?q={Uri.EscapeDataString(query)}"),
+                ct);
 
         protected override IEnumerable<SearchResult> Parsed(string html)
             => html

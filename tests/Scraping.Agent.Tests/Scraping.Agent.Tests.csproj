@@ -5,6 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\LiveFactAttribute.cs" Link="LiveFactAttribute.cs" />
     <Compile Include="..\BrowserImage.cs" Link="BrowserImage.cs" />
     <Compile Include="..\ChromiumFactAttribute.cs" Link="ChromiumFactAttribute.cs" />
   </ItemGroup>

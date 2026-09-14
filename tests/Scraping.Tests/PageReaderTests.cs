@@ -35,6 +35,44 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         Assert.False(outcome.Value.IsRedirected);
     }
 
+    /// <summary>Reading a page fetches what it asks for, the way a person's browser would.</summary>
+    /// <remarks>
+    /// The pair of these two is the point: the same page, the same reader, one axis. Without the first, the
+    /// second would pass against a browser that had quietly stopped fetching anything at all.
+    /// </remarks>
+    [Fact]
+    public async Task ReadAsync_PageWithASubresource_FetchesIt()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/tracked.html"));
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("<title>tracked</title>", outcome.Value.Html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Asked for the document alone, the browser refuses every subresource the page goes on to ask for.
+    /// </summary>
+    /// <remarks>
+    /// Measured against Brave on 2026-09-14: a site that counts requests rather than pages reads one ordinary
+    /// page load as a burst of seventy-odd, and answered <c>429</c> three times out of three where the document
+    /// alone was answered <c>200</c> three times out of three.
+    /// </remarks>
+    [Fact]
+    public async Task ReadAsync_DocumentAlone_RefusesTheSubresource()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Reader.ReadAsync(
+            Link.Of($"{SiteFixture.BaseUrl}/tracked.html"),
+            Browsers.Appetite.DocumentOnly);
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("<title>quiet</title>", outcome.Value.Html, StringComparison.Ordinal);
+        Assert.Contains("Wheat prices rose", outcome.Value.Html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ReadAsync_ChallengePage_ReportsBlockedRatherThanEmpty()
     {

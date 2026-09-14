@@ -1,4 +1,5 @@
 using Snail.Toolkit.Web.Scraping;
+using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;
 
@@ -26,9 +27,15 @@ internal sealed class StubReader(Func<Link, PageOutcome> answer) : IPageReader
 {
     public Link? Requested { get; private set; }
 
+    public Appetite? Wanted { get; private set; }
+
     public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+        => ReadAsync(address, Appetite.Everything, ct);
+
+    public Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
     {
         Requested = address;
+        Wanted = appetite;
 
         return Task.FromResult(answer(address));
     }

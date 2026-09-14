@@ -35,12 +35,16 @@ public sealed class PageReader(
 
     /// <inheritdoc />
     public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+        => ReadAsync(address, Appetite.Everything, ct);
+
+    /// <inheritdoc />
+    public Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(address);
 
         return attempts.AtAsync(
             address,
-            (identity, target, token) => FetchAsync(address, target, identity, token),
+            (identity, target, token) => FetchAsync(address, target, identity, appetite, token),
             ct);
     }
 
@@ -48,11 +52,12 @@ public sealed class PageReader(
         Link address,
         Uri target,
         WebIdentity identity,
+        Appetite appetite,
         CancellationToken ct)
     {
         try
         {
-            await using var visit = await visits.OpenAsync(identity, ct);
+            await using var visit = await visits.OpenAsync(identity, appetite, ct);
 
             var page = visit.Page;
 

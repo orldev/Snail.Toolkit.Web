@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>
+      Search providers that answer only a form filled in by hand rather than a results address.
+      Ships Google, which is walked through its own page by the agent.
+    </Description>
+    <PackageTags>search;playwright;browser;google;agent</PackageTags>
+  </PropertyGroup>
+
+  <!--
+    Separate from Snail.Toolkit.Web.Search.Browser so that package keeps costing what it costs. It is
+    the one a consumer takes for links alone, and the agent it would otherwise drag in is a walkthrough
+    engine with its own surface. The dependency runs this way only: the light package never sees the agent.
+  -->
+  <ItemGroup>
+    <PackageReference Include="HtmlAgilityPack" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scraping.Agent\Scraping.Agent.csproj" />
+    <ProjectReference Include="..\Search.Browser\Search.Browser.csproj" />
+  </ItemGroup>
+
+</Project>

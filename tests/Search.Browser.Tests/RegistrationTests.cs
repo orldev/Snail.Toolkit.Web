@@ -20,9 +20,7 @@ public class RegistrationTests
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal(
-            [Bing.ProviderName, Brave.ProviderName, DuckDuckGo.ProviderName, Google.ProviderName],
-            names);
+        Assert.Equal([Bing.ProviderName, Brave.ProviderName, DuckDuckGo.ProviderName], names);
     }
 
     [Fact]
@@ -31,33 +29,6 @@ public class RegistrationTests
         await using var provider = Built([]);
 
         Assert.NotNull(provider.GetRequiredService<IPageReader>());
-    }
-
-    [Fact]
-    public async Task AddBrowserSearch_Domain_ComesFromConfiguration()
-    {
-        await using var provider = Built(new Dictionary<string, string?>
-        {
-            ["Web:Search:Google:Domain"] = "www.google.de"
-        });
-
-        Assert.Equal("www.google.de", provider.GetRequiredService<IOptions<GoogleOptions>>().Value.Domain);
-    }
-
-    /// <summary>
-    /// A domain written as a URL is the mistake this setting invites, and it produces an address like
-    /// <c>https://https://www.google.de/search</c> that fails far from its cause.
-    /// </summary>
-    [Theory]
-    [InlineData("https://www.google.de")]
-    [InlineData("www.google.de/search")]
-    [InlineData("")]
-    public async Task AddBrowserSearch_DomainThatIsNotAHost_FailsValidation(string domain)
-    {
-        await using var provider = Built(new Dictionary<string, string?> { ["Web:Search:Google:Domain"] = domain });
-
-        Assert.Throws<OptionsValidationException>(
-            () => provider.GetRequiredService<IOptions<GoogleOptions>>().Value);
     }
 
     /// <summary>Registration is idempotent, so a second call cannot ask an engine twice per query.</summary>
@@ -72,7 +43,7 @@ public class RegistrationTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(4, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
     /// <summary>Registration is idempotent in its settings too, not only in its services.</summary>
@@ -115,6 +86,29 @@ public class RegistrationTests
 
         Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IOptions<BraveOptions>>().Value);
+    }
+
+    /// <summary>An engine added on its own has to bring what it needs to be built.</summary>
+    /// <remarks>
+    /// Every other check here goes through <c>AddBrowserSearch</c>, which is how this went unnoticed: until
+    /// 2026-09-14 <c>AddBrave</c> registered the provider and nothing else, so a deployment that took its own
+    /// remark at its word got a container resolving <see cref="Brave"/> into an <see cref="IPageReader"/>
+    /// nobody had registered. That failure arrives on the first query rather than at startup, because
+    /// validation checks settings and not the graph — so this asks for the providers themselves, which is what
+    /// forces them to be built.
+    /// </remarks>
+    [Fact]
+    public async Task AddBrave_OnItsOwn_BuildsAProviderThatCanBeAsked()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddBrave(new ConfigurationBuilder().Build());
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Contains(
+            provider.GetRequiredService<IEnumerable<ISearchProvider>>(),
+            engine => engine.Name == Brave.ProviderName);
     }
 
     private static ServiceProvider Built(Dictionary<string, string?> settings)

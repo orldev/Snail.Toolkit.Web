@@ -23,7 +23,7 @@ public sealed class Visits(
     private readonly ScrapingOptions _options = options.Value;
 
     /// <inheritdoc />
-    public async Task<IVisit> OpenAsync(WebIdentity identity, CancellationToken ct = default)
+    public async Task<IVisit> OpenAsync(WebIdentity identity, Appetite appetite, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(identity);
 
@@ -41,6 +41,9 @@ public sealed class Visits(
 
             await context.AddInitScriptAsync(stealth.For(identity));
 
+            if (appetite is Appetite.DocumentOnly)
+                await context.RouteAsync("**/*", TheDocumentAlone);
+
             var page = await context.NewPageAsync();
 
             await hints.AlignAsync(page, identity, traits, ct);
@@ -56,5 +59,22 @@ public sealed class Visits(
 
             throw;
         }
+    }
+
+    /// <summary>Lets the document through and refuses everything it goes on to ask for.</summary>
+    /// <remarks>
+    /// Installed on the context rather than the page so that it also covers frames, and before the first
+    /// navigation because a route added afterwards would miss the very request it exists for.
+    /// </remarks>
+    private static async Task TheDocumentAlone(IRoute route)
+    {
+        if (route.Request.ResourceType is "document")
+        {
+            await route.ContinueAsync();
+
+            return;
+        }
+
+        await route.AbortAsync();
     }
 }

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Description>
       Search providers that need a real browser, such as engines behind a consent wall or a challenge.
-      Ships Google and the base class every other such engine is written against.
+      Ships Brave and the base class every other such engine is written against.
     </Description>
     <PackageTags>search;playwright;browser;google</PackageTags>
   </PropertyGroup>

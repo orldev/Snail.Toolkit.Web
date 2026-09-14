@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
+using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;
 
@@ -125,6 +126,23 @@ public class BraveTests
         Assert.Equal(
             "https://search.brave.software/search?q=grain%20%26%20barley",
             reader.Requested?.Address?.AbsoluteUri);
+    }
+
+    /// <summary>This engine counts requests rather than pages, so it is asked for the document alone.</summary>
+    /// <remarks>
+    /// Measured on 2026-09-14 from one address, arms alternating and a fresh context each: the full page cost
+    /// 71 to 73 requests and was answered <c>429</c> three times out of three, while the document alone cost
+    /// one request and was answered <c>200</c> three times out of three, carrying all eighteen result blocks.
+    /// The engine was not refusing us — we were spending its budget inside a single page load.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_Query_AsksForTheDocumentAlone()
+    {
+        var reader = new StubReader(_ => Fixture.Read(Page));
+
+        await Provider(reader).FindAsync("grain");
+
+        Assert.Equal(Appetite.DocumentOnly, reader.Wanted);
     }
 
     private static async Task<IReadOnlyList<SearchResult>> Found(string html)
