@@ -6,7 +6,6 @@ using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Browsers;
-using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Scraping;
 
@@ -24,15 +23,11 @@ public sealed class PageReader(
     IVisits visits,
     IHumanBehavior behavior,
     IBlockDetector blocks,
-    ITextExtraction text,
+    PageContents contents,
     IOptions<ScrapingOptions> options,
     ILogger<PageReader> logger) : IPageReader
 {
     private readonly ScrapingOptions _options = options.Value;
-
-    private readonly ContentBudget _budget = options.Value.MaxContentCharacters > 0
-        ? ContentBudget.Of(options.Value.MaxContentCharacters)
-        : ContentBudget.Unlimited;
 
     /// <inheritdoc />
     public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
@@ -115,19 +110,6 @@ public sealed class PageReader(
         }
     }
 
-    /// <summary>Decides what the fetched document actually is.</summary>
-    /// <remarks>
-    /// The order matters. A challenge is recognised before the status, because a wall is often served with 403
-    /// and calling it a navigation failure would hide the one fact worth acting on. Emptiness is judged on the
-    /// rendered text rather than the markup: a browser returns
-    /// <c>&lt;html&gt;&lt;head&gt;&lt;/head&gt;&lt;body&gt;&lt;/body&gt;&lt;/html&gt;</c> for a blank page, so
-    /// testing the markup for whitespace never finds one.
-    /// <para>
-    /// The budget lands on the extracted text and the markup goes back whole. Cutting markup by character ends
-    /// the document mid-tag, and the callers that read markup — every browser-backed search engine — then lose
-    /// every link past the cut while the page still looks like it parsed.
-    /// </para>
-    /// </remarks>
     /// <summary>Reads the gap the site asked for, in either of the two forms the header is written in.</summary>
     /// <remarks>
     /// <c>Retry-After</c> carries either a count of seconds or an HTTP date, and both are common. A date in the
@@ -149,6 +131,13 @@ public sealed class PageReader(
         return gap > TimeSpan.Zero ? gap : null;
     }
 
+    /// <summary>Decides what the fetched document actually is.</summary>
+    /// <remarks>
+    /// The order matters. A challenge is recognised before the status, because a wall is often served with 403
+    /// and calling it a navigation failure would hide the one fact worth acting on. Everything past those two
+    /// questions is the same for a page read by address and a page walked to through a form, and lives in
+    /// <see cref="PageContents"/> so that it can only have one answer.
+    /// </remarks>
     private PageOutcome Judge(
         Link address,
         WebIdentity identity,
@@ -179,24 +168,14 @@ public sealed class PageReader(
                 RetryAfter = restAskedFor
             });
 
-        if (string.IsNullOrWhiteSpace(rendered))
-            return PageOutcome.Failed(new PageFailure(FailureKind.Empty, "The page rendered no content.")
-            {
-                Address = address,
-                StatusCode = status,
-                UserAgent = identity.UserAgent
-            });
-
-        var budgeted = _budget.Apply(text.Clean(html));
-
-        return PageOutcome.Success(new PageContent(address, html, budgeted.Text, DateTimeOffset.UtcNow)
+        return contents.Judged(new Document
         {
-            Final = Link.Of(finalUrl),
-            Title = text.Title(html),
-            StatusCode = status,
-            UserAgent = identity.UserAgent,
-            IsTruncated = budgeted.IsTruncated,
-            OriginalLength = budgeted.OriginalLength
+            Address = address,
+            Identity = identity,
+            Html = html,
+            Rendered = rendered,
+            FinalUrl = finalUrl,
+            StatusCode = status
         });
     }
 

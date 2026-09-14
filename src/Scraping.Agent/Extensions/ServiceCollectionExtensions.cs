@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
 
             Validated(services.BindOnce<AgentOptions>(configuration, AgentOptions.SectionName));
 
+            services.TryAddSingleton<Moves>();
+            services.TryAddSingleton<Setbacks>();
             services.TryAddSingleton<IPageAgent, PageAgent>();
             services.TryAddSingleton<ISiteCalls, SiteCalls>();
 
@@ -38,6 +40,8 @@ public static class ServiceCollectionExtensions
 
             Validated(services.AddOptions<AgentOptions>());
 
+            services.TryAddSingleton<Moves>();
+            services.TryAddSingleton<Setbacks>();
             services.TryAddSingleton<IPageAgent, PageAgent>();
             services.TryAddSingleton<ISiteCalls, SiteCalls>();
 

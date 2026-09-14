@@ -83,6 +83,7 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<IVisits, Visits>();
             services.TryAddSingleton(typeof(IAttempts<>), typeof(Attempts<>));
             services.TryAddSingleton<IHumanBehavior, HumanBehavior>();
+            services.TryAddSingleton<PageContents>();
             services.TryAddSingleton<IPageReader, PageReader>();
             services.TryAddSingleton<ICrawler, Crawler>();
 
