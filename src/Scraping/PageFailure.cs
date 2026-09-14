@@ -19,6 +19,15 @@ public sealed record PageFailure(FailureKind Kind, string Message)
     /// <summary>Gets the HTTP status the site answered with, when navigation produced a response.</summary>
     public int? StatusCode { get; init; }
 
+    /// <summary>Gets the gap the site asked to be left alone for, when it asked for one.</summary>
+    /// <remarks>
+    /// A <c>429</c> is the site saying how often it is willing to be asked, and <c>Retry-After</c> is the only
+    /// part of that answer with a number in it. Until 2026-09-14 nothing here read the header at all, so a
+    /// refusal by frequency was answered with three more requests on a schedule of our own — the toolkit's
+    /// reply to "too often" was to ask again, sooner than asked.
+    /// </remarks>
+    public TimeSpan? RetryAfter { get; init; }
+
     /// <summary>Gets the exception this failure was translated from.</summary>
     public Exception? Cause { get; init; }
 

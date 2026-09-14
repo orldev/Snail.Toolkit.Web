@@ -7,14 +7,74 @@ Questions about the web, answered separately, on one shared foundation.
 | `Snail.Toolkit.Web` | — | the shared behaviour every engine needs |
 | `Snail.Toolkit.Web.Search` | *where is this written about?* | query → **links** |
 | `Snail.Toolkit.Web.Scraping` | *what does this page say?* | **link** → content |
-| `Snail.Toolkit.Web.Search.Browser` | search engines that need a real browser | query → links |
+| `Snail.Toolkit.Web.Search.Browser` | engines that answer only a real browser | query → links |
+| `Snail.Toolkit.Web.Search.Browser.Agent` | engines that answer only their own search box | query → links |
 | `Snail.Toolkit.Web.Scraping.Agent` | *what does it say once the form is filled in?* | **errand** → content |
+
+**Which one do I install?** `Search` if a plain HTTP request will do — it is one request per query and needs
+nothing running. `Scraping` to read a page a browser has to render. The two `.Browser` packages drive a
+Playwright browser server and only earn their keep against an engine that refuses anything less; the
+`.Agent` ones walk a page rather than request it. Each depends on what it needs, so installing a leaf
+brings the core with it.
 
 The split is the point: **search never returns page content, scraping never takes a query.** The moment
 one does the other's job, this is a single package wearing two names.
 
 Together they are the foundation for agent tooling — the two capabilities an agent needs are exactly
 `search` and `fetch`.
+
+## Getting started
+
+Both engines are registered the way anything else in this stack is, and read their settings from the
+`Web:` section of your configuration.
+
+```csharp
+builder.Services.AddSearch(builder.Configuration);      // Snail.Toolkit.Web.Search
+builder.Services.AddScraping(builder.Configuration);    // Snail.Toolkit.Web.Scraping
+```
+
+```jsonc
+{
+  "Web": {
+    "Politeness": { "MinDelayPerHost": "00:00:01", "MaxConcurrentPerHost": 1 },
+    "Scraping": { "BrowserServer": "ws://localhost:3000/" }
+  }
+}
+```
+
+Asking a question, and reading a page:
+
+```csharp
+var found = await search.FindAsync(["postgresql documentation"]);
+
+foreach (var result in found.Results)
+    Console.WriteLine($"{result.Title} — {result.Address}");
+```
+
+```csharp
+var outcome = await pages.ReadAsync(Link.Of("https://www.postgresql.org/docs/"));
+
+if (outcome.IsSuccess)
+    Console.WriteLine(outcome.Value.Text);
+```
+
+### Nothing found is not the same as nobody answered
+
+Every operation answers with an `Outcome<TValue, TFailure>`: a value, or the reason there is none. The
+whole point is that an empty answer explains itself, so the two cases that read identically as an empty
+list can be told apart.
+
+```csharp
+if (outcome.TryGetValue(out var page))
+    Console.WriteLine(page.Title);
+else if (outcome.Failure.Kind is FailureKind.Blocked)
+    Console.WriteLine($"Refused: {outcome.Failure.Message}");
+```
+
+`SearchOutcome` answers the same question for a whole search: `HasResults` says whether anything matched,
+and `IsAnswered` whether any provider answered at all. A search where every engine was refused has no
+results and is not answered — and reacting to it as though the web simply had nothing on the subject is
+the mistake this shape exists to prevent.
 
 ## The shared core
 
@@ -23,8 +83,11 @@ and it knows about neither Playwright nor `HttpClient`:
 
 - **Identity** — user agent, platform, brand, locale, languages and proxy decided as one coherent whole,
   so nothing a site can measure contradicts anything else.
-- **Politeness** — a concurrency limit and a minimum gap per host. Request rate is the signal a site reads
-  first, and no amount of fingerprinting hides it.
+- **Politeness** — a concurrency limit and a minimum gap per host, and the rest a site asks for in
+  `Retry-After`, which binds every later caller rather than the one that was told. A gap longer than
+  `Web:Politeness:LongestRest` is handed back at once instead of waited out: a caller told to come back in
+  thirty seconds is better served by hearing so than by spending its whole budget to be refused again.
+  Request rate is the signal a site reads first, and no amount of fingerprinting hides it.
 - **Robots** — parsing and matching; *fetching* `robots.txt` belongs to whichever transport is in use.
 - **Block detection** — challenge, consent and refusal pages recognised in the body and in the final URL.
 - **Text extraction** — readable text with its paragraph structure intact.
@@ -73,12 +136,14 @@ kept apart from `PageContent` so a payload is never dressed up as text somebody 
 ## Layout
 
 ```
-src/Web              → Snail.Toolkit.Web
-src/Search           → Snail.Toolkit.Web.Search
-src/Scraping         → Snail.Toolkit.Web.Scraping
-src/Search.Browser   → Snail.Toolkit.Web.Search.Browser
-src/Scraping.Agent   → Snail.Toolkit.Web.Scraping.Agent
+src/Web                  → Snail.Toolkit.Web
+src/Search               → Snail.Toolkit.Web.Search
+src/Scraping             → Snail.Toolkit.Web.Scraping
+src/Search.Browser       → Snail.Toolkit.Web.Search.Browser
+src/Search.Browser.Agent → Snail.Toolkit.Web.Search.Browser.Agent
+src/Scraping.Agent       → Snail.Toolkit.Web.Scraping.Agent
 tests/…
+probes/…
 ```
 
 Project folders are short so the solution reads well in an IDE. The names that reach a consumer —
@@ -118,4 +183,4 @@ dotnet test                                    # adds the integration suites
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/orldev/Snail.Toolkit.Web/blob/main/LICENSE).

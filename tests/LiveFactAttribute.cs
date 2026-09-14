@@ -9,10 +9,34 @@ namespace Snail.Toolkit.Web.Tests;
 /// did not run, while one that returns early and passes is claiming a check it never made.
 /// <para>
 /// One variable both enables the test and says which browser server to drive, so there is no way to switch it
-/// on and leave it pointing nowhere. The engine that server serves comes from
-/// <see cref="Browsers.BrowserImage.EngineVariable"/> and defaults to Chromium, so a Firefox server needs it
-/// named too: a client of one engine cannot connect to a server of another, and the disagreement arrives as a
-/// timeout rather than as an explanation.
+/// on and leave it pointing nowhere. It doubles as the switch for live checks that need no browser at all —
+/// the question it really answers is whether this suite may reach the public internet, and two switches would
+/// only make it possible to be half enabled.
+/// </para>
+/// <para>
+/// The browser-backed checks state their engine themselves and do not read <c>SNAIL_BROWSER_ENGINE</c>: that
+/// variable belongs to the container fixtures and answers a different question. The image those start and the
+/// server these drive legitimately differ — stock Chromium in a container beside the patched Gecko build on a
+/// server — and reading one variable for both made that inexpressible.
+/// </para>
+/// <para>
+/// WHAT A RUN SHOULD LOOK LIKE, measured on 2026-09-14. Twenty-seven checks carry this attribute: five each
+/// for Bing, DuckDuckGo, Brave, Google and the browser server itself, and two for the pledge registry.
+/// Switched off, all twenty-seven report SKIP and the whole suite is 460 passed, 27 skipped, in about a
+/// minute and a quarter. Switched on, nothing is skipped and roughly a minute is added — six seconds for the
+/// browser server, nine for the two HTTP engines, twenty-five for Google, about a minute for the registry.
+/// </para>
+/// <para>
+/// When every one of them turns red at once, read
+/// <c>Snail.Toolkit.Web.Scraping.Tests.LiveBrowserTests</c> first and the engines afterwards. It is the only
+/// check here that asks what the server is rather than what a site answered, and a server that is not the
+/// patched build fails every engine for a reason none of them can name.
+/// </para>
+/// <para>
+/// Read those two numbers, not the failure count. A suite that finishes in ten seconds with "0 failed" and
+/// twenty-seven skips has run none of the checks that talk to anyone, and says so only in the numbers nobody
+/// looks at: that is exactly what happened on 2026-09-14, when the services these need had stopped between
+/// one run and the next. A skip is honest about one test and silent about the run.
 /// </para>
 /// </remarks>
 public sealed class LiveFactAttribute : FactAttribute
@@ -24,8 +48,7 @@ public sealed class LiveFactAttribute : FactAttribute
     public LiveFactAttribute()
     {
         if (Server.Length == 0)
-            Skip = $"Set {Variable} to a Playwright browser server (ws://…), and "
-                   + $"{Browsers.BrowserImage.EngineVariable} to the engine it serves, to run the live checks.";
+            Skip = $"Set {Variable} to a Playwright browser server (ws://…) to run the live checks.";
     }
 
     /// <summary>The browser server named in the environment, or an empty string when there is none.</summary>

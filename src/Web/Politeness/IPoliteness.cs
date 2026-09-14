@@ -19,4 +19,19 @@ public interface IPoliteness
     /// </para>
     /// </remarks>
     Task<IAsyncDisposable> EnterAsync(Uri url, TimeSpan? requested = null, CancellationToken ct = default);
+
+    /// <summary>Holds a host back for a gap it has just asked for.</summary>
+    /// <param name="url">The address that was refused; only its host matters.</param>
+    /// <param name="gap">How long the site asked to be left alone.</param>
+    /// <remarks>
+    /// <see cref="EnterAsync"/> asks for a gap on behalf of one request; this one is the site asking, and it
+    /// binds every later caller rather than the one that was told. A <c>429</c> answered to one worker is not
+    /// a fact about that worker, and the other two hitting the same host would otherwise carry on into it.
+    /// <para>
+    /// Written down where the pacing already lives, so the wait costs no thread and no retry of its own: the
+    /// next attempt enters the gate like any other and finds it closed. A longer hold already in place is kept
+    /// — being asked twice never shortens the wait.
+    /// </para>
+    /// </remarks>
+    void Rest(Uri url, TimeSpan gap);
 }

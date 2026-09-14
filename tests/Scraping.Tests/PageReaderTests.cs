@@ -73,6 +73,56 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         Assert.Contains("Wheat prices rose", outcome.Value.Html, StringComparison.Ordinal);
     }
 
+    /// <summary>A site refusing by frequency says how long to wait, and the failure carries the number.</summary>
+    /// <remarks>
+    /// Until 2026-09-14 nothing in the toolkit read <c>Retry-After</c> at all, so being told "too often" was
+    /// answered with three more requests on a schedule of our own. The header is served here in its seconds
+    /// form, which is the one a rate limiter uses; the date form is parsed too and is what a cache emits.
+    /// </remarks>
+    [Fact]
+    public async Task ReadAsync_SiteAskingToBeLeftAlone_CarriesTheGapItAskedFor()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy.html"));
+
+        Assert.False(outcome.IsSuccess);
+        Assert.Equal(429, outcome.Failure.StatusCode);
+        Assert.Equal(TimeSpan.FromSeconds(3), outcome.Failure.RetryAfter);
+    }
+
+    /// <summary>
+    /// A site asking for longer than the toolkit will wait is believed at once, and costs one request.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of the change this guards, measured end to end on 2026-09-14. Before it, this page —
+    /// which asks for thirty seconds — was read with retries on and cost the caller its entire budget in the
+    /// gate, ending in a cancellation that named neither the status nor the number the site had already sent
+    /// in its first answer. Retries are deliberately left ON here: with them off the check would pass against
+    /// any build at all.
+    /// <para>
+    /// The requests are counted at the site rather than at the reader, because "one refusal cost four
+    /// requests" is a fact about what reached the site, and the reader is the party whose count is in doubt.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ReadAsync_SiteAskingForLongerThanWeWait_AnswersAtOnceAndAsksOnce()
+    {
+        var since = DateTime.UtcNow;
+
+        await using var host = Host(tune: options => options.MaxRetryAttempts = 3);
+
+        var started = DateTimeOffset.UtcNow;
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy-for-ages.html"));
+        var elapsed = DateTimeOffset.UtcNow - started;
+
+        Assert.False(outcome.IsSuccess);
+        Assert.Equal(429, outcome.Failure.StatusCode);
+        Assert.Equal(TimeSpan.FromSeconds(30), outcome.Failure.RetryAfter);
+        Assert.True(elapsed < TimeSpan.FromSeconds(10), elapsed.ToString());
+        Assert.Equal(1, await site.TimesAskedForAsync("/busy-for-ages.html", since));
+    }
+
     [Fact]
     public async Task ReadAsync_ChallengePage_ReportsBlockedRatherThanEmpty()
     {
@@ -155,7 +205,13 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     }
 
     /// <summary>The injected script must report the identity the context was opened with.</summary>
-    [Fact]
+    /// <remarks>
+    /// Chromium only because the identity it pins is a Chrome one, and registration refuses a Chrome
+    /// fingerprint on any other engine — a Gecko browser carrying a Chrome user agent is the contradiction
+    /// that check exists to catch. Run against a Firefox fixture this failed before the browser even started,
+    /// which reads as a broken test rather than as a suite pointed at the wrong engine.
+    /// </remarks>
+    [ChromiumFact]
     public async Task ReadAsync_InjectedScript_MatchesTheContextIdentity()
     {
         await using var host = Host(identity => identity.Fingerprints =
@@ -216,7 +272,11 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     /// Regression: the spoofed <c>getParameter</c> called the original without its receiver, so every query
     /// other than the two spoofed ones threw <c>Illegal invocation</c> and broke WebGL outright.
     /// </summary>
-    [Fact]
+    /// <remarks>
+    /// Chromium only: the vendor it expects is the one the spoof writes over a Chromium renderer, and on
+    /// another engine the check would be asserting somebody else's string.
+    /// </remarks>
+    [ChromiumFact]
     public async Task ReadAsync_WebGlQueries_SurviveTheSpoofedParameters()
     {
         await using var host = Host();

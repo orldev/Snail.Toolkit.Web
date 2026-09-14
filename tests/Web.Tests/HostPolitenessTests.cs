@@ -152,6 +152,52 @@ public class HostPolitenessTests
         Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
     }
 
+    /// <summary>A gap the site asked for binds every caller, not the one that was told.</summary>
+    /// <remarks>
+    /// The point of writing it into the gate rather than into a retry delay: a <c>429</c> answered to one
+    /// worker is not a fact about that worker, and two others hitting the same host would otherwise walk
+    /// straight into it.
+    /// </remarks>
+    [Fact]
+    public async Task Rest_HostThatAskedToBeLeftAlone_MakesTheNextCallerWait()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 2);
+
+        politeness.Rest(new Uri("https://example.com/refused"), TimeSpan.FromSeconds(5));
+
+        var waiting = politeness.EnterAsync(new Uri("https://example.com/other"));
+
+        Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
+    }
+
+    /// <summary>Another host is none of its business.</summary>
+    [Fact]
+    public async Task Rest_OneHost_LeavesTheOthersAlone()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1);
+
+        politeness.Rest(new Uri("https://example.com/refused"), TimeSpan.FromSeconds(5));
+
+        var entering = politeness.EnterAsync(new Uri("https://elsewhere.example/a"));
+
+        Assert.Same(entering, await Task.WhenAny(entering, Task.Delay(TimeSpan.FromSeconds(2))));
+    }
+
+    /// <summary>Being asked twice never shortens the wait.</summary>
+    [Fact]
+    public async Task Rest_AShorterGapAfterALongerOne_KeepsTheLongerOne()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1);
+        var host = new Uri("https://example.com/refused");
+
+        politeness.Rest(host, TimeSpan.FromSeconds(5));
+        politeness.Rest(host, TimeSpan.FromMilliseconds(1));
+
+        var waiting = politeness.EnterAsync(host);
+
+        Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
+    }
+
     private static HostPoliteness Gate(
         TimeSpan minDelay,
         int maxConcurrent,

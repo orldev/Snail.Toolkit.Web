@@ -401,6 +401,7 @@ public sealed class PageAgent(
         return PageOutcome.Success(new PageContent(errand.Address, html, budgeted.Text, DateTimeOffset.UtcNow)
         {
             Final = Link.Of(page.Url),
+            Title = text.Title(html),
             StatusCode = status,
             UserAgent = identity.UserAgent,
             IsTruncated = budgeted.IsTruncated,

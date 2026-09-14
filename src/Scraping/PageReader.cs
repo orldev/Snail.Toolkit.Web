@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
@@ -76,7 +77,7 @@ public sealed class PageReader(
             var html = await page.ContentAsync();
             var rendered = await page.EvaluateAsync<string?>("() => document.body ? document.body.innerText : ''");
 
-            return Judge(address, identity, html, rendered, page.Url, response?.Status);
+            return Judge(address, identity, html, rendered, page.Url, response?.Status, RestAskedFor(response));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -127,13 +128,35 @@ public sealed class PageReader(
     /// every link past the cut while the page still looks like it parsed.
     /// </para>
     /// </remarks>
+    /// <summary>Reads the gap the site asked for, in either of the two forms the header is written in.</summary>
+    /// <remarks>
+    /// <c>Retry-After</c> carries either a count of seconds or an HTTP date, and both are common. A date in the
+    /// past is read as no wait rather than a negative one, which is what a clock a few seconds out produces.
+    /// </remarks>
+    private static TimeSpan? RestAskedFor(IResponse? response)
+    {
+        if (response is null || !response.Headers.TryGetValue("retry-after", out var asked))
+            return null;
+
+        if (int.TryParse(asked, out var seconds))
+            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
+
+        if (!DateTimeOffset.TryParse(asked, CultureInfo.InvariantCulture, out var until))
+            return null;
+
+        var gap = until - DateTimeOffset.UtcNow;
+
+        return gap > TimeSpan.Zero ? gap : null;
+    }
+
     private PageOutcome Judge(
         Link address,
         WebIdentity identity,
         string html,
         string? rendered,
         string finalUrl,
-        int? status)
+        int? status,
+        TimeSpan? restAskedFor)
     {
         var verdict = blocks.Inspect(html, finalUrl);
 
@@ -143,7 +166,8 @@ public sealed class PageReader(
             {
                 Address = address,
                 StatusCode = status,
-                UserAgent = identity.UserAgent
+                UserAgent = identity.UserAgent,
+                RetryAfter = restAskedFor
             });
 
         if (status >= 400)
@@ -151,7 +175,8 @@ public sealed class PageReader(
             {
                 Address = address,
                 StatusCode = status,
-                UserAgent = identity.UserAgent
+                UserAgent = identity.UserAgent,
+                RetryAfter = restAskedFor
             });
 
         if (string.IsNullOrWhiteSpace(rendered))

@@ -45,15 +45,30 @@ public sealed class HostPoliteness(IOptions<PolitenessOptions> options) : IPolit
         }
     }
 
+    /// <inheritdoc />
+    public void Rest(Uri url, TimeSpan gap)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+
+        if (gap <= TimeSpan.Zero)
+            return;
+
+        var gate = _gates.GetOrAdd(
+            url.Host,
+            host => new Gate(Math.Max(1, _options.MaxConcurrentPerHost), FloorFor(host)));
+
+        var until = DateTimeOffset.UtcNow + gap;
+
+        if (until > gate.RestingUntil)
+            gate.RestingUntil = until;
+    }
+
     private static async Task DelayAsync(Gate gate, TimeSpan? requested, CancellationToken ct)
     {
         var wanted = requested > gate.Floor ? requested.Value : gate.Floor;
-
-        if (wanted <= TimeSpan.Zero)
-            return;
-
-        var since = DateTimeOffset.UtcNow - gate.ReleasedAt;
-        var remaining = wanted - since;
+        var ready = gate.ReleasedAt + wanted;
+        var opens = ready > gate.RestingUntil ? ready : gate.RestingUntil;
+        var remaining = opens - DateTimeOffset.UtcNow;
 
         if (remaining > TimeSpan.Zero)
             await Task.Delay(remaining, ct);
@@ -99,6 +114,8 @@ public sealed class HostPoliteness(IOptions<PolitenessOptions> options) : IPolit
         public TimeSpan Floor { get; } = floor;
 
         public DateTimeOffset ReleasedAt { get; set; } = DateTimeOffset.MinValue;
+
+        public DateTimeOffset RestingUntil { get; set; } = DateTimeOffset.MinValue;
     }
 
     private sealed class Turn(Gate gate) : IAsyncDisposable

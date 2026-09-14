@@ -3,7 +3,7 @@ using Snail.Toolkit.Web.Politeness;
 namespace Snail.Toolkit.Web.Search.Http;
 
 /// <summary>
-/// Holds the per-host gate for the length of one request.
+/// Holds the per-host gate for the length of one request, and hands the gate what the site answers back.
 /// </summary>
 /// <remarks>
 /// This replaces a hand-rolled throttling handler that kept its own semaphore and its own per-host clock, so
@@ -11,6 +11,11 @@ namespace Snail.Toolkit.Web.Search.Http;
 /// The gate is the core's, and every transport now waits at the same one.
 /// The turn is held until the response headers arrive, not until the body is read: a slow download must not
 /// keep the next request to that host waiting, and the gap that matters to a site is between requests.
+/// <para>
+/// A site asking to be left alone is written into that same gate. Until 2026-09-14 only the browser side did
+/// this — <c>Rest</c> had exactly one caller — so a <c>429</c> answered to a search engine slowed nothing, and
+/// a browser visit to the same host walked straight into a site that had just said it had had enough.
+/// </para>
 /// </remarks>
 public sealed class PolitenessHandler(IPoliteness politeness) : DelegatingHandler
 {
@@ -26,6 +31,32 @@ public sealed class PolitenessHandler(IPoliteness politeness) : DelegatingHandle
 
         await using var turn = await politeness.EnterAsync(request.RequestUri, ct: cancellationToken);
 
-        return await base.SendAsync(request, cancellationToken);
+        var answered = await base.SendAsync(request, cancellationToken);
+
+        if (RestAskedFor(answered) is { } gap)
+            politeness.Rest(request.RequestUri, gap);
+
+        return answered;
+    }
+
+    /// <summary>The gap a response asks to be left alone for, in either form the header is written in.</summary>
+    /// <remarks>
+    /// Seconds are what a rate limiter sends and a date is what a cache sends; a date already past reads as no
+    /// gap at all rather than as a negative one.
+    /// </remarks>
+    private static TimeSpan? RestAskedFor(HttpResponseMessage answered)
+    {
+        if (answered.Headers.RetryAfter is not { } asked)
+            return null;
+
+        if (asked.Delta is { } delta)
+            return delta > TimeSpan.Zero ? delta : null;
+
+        if (asked.Date is not { } moment)
+            return null;
+
+        var gap = moment - DateTimeOffset.UtcNow;
+
+        return gap > TimeSpan.Zero ? gap : null;
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
+using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Search.Http;
 using Snail.Toolkit.Web.Search.Providers;
 
@@ -82,16 +83,42 @@ public static class ServiceCollectionExtensions
             client.AddStandardResilienceHandler().Configure((resilience, provider) =>
             {
                 var budget = provider.GetRequiredService<IOptions<SearchOptions>>().Value.Timeout;
+                var longestRest = provider.GetRequiredService<IOptions<PolitenessOptions>>().Value.LongestRest;
+                var wasTransient = resilience.Retry.ShouldHandle;
 
                 resilience.TotalRequestTimeout.Timeout = budget;
                 resilience.AttemptTimeout.Timeout = budget / 3;
                 resilience.CircuitBreaker.SamplingDuration = budget / 3 * 2;
+
+                resilience.Retry.ShouldHandle = async arguments =>
+                    await wasTransient(arguments) && IsWorthRepeating(arguments.Outcome.Result, longestRest);
             });
 
             client.AddHttpMessageHandler<PolitenessHandler>();
             client.AddHttpMessageHandler<IdentityHandler>();
 
             return client;
+        }
+
+        /// <summary>Answers whether asking again could do better than repeating the refusal.</summary>
+        /// <remarks>
+        /// The standard handler retries a <c>429</c> and waits the <c>Retry-After</c> the site sent, which is right
+        /// until the number is larger than the caller has. Measured on 2026-09-14 against a handler that counts what
+        /// reaches it: a gap of three seconds cost four requests and nine seconds, inside a thirty-second budget; a
+        /// gap of thirty, inside a budget of twenty, made one request and then spent the whole budget waiting to be
+        /// refused a second time, ending in a timeout that named neither the status nor the gap. The site had
+        /// already said both in the first answer, and this hands that answer back instead of sitting on it.
+        /// <para>
+        /// The gate still holds the host for the full gap — <see cref="Http.PolitenessHandler"/> writes it there on
+        /// the way out — so declining to wait here makes nobody ruder, only better informed.
+        /// </para>
+        /// </remarks>
+        private static bool IsWorthRepeating(HttpResponseMessage? answered, TimeSpan longestRest)
+        {
+            if (answered?.Headers.RetryAfter?.Delta is not { } gap)
+                return true;
+
+            return gap <= longestRest;
         }
 
         /// <summary>Registers the providers that answer a plain request, the search that merges them, and the memory it consults first.</summary>

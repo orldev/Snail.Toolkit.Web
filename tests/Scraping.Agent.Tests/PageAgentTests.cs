@@ -311,6 +311,30 @@ public class PageAgentTests(FormFixture site, ITestOutputHelper output)
         Assert.Contains("Nothing found", outcome.Value.Text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A walked page carries its own name, the way a read one does.
+    /// </summary>
+    /// <remarks>
+    /// The two builders of <see cref="PageContent"/> disagreed until 2026-09-14: the reader filled
+    /// <c>Title</c> and the agent did not, so a consumer got the heading on pages it read by address and
+    /// <see langword="null"/> on pages it walked through a form — the same type, the same property, answered
+    /// differently by which road the page arrived on. The agent had the title in hand the whole time: it asks
+    /// the page for it on every step to describe where a walkthrough stopped.
+    /// </remarks>
+    [Fact]
+    public async Task PerformAsync_AWalkedPage_CarriesTheDocumentsOwnName()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Agent.PerformAsync(new Errand(Link.Of($"{FormFixture.BaseUrl}/keyed.html"),
+        [
+            new Step(StepKind.Type, Spot.Labelled("Ledger number")) { Value = "A-42" }
+        ]));
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Equal("Ledger", outcome.Value.Title);
+    }
+
     private Harness Host()
     {
         var services = new ServiceCollection();

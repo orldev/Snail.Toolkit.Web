@@ -88,6 +88,35 @@ public class AttemptsTests
         Assert.Equal(2, gate.Left);
     }
 
+    /// <summary>A gap the site asked for is written into the gate, where it binds every later caller.</summary>
+    /// <remarks>
+    /// Not into the retry delay: that would bind this operation alone, and a <c>429</c> answered to one worker
+    /// is not a fact about that worker. Passed on, the retry needs nothing of its own — the next attempt enters
+    /// the gate like any other and finds it closed.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_SiteThatAskedToBeLeftAlone_PassesTheGapToTheGate()
+    {
+        var gate = new CountingPoliteness();
+
+        await Subject(politeness: gate, maxRetryAttempts: 0)
+            .AtAsync(Address, (_, _, _) => Task.FromResult(Busy(TimeSpan.FromSeconds(30))));
+
+        Assert.Equal(TimeSpan.FromSeconds(30), gate.Rested);
+    }
+
+    /// <summary>A site that asked for nothing is held to nothing beyond the configured pace.</summary>
+    [Fact]
+    public async Task AtAsync_FailureWithoutAGap_LeavesTheGateAlone()
+    {
+        var gate = new CountingPoliteness();
+
+        await Subject(politeness: gate, maxRetryAttempts: 0)
+            .AtAsync(Address, (_, _, _) => Task.FromResult(Blocked()));
+
+        Assert.Null(gate.Rested);
+    }
+
     [Fact]
     public async Task AtAsync_SiteThatForbidsTheUrl_NeverReachesTheWork()
     {
@@ -121,6 +150,71 @@ public class AttemptsTests
         Assert.Equal(FailureKind.Navigation, outcome.Failure?.Kind);
     }
 
+    /// <summary>
+    /// A site that asks to be left alone for longer than we are willing to wait is believed the first time.
+    /// </summary>
+    /// <remarks>
+    /// Measured on 2026-09-14 against a fixture refusing by frequency: a gap of thirty seconds inside a budget
+    /// of twenty made one request, spent the whole budget waiting in the gate and ended in a cancellation
+    /// carrying neither the status nor the number — while the very first answer had already said both. The
+    /// gate still holds the host for the full gap; only this caller stops waiting for it.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_GapLongerThanWeWillWait_MakesOneAttemptAndCarriesTheNumber()
+    {
+        var attempted = 0;
+
+        var outcome = await Subject(longestRest: TimeSpan.FromSeconds(10)).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Busy(TimeSpan.FromSeconds(30)));
+        });
+
+        Assert.Equal(1, attempted);
+        Assert.Equal(TimeSpan.FromSeconds(30), outcome.Failure?.RetryAfter);
+    }
+
+    /// <summary>A gap short enough to sit out is sat out, and the work is repeated as it always was.</summary>
+    /// <remarks>
+    /// The pair of these two is the point. Without this one, refusing to retry everything would pass the check
+    /// above just as well, and the ceiling could be anything at all.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_GapShorterThanWeWillWait_IsStillRepeated()
+    {
+        var attempted = 0;
+
+        await Subject(longestRest: TimeSpan.FromSeconds(10)).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Busy(TimeSpan.FromSeconds(3)));
+        });
+
+        Assert.Equal(4, attempted);
+    }
+
+    /// <summary>A refusal that names no gap is unaffected by the ceiling.</summary>
+    /// <remarks>
+    /// The ceiling reads a number the site sent, and most refusals send none. Reading its absence as "longer
+    /// than we will wait" would quietly switch off retries for every blocked page in the toolkit.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_FailureWithoutAGap_IsRepeatedWhateverTheCeiling()
+    {
+        var attempted = 0;
+
+        await Subject(longestRest: TimeSpan.Zero).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Blocked());
+        });
+
+        Assert.Equal(4, attempted);
+    }
+
     [Fact]
     public async Task AtAsync_RetriesSwitchedOff_MakesOneAttempt()
     {
@@ -140,7 +234,8 @@ public class AttemptsTests
         IIdentityRotation? identities = null,
         IPoliteness? politeness = null,
         ISiteRules? rules = null,
-        int maxRetryAttempts = 3)
+        int maxRetryAttempts = 3,
+        TimeSpan? longestRest = null)
         => new(
             identities ?? new CountingIdentities(),
             politeness ?? new CountingPoliteness(),
@@ -150,12 +245,24 @@ public class AttemptsTests
                 MaxRetryAttempts = maxRetryAttempts,
                 RetryDelay = TimeSpan.Zero
             }),
+            Options.Create(new PolitenessOptions
+            {
+                LongestRest = longestRest ?? TimeSpan.FromSeconds(10)
+            }),
             NullLogger<Attempts<string>>.Instance);
 
     private static Outcome<string, PageFailure> Answered(string body)
         => Outcome<string, PageFailure>.Success(body);
 
     private static Outcome<string, PageFailure> Blocked() => Failed(FailureKind.Blocked);
+
+    private static Outcome<string, PageFailure> Busy(TimeSpan asked)
+        => Outcome<string, PageFailure>.Failed(
+            new PageFailure(FailureKind.Navigation, "The site answered with HTTP 429.")
+            {
+                StatusCode = 429,
+                RetryAfter = asked
+            });
 
     private static Outcome<string, PageFailure> Failed(FailureKind kind)
         => Outcome<string, PageFailure>.Failed(new PageFailure(kind, "measured") { Address = Address });
@@ -189,12 +296,16 @@ public class AttemptsTests
 
         public int Left { get; private set; }
 
+        public TimeSpan? Rested { get; private set; }
+
         public Task<IAsyncDisposable> EnterAsync(Uri url, TimeSpan? requested = null, CancellationToken ct = default)
         {
             Entered++;
 
             return Task.FromResult<IAsyncDisposable>(new Turn(this));
         }
+
+        public void Rest(Uri url, TimeSpan gap) => Rested = gap;
 
         private sealed class Turn(CountingPoliteness gate) : IAsyncDisposable
         {

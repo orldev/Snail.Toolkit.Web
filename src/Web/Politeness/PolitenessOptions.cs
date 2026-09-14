@@ -20,6 +20,22 @@ public sealed class PolitenessOptions
     /// <summary>Gets or sets how many requests may be in flight against one host.</summary>
     public int MaxConcurrentPerHost { get; set; } = 1;
 
+    /// <summary>Gets or sets the longest rest a site may ask for and still be waited out.</summary>
+    /// <remarks>
+    /// A site that answers <c>429</c> with <c>Retry-After</c> has given a final answer for the next several
+    /// seconds, and a caller told to come back later than this is better served by hearing so at once than by
+    /// spending its whole budget waiting to be refused again. Measured on 2026-09-14 against a fixture that
+    /// refuses by frequency: a gap of three seconds was retried three times and answered in nine, inside the
+    /// default search budget of thirty; a gap of thirty seconds, inside a budget of twenty, made one request,
+    /// sat out the entire budget and ended in a cancellation that named neither the status nor the gap. Ten
+    /// seconds keeps the first family retried and cuts off the second, which provably cannot fit.
+    /// <para>
+    /// It never shortens the rest itself — the gate holds the host for as long as the site asked, whatever this
+    /// says. What it decides is only whether this caller waits for it or is told now.
+    /// </para>
+    /// </remarks>
+    public TimeSpan LongestRest { get; set; } = TimeSpan.FromSeconds(10);
+
     /// <summary>Gets or sets the hosts that are pressed more gently than the rest, each with its own smallest gap.</summary>
     /// <remarks>
     /// One gap for every host is the wrong shape for a client that talks to a search engine and a regional

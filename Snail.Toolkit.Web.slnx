@@ -7,6 +7,9 @@
     <Project Path="src/Search/Search.csproj" />
     <Project Path="src/Web/Web.csproj" />
   </Folder>
+  <Folder Name="/probes/">
+    <Project Path="probes/Probes.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Scraping.Agent.Tests/Scraping.Agent.Tests.csproj" />
     <Project Path="tests/Scraping.Tests/Scraping.Tests.csproj" />

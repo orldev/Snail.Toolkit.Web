@@ -4,6 +4,15 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
   </ItemGroup>
 
+  <!--
+    Live checks reach engines nobody here controls, so they carry the same switch as every other live check
+    in this repository and the same shared assertions.
+  -->
+  <ItemGroup>
+    <Compile Include="..\LiveFactAttribute.cs" Link="LiveFactAttribute.cs" />
+    <Compile Include="..\LiveAnswer.cs" Link="LiveAnswer.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Search\Search.csproj" />
   </ItemGroup>

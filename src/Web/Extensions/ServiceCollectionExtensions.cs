@@ -160,6 +160,9 @@ public static class ServiceCollectionExtensions
                 settings => settings.MaxConcurrentPerHost > 0,
                 $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.MaxConcurrentPerHost)}' has to be positive.")
             .Validate(
+                settings => settings.LongestRest >= TimeSpan.Zero,
+                $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.LongestRest)}' cannot be negative.")
+            .Validate(
                 settings => settings.HostDelays.Values.All(gap => gap >= TimeSpan.Zero),
                 $"'{PolitenessOptions.SectionName}:{nameof(PolitenessOptions.HostDelays)}' holds a negative gap.")
             .Validate(

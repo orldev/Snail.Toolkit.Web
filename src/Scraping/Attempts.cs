@@ -40,15 +40,17 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         IPoliteness politeness,
         ISiteRules rules,
         IOptions<ScrapingOptions> options,
+        IOptions<PolitenessOptions> pacing,
         ILogger<Attempts<TValue>> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(pacing);
 
         _identities = identities;
         _politeness = politeness;
         _rules = rules;
         _logger = logger;
-        _pipeline = BuildPipeline(options.Value, logger);
+        _pipeline = BuildPipeline(options.Value, pacing.Value.LongestRest, logger);
     }
 
     /// <inheritdoc />
@@ -94,7 +96,47 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
             await _rules.DelayAsync(target, identity.Proxy, ct),
             ct);
 
-        return Recorded(await work(identity, target, ct), target, started, activity);
+        var outcome = await work(identity, target, ct);
+
+        Rest(target, outcome);
+
+        return Recorded(outcome, target, started, activity);
+    }
+
+    /// <summary>Passes on a gap the site asked for, so the next caller waits rather than this one alone.</summary>
+    /// <remarks>
+    /// Written into the gate rather than into the retry delay, because the two are not the same promise. A
+    /// retry delay binds this operation; the gate binds the host, and a <c>429</c> answered to one worker is
+    /// not a fact about that worker. The retry then needs nothing of its own — every attempt enters the gate,
+    /// and finds it closed for as long as the site asked.
+    /// </remarks>
+    /// <summary>Answers whether repeating the work could do better than repeating the refusal.</summary>
+    /// <remarks>
+    /// A site that names a gap has answered for the next several seconds, and the only question left is
+    /// whether this caller waits it out. Past <paramref name="longestRest"/> it does not: measured on
+    /// 2026-09-14, a thirty-second gap inside a twenty-second budget made one request, spent the whole budget
+    /// waiting in the gate and ended in a cancellation carrying neither the status nor the number — while the
+    /// first answer had already said both. The gate still holds the host for the full gap; what changes is
+    /// that the refusal reaches the caller at once instead of being sat on.
+    /// </remarks>
+    private static bool IsWorthRepeating(Outcome<TValue, PageFailure> outcome, TimeSpan longestRest)
+    {
+        if (outcome.IsSuccess || !outcome.Failure.IsTransient)
+            return false;
+
+        return outcome.Failure.RetryAfter is not { } gap || gap <= longestRest;
+    }
+
+    private void Rest(Uri target, Outcome<TValue, PageFailure> outcome)
+    {
+        if (outcome.IsSuccess || outcome.Failure.RetryAfter is not { } gap)
+            return;
+
+        _logger.LogInformation(
+            "{Host} asked to be left alone for {Gap}; holding it for every caller, not just this one.",
+            target.Host, gap);
+
+        _politeness.Rest(target, gap);
     }
 
     private static Outcome<TValue, PageFailure> Refused(Link address)
@@ -135,6 +177,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
     /// </remarks>
     private static ResiliencePipeline<Outcome<TValue, PageFailure>> BuildPipeline(
         ScrapingOptions options,
+        TimeSpan longestRest,
         ILogger logger)
     {
         if (options.MaxRetryAttempts <= 0)
@@ -144,7 +187,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
             .AddRetry(new RetryStrategyOptions<Outcome<TValue, PageFailure>>
             {
                 ShouldHandle = new PredicateBuilder<Outcome<TValue, PageFailure>>()
-                    .HandleResult(outcome => !outcome.IsSuccess && outcome.Failure.IsTransient),
+                    .HandleResult(outcome => IsWorthRepeating(outcome, longestRest)),
                 MaxRetryAttempts = options.MaxRetryAttempts,
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,

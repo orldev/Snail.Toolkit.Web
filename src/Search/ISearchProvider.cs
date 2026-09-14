@@ -30,6 +30,19 @@ public interface ISearchProvider
     /// query rather than about the engine. Cancellation is still an exception, because that is what the TPL and
     /// ASP.NET Core expect of it.
     /// </para>
+    /// <para>
+    /// The return type is written out here rather than behind the <c>SearchAnswer</c> alias this package uses
+    /// internally, because an alias is a fact about one compilation and does not travel in a NuGet package. A
+    /// consumer writing their own provider is welcome to the same short name by declaring it themselves:
+    /// <code>
+    /// global using SearchAnswer = Snail.Toolkit.Web.Outcome&lt;
+    ///     System.Collections.Generic.IReadOnlyList&lt;Snail.Toolkit.Web.Search.SearchResult&gt;,
+    ///     Snail.Toolkit.Web.Search.SearchFailure&gt;;
+    /// </code>
+    /// It is not shipped in the package on purpose. A global using arriving with a dependency lands in every
+    /// file of the consumer's project whether they wanted it or not, and collides outright with the one they
+    /// may already have declared — which is exactly what the first consumer to implement this interface did.
+    /// </para>
     /// </remarks>
     Task<Outcome<IReadOnlyList<SearchResult>, SearchFailure>> FindAsync(
         string query,

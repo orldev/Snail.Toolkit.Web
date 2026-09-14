@@ -105,6 +105,21 @@ public sealed class SiteFixture : IAsyncLifetime
         LocalUrl = $"http://{_site.Hostname}:{_site.GetMappedPublicPort(80)}";
     }
 
+    /// <summary>How many times the site was asked for a path since a moment, read from its own log.</summary>
+    /// <remarks>
+    /// Counted at the site rather than at the caller, because the question worth asking about a refusal is how
+    /// many requests it cost, and the caller is the one whose count is in doubt. nginx writes its access log to
+    /// stdout, so the container's log is the site's own record of what reached it.
+    /// </remarks>
+    public async Task<int> TimesAskedForAsync(string path, DateTime since, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(_site);
+
+        var (stdout, _) = await _site.GetLogsAsync(since, ct: ct);
+
+        return stdout.Split('\n').Count(line => line.Contains($"GET {path} ", StringComparison.Ordinal));
+    }
+
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
@@ -241,6 +256,16 @@ public sealed class SiteFixture : IAsyncLifetime
                 server_name {{Host}};
                 root /usr/share/nginx/html;
                 index index.html;
+
+                location = /busy.html {
+                    add_header Retry-After 3 always;
+                    return 429;
+                }
+
+                location = /busy-for-ages.html {
+                    add_header Retry-After 30 always;
+                    return 429;
+                }
             }
 
             server {

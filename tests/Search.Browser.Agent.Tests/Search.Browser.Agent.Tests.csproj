@@ -1,17 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <ItemGroup>
-    <PackageReference Include="Testcontainers" />
-  </ItemGroup>
-
   <!--
-    The live checks drive a browser server that is named in the environment rather than started here, so
-    nothing in this project builds a container. BrowserImage is linked for the other half of that contract:
-    which engine the named server serves, and the user agent that engine could plausibly have sent.
+    The live checks drive a browser server named in the environment rather than started here, so nothing in
+    this project builds a container and none of the container fixtures are linked.
   -->
   <ItemGroup>
-    <Compile Include="..\BrowserImage.cs" Link="BrowserImage.cs" />
     <Compile Include="..\LiveFactAttribute.cs" Link="LiveFactAttribute.cs" />
+    <Compile Include="..\LiveAnswer.cs" Link="LiveAnswer.cs" />
   </ItemGroup>
 
   <ItemGroup>
