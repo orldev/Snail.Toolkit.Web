@@ -47,9 +47,23 @@ public sealed class Crawler(
         return Fanout.OverAsync(
             addresses,
             async (address, token) => await reader.ReadAsync(address, token),
+            Unexpected,
             _scraping.MaxDegreeOfParallelism,
             ct);
     }
+
+    /// <summary>The page a reader could not even fail properly on.</summary>
+    /// <remarks>
+    /// <see cref="IPageReader"/> answers every reason a page cannot be read as an outcome, so nothing should
+    /// arrive here. What does arrive is a defect on this side rather than a fact about the site, and it comes
+    /// back as one page's failure instead of ending a crawl of ten thousand.
+    /// </remarks>
+    private static PageOutcome Unexpected(Link address, Exception cause)
+        => PageOutcome.Failed(new PageFailure(FailureKind.Unexpected, cause.Message)
+        {
+            Address = address,
+            Cause = cause
+        });
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<PageOutcome>> ReadAllAsync(

@@ -3,7 +3,7 @@ using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
 using Microsoft.Extensions.DependencyInjection;
 using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Scraping.Browsers;
+using Snail.Toolkit.Web.Scraping;
 
 namespace Snail.Toolkit.Web.Tests.Browsers;
 

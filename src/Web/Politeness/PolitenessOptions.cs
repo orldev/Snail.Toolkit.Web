@@ -36,6 +36,20 @@ public sealed class PolitenessOptions
     /// </remarks>
     public TimeSpan LongestRest { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Gets or sets how long a host is remembered after the last request to it.</summary>
+    /// <remarks>
+    /// The gate keeps one entry per host and nothing used to remove one, so a crawl across many sites grew it
+    /// for as long as the process ran. What is worth remembering is exactly what a pacing decision can still
+    /// depend on: a host nobody has spoken to for longer than this gets the same answer from a fresh entry as
+    /// from the kept one. Ten minutes is far longer than any gap this class hands out and short enough that a
+    /// long crawl holds only the sites it is actually working on.
+    /// <para>
+    /// It never shortens a rest. A host still being held back, or with a request in flight, is not forgotten
+    /// whatever this says.
+    /// </para>
+    /// </remarks>
+    public TimeSpan ForgetHostAfter { get; set; } = TimeSpan.FromMinutes(10);
+
     /// <summary>Gets or sets the hosts that are pressed more gently than the rest, each with its own smallest gap.</summary>
     /// <remarks>
     /// One gap for every host is the wrong shape for a client that talks to a search engine and a regional

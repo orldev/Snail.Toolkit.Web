@@ -18,4 +18,8 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Tests" />
+  </ItemGroup>
+
 </Project>

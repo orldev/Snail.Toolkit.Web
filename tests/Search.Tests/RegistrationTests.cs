@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Search.Extensions;
 using Snail.Toolkit.Web.Search.Providers;
+using Snail.Toolkit.Web.Tests;
 
 namespace Snail.Toolkit.Web.Search.Tests;
 
@@ -152,6 +153,37 @@ public class RegistrationTests
 
         Assert.Equal(3, provider.GetRequiredService<IOptions<SearchOptions>>().Value.MaxResultsPerProvider);
         Assert.NotNull(provider.GetRequiredService<IWebSearch>());
+    }
+
+    /// <summary>Every engine leaves by the configured exit, because one that does not undoes the rest.</summary>
+    /// <remarks>
+    /// Until 2026-09-14 this client set no primary handler and went out directly while the browser honoured
+    /// the same setting, so a deployment reading one source both ways was fetching it from two addresses. The
+    /// destination is passed in because a proxy is free to bypass one and not another, and a check that only
+    /// asked whether a proxy was attached would pass on a handler that bypasses everything.
+    /// </remarks>
+    [Theory]
+    [InlineData(DuckDuckGo.ProviderName)]
+    [InlineData(Bing.ProviderName)]
+    public void AddSearch_WithAnExitConfigured_SendsTheProviderThroughIt(string engine)
+    {
+        using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Identity:Proxies:0"] = "http://exit.example:8080"
+        });
+
+        Assert.Equal(
+            new Uri("http://exit.example:8080/"),
+            Outgoing.ExitOf(provider, engine, new Uri("https://duckduckgo.com/html/")));
+    }
+
+    /// <summary>Nothing is invented when no exit is configured, which is what makes the check above mean something.</summary>
+    [Fact]
+    public void AddSearch_WithNoExitConfigured_GoesOutDirectly()
+    {
+        using var provider = Built([]);
+
+        Assert.Null(Outgoing.ExitOf(provider, Bing.ProviderName, new Uri("https://www.bing.com/search")));
     }
 
     /// <summary>

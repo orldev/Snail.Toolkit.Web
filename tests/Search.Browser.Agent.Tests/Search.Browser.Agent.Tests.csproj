@@ -2,11 +2,13 @@
 
   <!--
     The live checks drive a browser server named in the environment rather than started here, so nothing in
-    this project builds a container and none of the container fixtures are linked.
+    this project builds a container and none of the container fixtures are linked. The exit a built client
+    leaves by is asked the same way in every package that registers one.
   -->
   <ItemGroup>
     <Compile Include="..\LiveFactAttribute.cs" Link="LiveFactAttribute.cs" />
     <Compile Include="..\LiveAnswer.cs" Link="LiveAnswer.cs" />
+    <Compile Include="..\Outgoing.cs" Link="Outgoing.cs" />
   </ItemGroup>
 
   <ItemGroup>

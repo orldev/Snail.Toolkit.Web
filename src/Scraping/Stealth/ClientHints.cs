@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Identity;
 
 namespace Snail.Toolkit.Web.Scraping.Stealth;

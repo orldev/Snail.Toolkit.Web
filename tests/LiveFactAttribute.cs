@@ -22,9 +22,17 @@ namespace Snail.Toolkit.Web.Tests;
 /// <para>
 /// WHAT A RUN SHOULD LOOK LIKE, measured on 2026-09-14. Twenty-seven checks carry this attribute: five each
 /// for Bing, DuckDuckGo, Brave, Google and the browser server itself, and two for the pledge registry.
-/// Switched off, all twenty-seven report SKIP and the whole suite is 460 passed, 27 skipped, in about a
-/// minute and a quarter. Switched on, nothing is skipped and roughly a minute is added — six seconds for the
-/// browser server, nine for the two HTTP engines, twenty-five for Google, about a minute for the registry.
+/// Switched off, all twenty-seven report SKIP and the whole suite is 482 passed, 27 skipped and none failed,
+/// in about a minute and a half. Switched on, nothing is skipped and roughly a minute is added — six seconds
+/// for the browser server, nine for the two HTTP engines, twenty-five for Google, about a minute for the
+/// registry.
+/// </para>
+/// <para>
+/// FIVE OF THOSE CHECKS WERE WRITTEN RED AND ARE NOW GREEN, and they are worth knowing about because they are
+/// the only ones in the suite that execute the same state from more than one thread. They live in
+/// <c>HostPolitenessLoadTests</c> and <c>BrowserPoolTests</c>, and what they name was invisible to the
+/// compiler, to the analysers and to four hundred and eighty-seven green tests before them. Two of them fail
+/// by probability rather than by rule — read their remarks before weakening either one.
 /// </para>
 /// <para>
 /// When every one of them turns red at once, read

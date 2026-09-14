@@ -65,6 +65,22 @@ public class IdentityRotationTests
         Assert.False(string.IsNullOrWhiteSpace(identity.Platform));
     }
 
+    /// <summary>The fingerprints go round in turn, for the same reason the addresses do.</summary>
+    /// <remarks>
+    /// Was a random pick, which with three configured repeats the same one three times running about once in
+    /// nine — a burst of identical fingerprints from a single address, which is the pattern rotation is here to
+    /// avoid. Three calls over two fingerprints say it in one line: a random draw cannot promise the third.
+    /// </remarks>
+    [Fact]
+    public void Next_WithSeveralFingerprints_HandsThemOutInTurn()
+    {
+        var rotation = Rotation(
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" },
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0.0.0" });
+
+        Assert.Equal(["Windows", "macOS", "Windows"], [rotation.Next().Platform, rotation.Next().Platform, rotation.Next().Platform]);
+    }
+
     /// <summary>A round-robin, not a random pick: random reuse comes in bursts, and bursts are what get banned.</summary>
     [Fact]
     public void Next_WithProxiesConfigured_HandsThemOutInTurn()

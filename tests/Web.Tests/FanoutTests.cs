@@ -7,12 +7,15 @@ namespace Snail.Toolkit.Web.Tests;
 /// </summary>
 public class FanoutTests
 {
+    /// <summary>The number a broken item comes back as, chosen so that no good item can produce it.</summary>
+    private const int Broken = -1;
+
     [Fact]
     public async Task OverAsync_EveryItem_ComesBackExactlyOnce()
     {
         var seen = new List<int>();
 
-        await foreach (var result in Fanout.OverAsync(Enumerable.Range(0, 50), Doubled, 4))
+        await foreach (var result in Fanout.OverAsync(Enumerable.Range(0, 50), Doubled, Failed, 4))
             seen.Add(result);
 
         Assert.Equal([.. Enumerable.Range(0, 50).Select(number => number * 2)], [.. seen.Order()]);
@@ -27,7 +30,7 @@ public class FanoutTests
     {
         var started = 0;
 
-        await foreach (var _ in Fanout.OverAsync(Enumerable.Range(0, 1_000), Counted, 1))
+        await foreach (var _ in Fanout.OverAsync(Enumerable.Range(0, 1_000), Counted, Failed, 1))
             break;
 
         Assert.True(started < 1_000, $"the producer kept going and started {started} of 1000 items");
@@ -40,19 +43,47 @@ public class FanoutTests
         }
     }
 
+    /// <summary>An item that throws arrives as a result of its own.</summary>
+    /// <remarks>
+    /// It used to fault the enumeration, which this file asserted and the type's own documentation contradicted
+    /// in the same breath — "one unreachable site must not cancel the whole batch" was a sentence, not a
+    /// promise anything kept. Saying what a failed item looks like is now part of asking for the work.
+    /// </remarks>
     [Fact]
-    public async Task OverAsync_WorkThatThrows_FaultsTheEnumeration()
+    public async Task OverAsync_ItemThatThrows_ComesBackAsAResult()
     {
-        var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            await foreach (var _ in Fanout.OverAsync(Enumerable.Range(0, 10), Exploding, 2))
-            {
-            }
-        });
+        var seen = new List<int>();
 
-        Assert.Contains("boom", $"{error} {error.InnerException}", StringComparison.Ordinal);
+        await foreach (var result in Fanout.OverAsync(Enumerable.Range(0, 10), ExplodingOnFive, Failed, 2))
+            seen.Add(result);
+
+        Assert.Single(seen, Broken);
     }
 
+    /// <summary>And the other nine items still arrive, which is the whole of the promise.</summary>
+    /// <remarks>
+    /// The check above passes on an implementation that answers one broken item and drops the rest.
+    /// <c>Parallel.ForEachAsync</c> cancels the work in flight when one body throws, so the items lost to a
+    /// single bad page were never only the bad one.
+    /// </remarks>
+    [Fact]
+    public async Task OverAsync_ItemThatThrows_LeavesTheRestOfTheBatchAlone()
+    {
+        var seen = new List<int>();
+
+        await foreach (var result in Fanout.OverAsync(Enumerable.Range(0, 10), ExplodingOnFive, Failed, 2))
+            seen.Add(result);
+
+        Assert.Equal(10, seen.Count);
+        Assert.Equal([.. Enumerable.Range(0, 10).Where(number => number != 5).Select(number => number * 2)],
+            [.. seen.Where(result => result != Broken).Order()]);
+    }
+
+    /// <summary>Cancellation is not a failure and is never translated into one.</summary>
+    /// <remarks>
+    /// The control that keeps the translation honest: without it, a cancelled run of ten thousand addresses
+    /// would come back as ten thousand failed items and read as a catastrophe rather than as a stop.
+    /// </remarks>
     [Fact]
     public async Task OverAsync_CancelledCaller_StopsWithCancellation()
     {
@@ -61,7 +92,7 @@ public class FanoutTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var _ in Fanout.OverAsync(Enumerable.Range(0, 10), Doubled, 2, cancelled.Token))
+            await foreach (var _ in Fanout.OverAsync(Enumerable.Range(0, 10), Doubled, Failed, 2, cancelled.Token))
             {
             }
         });
@@ -70,10 +101,16 @@ public class FanoutTests
     /// <summary>Arguments are checked when the call is made, not when enumeration first moves.</summary>
     [Fact]
     public void OverAsync_WithoutASource_ThrowsBeforeEnumerationBegins()
-        => Assert.Throws<ArgumentNullException>(() => Fanout.OverAsync<int, int>(null!, Doubled, 2));
+        => Assert.Throws<ArgumentNullException>(() => Fanout.OverAsync<int, int>(null!, Doubled, Failed, 2));
+
+    [Fact]
+    public void OverAsync_WithoutAWayToFail_ThrowsBeforeEnumerationBegins()
+        => Assert.Throws<ArgumentNullException>(() => Fanout.OverAsync(Enumerable.Range(0, 1), Doubled, null!, 2));
 
     private static ValueTask<int> Doubled(int number, CancellationToken ct) => ValueTask.FromResult(number * 2);
 
-    private static ValueTask<int> Exploding(int number, CancellationToken ct)
-        => throw new InvalidOperationException("boom");
+    private static ValueTask<int> ExplodingOnFive(int number, CancellationToken ct)
+        => number is 5 ? throw new InvalidOperationException("boom") : ValueTask.FromResult(number * 2);
+
+    private static int Failed(int number, Exception cause) => Broken;
 }

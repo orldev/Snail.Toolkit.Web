@@ -1,4 +1,4 @@
-using Snail.Toolkit.Web.Scraping.Browsers;
+using Snail.Toolkit.Web.Scraping;
 
 namespace Snail.Toolkit.Web.Tests.Browsers;
 

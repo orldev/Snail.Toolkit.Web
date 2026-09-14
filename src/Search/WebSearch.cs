@@ -59,9 +59,25 @@ public sealed class WebSearch(
         return Fanout.OverAsync(
             work,
             async (item, token) => await AttemptAsync(item.Provider, item.Query, token),
+            Unexpected,
             _options.MaxDegreeOfParallelism,
             ct);
     }
+
+    /// <summary>The attempt that could not even be recorded.</summary>
+    /// <remarks>
+    /// <see cref="AttemptAsync"/> answers every way a provider can fail as an attempt, so nothing should
+    /// arrive here. What does arrive is a defect on this side, and it comes back as one attempt rather than
+    /// ending a search that other providers were still answering.
+    /// </remarks>
+    private static SearchAttempt Unexpected((ISearchProvider Provider, string Query) item, Exception cause)
+        => new()
+        {
+            Provider = item.Provider.Name,
+            Query = item.Query,
+            Duration = TimeSpan.Zero,
+            Failure = new SearchFailure(SearchFailureKind.Faulted, cause.Message)
+        };
 
     private static IReadOnlyList<SearchResult> Deduplicated(IEnumerable<SearchResult> results)
         => [.. results.GroupBy(result => result.Address).Select(group => group.First())];

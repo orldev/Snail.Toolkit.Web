@@ -11,6 +11,12 @@ namespace Snail.Toolkit.Web.Identity;
 /// Every observable trait is derived from a single user agent, so the platform a script reports, the platform
 /// client hints announce and the operating system the user agent names cannot disagree. The values used to
 /// come from two independent generators and routinely contradicted each other.
+/// <para>
+/// The fingerprints are handed out in turn, the way <see cref="ProxyRotation"/> hands out addresses and for the
+/// same reason: a random pick repeats itself in bursts, and with three configured a run of three picks the same
+/// one about one time in nine. A burst of identical fingerprints from one address is the pattern rotation
+/// exists to avoid, so drawing at random undid the feature while looking like it.
+/// </para>
 /// </remarks>
 public sealed partial class IdentityRotation : IIdentityRotation
 {
@@ -41,6 +47,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
 
     private readonly Fingerprint[] _fingerprints;
     private readonly IProxyRotation _proxies;
+    private int _cursor = -1;
 
     /// <summary>Reads the configured fingerprints, falling back to a built-in set.</summary>
     public IdentityRotation(IOptions<IdentityOptions> options, IProxyRotation proxies, ILogger<IdentityRotation> logger)
@@ -76,7 +83,8 @@ public sealed partial class IdentityRotation : IIdentityRotation
     /// <inheritdoc />
     public WebIdentity Next()
     {
-        var fingerprint = _fingerprints[Random.Shared.Next(_fingerprints.Length)];
+        var next = (uint)Interlocked.Increment(ref _cursor);
+        var fingerprint = _fingerprints[next % (uint)_fingerprints.Length];
         var userAgent = fingerprint.UserAgent;
 
         return new WebIdentity

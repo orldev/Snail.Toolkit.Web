@@ -6,11 +6,14 @@
 
   <!--
     Live checks reach engines nobody here controls, so they carry the same switch as every other live check
-    in this repository and the same shared assertions.
+    in this repository and the same shared assertions. The exit a built client leaves by is asked the same
+    way in every package that registers one, and asking it differently in each was how the question went
+    unasked in two of them.
   -->
   <ItemGroup>
     <Compile Include="..\LiveFactAttribute.cs" Link="LiveFactAttribute.cs" />
     <Compile Include="..\LiveAnswer.cs" Link="LiveAnswer.cs" />
+    <Compile Include="..\Outgoing.cs" Link="Outgoing.cs" />
   </ItemGroup>
 
   <ItemGroup>

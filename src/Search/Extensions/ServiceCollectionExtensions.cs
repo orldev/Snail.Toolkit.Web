@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
+using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Search.Http;
 using Snail.Toolkit.Web.Search.Providers;
@@ -71,7 +72,16 @@ public static class ServiceCollectionExtensions
         /// <see cref="SearchOptions.Timeout"/> is applied here instead — together with the per-attempt timeout
         /// and the sampling window, because the pipeline refuses a total shorter than the attempt it contains.
         /// </para>
-        /// The builder is handed back so a consumer can add a proxy or a header of their own.
+        /// The exit is the configured one, which it had not been until 2026-09-14. The browser has always
+        /// honoured <c>Web:Identity:Proxies</c> because its context is built from the identity, while this
+        /// client set no primary handler at all and went out directly. The consequence worth naming is not
+        /// the leak but the correlation: a query arrives from the proxy and the request that resolves its
+        /// links arrives from the real address seconds later, and the party seeing both is the one that
+        /// handed out the link.
+        /// <para>
+        /// The builder is handed back so a consumer can add a header of their own, or replace the exit where
+        /// one client has to leave by another route.
+        /// </para>
         /// </remarks>
         public IHttpClientBuilder AddSearchClient(string name)
         {
@@ -79,6 +89,8 @@ public static class ServiceCollectionExtensions
             services.TryAddTransient<IdentityHandler>();
 
             var client = services.AddHttpClient(name);
+
+            client.ConfigurePrimaryHttpMessageHandler(provider => Proxied.Handler(provider));
 
             client.AddStandardResilienceHandler().Configure((resilience, provider) =>
             {

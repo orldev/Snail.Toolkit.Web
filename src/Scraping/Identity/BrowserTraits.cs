@@ -33,16 +33,23 @@ public sealed record BrowserTraits
     /// <summary>Gets whether the identity describes a touch device.</summary>
     public required bool HasTouch { get; init; }
 
-    /// <summary>Draws the traits one visit is made with.</summary>
+    /// <summary>The traits this identity reports, the same ones every time it is presented.</summary>
     /// <remarks>
-    /// The viewport is picked per visit, so the same result has to be used for both the context and the
-    /// injected script: drawing twice would give a page whose window size disagrees with what its scripts see.
+    /// The viewport is chosen by the user agent rather than drawn per visit, which is the correction made on
+    /// 2026-09-14. A random draw gave one identity a different screen on every visit — the same browser, on the
+    /// same machine, resized between two page loads — and that is a contradiction of exactly the kind this type
+    /// was extracted to end. People do resize windows, but the pairing of a screen with a machine is the stable
+    /// part, and an identity is a machine.
+    /// <para>
+    /// One call answers both the context and the injected script, so a page's window size cannot disagree with
+    /// what its scripts see. That held before by reusing one draw and holds now by construction.
+    /// </para>
     /// </remarks>
     public static BrowserTraits For(WebIdentity identity)
     {
         ArgumentNullException.ThrowIfNull(identity);
 
-        var viewport = Viewports[Random.Shared.Next(Viewports.Length)];
+        var viewport = Viewports[Steadily(identity.UserAgent) % Viewports.Length];
 
         return new BrowserTraits
         {
@@ -51,5 +58,21 @@ public sealed record BrowserTraits
             DeviceScaleFactor = identity.Platform is "macOS" ? 2f : 1f,
             HasTouch = identity.UserAgent.Contains("Mobile", StringComparison.Ordinal)
         };
+    }
+
+    /// <summary>A number the same user agent answers with on any machine, in any process, forever.</summary>
+    /// <remarks>
+    /// <see cref="string.GetHashCode()"/> is randomised per process, so it would give one identity one screen
+    /// today and another tomorrow — the very thing being fixed, moved from per visit to per run. FNV-1a is four
+    /// lines and answers the same everywhere.
+    /// </remarks>
+    private static int Steadily(string userAgent)
+    {
+        var hash = 2166136261u;
+
+        foreach (var character in userAgent)
+            hash = (hash ^ character) * 16777619u;
+
+        return (int)(hash % int.MaxValue);
     }
 }

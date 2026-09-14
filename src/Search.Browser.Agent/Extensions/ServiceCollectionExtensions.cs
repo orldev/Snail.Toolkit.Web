@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
+using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Agent.Extensions;
 using Snail.Toolkit.Web.Search.Extensions;
@@ -70,17 +71,23 @@ public static class ServiceCollectionExtensions
     /// because the gate paces searches and these are the links of one search. The gap between two follows is
     /// <see cref="GoogleOptions.FollowDelay"/> instead, and unlike the ceiling it is a rate measured to work.
     /// </para>
+    /// <para>
+    /// It leaves by the configured exit all the same, which it did not until 2026-09-14: a bare handler was
+    /// built here and the engine's own address saw the search arrive from the proxy and the link resolved from
+    /// somewhere else moments later. The link it is resolving is an encrypted blob that engine issued to that
+    /// session, so it is the one party able to join the two addresses, and it is handed the join.
+    /// </para>
     /// </remarks>
     private static void Following(this IServiceCollection services)
         => services
             .AddHttpClient(
                 Google.ProviderName,
                 (provider, client) => client.Timeout = provider.GetRequiredService<IOptions<SearchOptions>>().Value.Timeout)
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            .ConfigurePrimaryHttpMessageHandler(provider => Proxied.Handler(provider, exit =>
             {
-                AllowAutoRedirect = false,
-                UseCookies = false
-            });
+                exit.AllowAutoRedirect = false;
+                exit.UseCookies = false;
+            }));
 
     private static void Validated(OptionsBuilder<GoogleOptions> builder)
         => builder

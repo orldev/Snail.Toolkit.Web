@@ -198,6 +198,85 @@ public class HostPolitenessTests
         Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
     }
 
+    /// <summary>A host nobody has spoken to in a while stops being remembered.</summary>
+    /// <remarks>
+    /// One gate per host and nothing that removed one: a crawl across many sites grew the map for as long as
+    /// the process ran, and the hosts of the web are not a finite set. Forgetting costs nothing here, because
+    /// an idle gate answers exactly what a fresh one would.
+    /// </remarks>
+    [Fact]
+    public async Task EnterAsync_HostsNobodyHasSpokenToSince_AreForgotten()
+    {
+        using var politeness = Forgetful(TimeSpan.Zero);
+
+        foreach (var host in Enumerable.Range(0, 20))
+            await using (await politeness.EnterAsync(new Uri($"https://host-{host}.example/a")))
+            {
+            }
+
+        await using (await politeness.EnterAsync(new Uri("https://the-one-that-matters.example/a")))
+        {
+        }
+
+        Assert.Equal(1, politeness.RememberedHosts);
+    }
+
+    /// <summary>A host being held back is never forgotten, however eager the forgetting.</summary>
+    /// <remarks>
+    /// Asked of the gate rather than of the map: were the entry dropped, the next caller would meet a fresh
+    /// gate with nothing to say and walk straight into a site that had just asked to be left alone. That is
+    /// the failure this check is for, and counting entries would not have seen it.
+    /// </remarks>
+    [Fact]
+    public async Task Rest_HostThatIsStillResting_IsNotForgotten()
+    {
+        using var politeness = Forgetful(TimeSpan.Zero);
+        var resting = new Uri("https://refused.example/a");
+
+        politeness.Rest(resting, TimeSpan.FromSeconds(5));
+
+        foreach (var host in Enumerable.Range(0, 20))
+            await using (await politeness.EnterAsync(new Uri($"https://host-{host}.example/a")))
+            {
+            }
+
+        var waiting = politeness.EnterAsync(resting);
+
+        Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
+    }
+
+    /// <summary>Neither is a host with a request still in flight.</summary>
+    /// <remarks>
+    /// The turn is held open on purpose. A dropped entry would hand the next caller a gate with every slot
+    /// free while the first request is still running, which is the one thing the concurrency limit exists to
+    /// prevent.
+    /// </remarks>
+    [Fact]
+    public async Task EnterAsync_HostWithARequestInFlight_IsNotForgotten()
+    {
+        using var politeness = Forgetful(TimeSpan.Zero);
+        var busy = new Uri("https://busy.example/a");
+
+        await politeness.EnterAsync(busy);
+
+        foreach (var host in Enumerable.Range(0, 20))
+            await using (await politeness.EnterAsync(new Uri($"https://host-{host}.example/a")))
+            {
+            }
+
+        var waiting = politeness.EnterAsync(busy);
+
+        Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
+    }
+
+    private static HostPoliteness Forgetful(TimeSpan forgetAfter)
+        => new(Options.Create(new PolitenessOptions
+        {
+            MinDelayPerHost = TimeSpan.Zero,
+            MaxConcurrentPerHost = 1,
+            ForgetHostAfter = forgetAfter
+        }));
+
     private static HostPoliteness Gate(
         TimeSpan minDelay,
         int maxConcurrent,

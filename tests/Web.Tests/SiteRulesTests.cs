@@ -99,6 +99,50 @@ public class SiteRulesTests
         Assert.Equal(1, source.Reads);
     }
 
+    /// <summary>An origin whose file has outlived its lifetime stops being remembered.</summary>
+    /// <remarks>
+    /// An entry used to be dropped only by someone asking for the same origin again, so a crawl across many
+    /// sites kept every file it had ever read for as long as the process ran — expired ones included, which
+    /// no answer could come from. The lifetime is zero here so that expiry is a fact rather than a wait.
+    /// </remarks>
+    [Fact]
+    public async Task RulesAsync_OriginsPastTheirLifetime_AreForgotten()
+    {
+        var rules = Expiring(TimeSpan.Zero);
+
+        foreach (var origin in Enumerable.Range(0, 20))
+            await rules.RulesAsync(new Uri($"https://origin-{origin}.example/a"), null);
+
+        await rules.RulesAsync(new Uri("https://the-one-that-matters.example/a"), null);
+
+        Assert.Equal(1, rules.RememberedOrigins);
+    }
+
+    /// <summary>A file still within its lifetime is kept, which is the whole point of keeping any.</summary>
+    /// <remarks>
+    /// The control for the check above: forgetting everything would pass that one and cost a read of
+    /// <c>robots.txt</c> per URL, which is the behaviour this class exists to prevent.
+    /// </remarks>
+    [Fact]
+    public async Task RulesAsync_OriginsStillWithinTheirLifetime_AreKept()
+    {
+        var source = new CountedSource(RobotsFile.Parse(Closed));
+        var rules = new SiteRules(source, Options.Create(new RobotsOptions { CacheLifetime = TimeSpan.FromHours(1) }));
+
+        foreach (var origin in Enumerable.Range(0, 20))
+            await rules.RulesAsync(new Uri($"https://origin-{origin}.example/a"), null);
+
+        await rules.RulesAsync(new Uri("https://origin-0.example/b"), null);
+
+        Assert.Equal(20, rules.RememberedOrigins);
+        Assert.Equal(20, source.Reads);
+    }
+
+    private static SiteRules Expiring(TimeSpan lifetime)
+        => new(
+            new CountedSource(RobotsFile.Parse(Closed)),
+            Options.Create(new RobotsOptions { CacheLifetime = lifetime }));
+
     private static SiteRules Rules(IRobotsSource source, bool isObeyed)
         => new(source, Options.Create(new RobotsOptions { IsObeyed = isObeyed }));
 

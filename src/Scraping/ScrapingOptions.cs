@@ -1,5 +1,3 @@
-using Snail.Toolkit.Web.Scraping.Browsers;
-
 namespace Snail.Toolkit.Web.Scraping;
 
 /// <summary>

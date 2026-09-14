@@ -21,11 +21,19 @@ public sealed class BrowserPool : IBrowserPool
     private readonly ILogger<BrowserPool> _logger;
     private readonly Slot[] _slots;
     private readonly Channel<Slot> _free;
-    private readonly SemaphoreSlim _driverGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _reaper;
-    private IPlaywright? _driver;
     private int _isDisposed;
+
+    /// <summary>The Playwright driver, started once however many callers arrive together.</summary>
+    /// <remarks>
+    /// Was a null check, a semaphore and a second null check — double-checked locking with no barrier on the
+    /// unguarded read, which the pattern requires and which this did not have. What it buys is not a crash but
+    /// a second driver: another node process, started and then forgotten, for the whole life of the pool.
+    /// <see cref="Lazy{T}"/> runs its factory exactly once and publishes it safely by default, which is the
+    /// whole of what the semaphore was there for.
+    /// </remarks>
+    private readonly Lazy<Task<IPlaywright>> _driver = new(Playwright.CreateAsync);
 
     /// <summary>Creates a pool sized by <see cref="ScrapingOptions.MaxBrowsers"/>.</summary>
     public BrowserPool(IOptions<ScrapingOptions> options, ILogger<BrowserPool> logger)
@@ -54,11 +62,16 @@ public sealed class BrowserPool : IBrowserPool
     private bool IsRemote => !string.IsNullOrWhiteSpace(_options.BrowserServer);
 
     /// <inheritdoc />
+    /// <remarks>
+    /// A caller that arrives after disposal and one that was already queued when it began are told the same
+    /// thing. The guard alone answered only the first of them: the second waited on a channel nobody would
+    /// ever write to again, which is how a shutdown with work in flight used to hang instead of ending.
+    /// </remarks>
     public async Task<IBrowserLease> RentAsync(CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _isDisposed) == 1, this);
 
-        var slot = await _free.Reader.ReadAsync(ct);
+        var slot = await QueuedAsync(ct);
 
         try
         {
@@ -73,6 +86,18 @@ public sealed class BrowserPool : IBrowserPool
         }
     }
 
+    private async Task<Slot> QueuedAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await _free.Reader.ReadAsync(ct);
+        }
+        catch (ChannelClosedException)
+        {
+            throw new ObjectDisposedException(nameof(BrowserPool));
+        }
+    }
+
     private async Task EnsureLiveAsync(Slot slot, CancellationToken ct)
     {
         if (slot.Browser is { IsConnected: true })
@@ -84,9 +109,7 @@ public sealed class BrowserPool : IBrowserPool
             await CloseAsync(slot);
         }
 
-        var driver = await DriverAsync(ct);
-
-        var chosen = Chosen(driver);
+        var chosen = Chosen(await _driver.Value.WaitAsync(ct));
 
         slot.Browser = IsRemote
             ? await chosen.ConnectAsync(_options.BrowserServer!, new BrowserTypeConnectOptions
@@ -110,23 +133,6 @@ public sealed class BrowserPool : IBrowserPool
         Engine.WebKit => driver.Webkit,
         _ => driver.Chromium
     };
-
-    private async Task<IPlaywright> DriverAsync(CancellationToken ct)
-    {
-        if (_driver is not null)
-            return _driver;
-
-        await _driverGate.WaitAsync(ct);
-
-        try
-        {
-            return _driver ??= await Playwright.CreateAsync();
-        }
-        finally
-        {
-            _driverGate.Release();
-        }
-    }
 
     private async Task ReapIdleAsync(CancellationToken ct)
     {
@@ -160,6 +166,10 @@ public sealed class BrowserPool : IBrowserPool
                         slot.Index, _options.BrowserIdleTimeout);
                     await CloseAsync(slot);
                 }
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Browser {Slot} could not be closed while idle", slot.Index);
             }
             finally
             {
@@ -204,10 +214,19 @@ public sealed class BrowserPool : IBrowserPool
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Every step here is something that can fail, and none of them may take the rest down with it. Closing
+    /// the free channel is first because it is what releases a caller already queued for a browser; the reaper
+    /// is awaited for its ending rather than its answer; and the driver and the tokens are released in a
+    /// <c>finally</c>, because one browser that refuses to close would otherwise leak the process that hosts
+    /// them all.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
             return;
+
+        _free.Writer.TryComplete();
 
         await _shutdown.CancelAsync();
 
@@ -218,14 +237,23 @@ public sealed class BrowserPool : IBrowserPool
         catch (OperationCanceledException)
         {
         }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "The idle reaper ended badly; the pool is closing anyway");
+        }
 
-        foreach (var slot in _slots)
-            await CloseAsync(slot);
+        try
+        {
+            foreach (var slot in _slots)
+                await CloseAsync(slot);
+        }
+        finally
+        {
+            if (_driver.IsValueCreated && _driver.Value.IsCompletedSuccessfully)
+                (await _driver.Value).Dispose();
 
-        _driver?.Dispose();
-        _driver = null;
-        _driverGate.Dispose();
-        _shutdown.Dispose();
+            _shutdown.Dispose();
+        }
     }
 
     private sealed class Slot(int index)

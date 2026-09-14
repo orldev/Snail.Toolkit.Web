@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping.Agent;
 using Snail.Toolkit.Web.Search.Browser.Agent.Extensions;
 using Snail.Toolkit.Web.Search.Providers;
+using Snail.Toolkit.Web.Tests;
 
 namespace Snail.Toolkit.Web.Search.Browser.Agent.Tests;
 
@@ -105,9 +106,7 @@ public class RegistrationTests
     {
         await using var provider = Built([]);
 
-        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(Google.ProviderName);
-
-        Assert.False(Assert.IsType<HttpClientHandler>(Primary(handler)).AllowAutoRedirect);
+        Assert.False(Exit(provider).AllowAutoRedirect);
     }
 
     /// <summary>Cookies are off: the wrapper was measured to answer a client that has none.</summary>
@@ -116,18 +115,40 @@ public class RegistrationTests
     {
         await using var provider = Built([]);
 
-        var handler = provider.GetRequiredService<IHttpMessageHandlerFactory>().CreateHandler(Google.ProviderName);
-
-        Assert.False(Assert.IsType<HttpClientHandler>(Primary(handler)).UseCookies);
+        Assert.False(Exit(provider).UseCookies);
     }
 
-    private static HttpMessageHandler Primary(HttpMessageHandler handler)
+    /// <summary>Asking where a wrapped link leads goes by the configured exit, like the search that produced it.</summary>
+    /// <remarks>
+    /// This is the road where a direct exit costs most. The link is an encrypted blob the engine issued to
+    /// that session, so the engine is the one party able to join the address the query came from to the
+    /// address the link was opened from, and until 2026-09-14 a bare handler here handed it that join
+    /// seconds after the search.
+    /// </remarks>
+    [Fact]
+    public async Task AddGoogle_WithAnExitConfigured_AsksAboutTheWrapperThroughIt()
     {
-        while (handler is DelegatingHandler forwarding && forwarding.InnerHandler is { } inner)
-            handler = inner;
+        await using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Identity:Proxies:0"] = "http://exit.example:8080"
+        });
 
-        return handler;
+        Assert.Equal(
+            new Uri("http://exit.example:8080/"),
+            Outgoing.ExitOf(provider, Google.ProviderName, new Uri("https://www.google.com/url?q=1")));
     }
+
+    /// <summary>Nothing is invented when no exit is configured, which is what makes the check above mean something.</summary>
+    [Fact]
+    public async Task AddGoogle_WithNoExitConfigured_GoesOutDirectly()
+    {
+        await using var provider = Built([]);
+
+        Assert.Null(Outgoing.ExitOf(provider, Google.ProviderName, new Uri("https://www.google.com/url?q=1")));
+    }
+
+    private static SocketsHttpHandler Exit(IServiceProvider provider)
+        => Assert.IsType<SocketsHttpHandler>(Outgoing.HandlerOf(provider, Google.ProviderName));
 
     private static ServiceProvider Built(Dictionary<string, string?> settings)
     {
