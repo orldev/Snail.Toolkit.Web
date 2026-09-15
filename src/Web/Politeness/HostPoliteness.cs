@@ -14,7 +14,6 @@ namespace Snail.Toolkit.Web.Politeness;
 public sealed class HostPoliteness : IPoliteness, IDisposable
 {
     private readonly PolitenessOptions _options;
-    private readonly Dictionary<string, TimeSpan> _gentler;
     private readonly Remembered<Gate> _gates;
 
     /// <summary>How many hosts are currently remembered.</summary>
@@ -26,7 +25,6 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options.Value;
-        _gentler = new Dictionary<string, TimeSpan>(_options.HostDelays, StringComparer.OrdinalIgnoreCase);
         _gates = new Remembered<Gate>(_options.ForgetHostAfter, (gate, since) => gate.IsIdleSince(since));
     }
 
@@ -91,7 +89,9 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
     /// recreating it gives the same answer as keeping it.
     /// </remarks>
     private Gate GateFor(string host)
-        => _gates.Of(host, name => new Gate(Math.Max(1, _options.MaxConcurrentPerHost), FloorFor(name)));
+        => _gates.Of(host, name => new Gate(
+            Math.Max(1, _options.MaxConcurrentPerHost),
+            _options.GapFor(name) ?? _options.MinDelayPerHost));
 
     /// <inheritdoc />
     /// <remarks>
@@ -127,30 +127,6 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
 
         if (remaining > TimeSpan.Zero)
             await Task.Delay(remaining, ct);
-    }
-
-    /// <summary>The smallest gap this host gets: its own, its nearest named parent's, or the default.</summary>
-    /// <remarks>
-    /// The host is tried whole first and then shortened one label at a time, so <c>news.example.com</c> looks
-    /// for <c>news.example.com</c>, then <c>example.com</c>, then <c>com</c>. A name that merely ends the same
-    /// way is not a parent: the cut is always at a dot.
-    /// </remarks>
-    private TimeSpan FloorFor(string host)
-    {
-        var candidate = host;
-
-        while (true)
-        {
-            if (_gentler.TryGetValue(candidate, out var gap))
-                return gap;
-
-            var dot = candidate.IndexOf('.');
-
-            if (dot < 0)
-                return _options.MinDelayPerHost;
-
-            candidate = candidate[(dot + 1)..];
-        }
     }
 
     /// <inheritdoc />

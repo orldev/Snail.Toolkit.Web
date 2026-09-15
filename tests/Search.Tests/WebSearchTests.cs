@@ -1,3 +1,5 @@
+using Snail.Toolkit.Web.Politeness;
+using Snail.Toolkit.Web.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -103,7 +105,10 @@ public class WebSearchTests
         await search.FindAsync(["grain"]);
         var second = await search.FindAsync(["barley"]);
 
-        Assert.Equal("A", Assert.Single(second.Attempts).Provider);
+        Assert.Equal("A", Assert.Single(second.Attempts, attempt => attempt.IsAnswered).Provider);
+        Assert.Equal(
+            SearchFailureKind.Resting,
+            Assert.Single(second.Attempts, attempt => attempt.Provider == "B").Failure!.Kind);
     }
 
     /// <summary>
@@ -133,7 +138,10 @@ public class WebSearchTests
         await search.FindAsync(["grain"]);
         var second = await search.FindAsync(["barley"]);
 
-        Assert.Empty(second.Attempts);
+        Assert.Equal(
+            [SearchFailureKind.Resting, SearchFailureKind.Resting],
+            second.Attempts.Select(attempt => attempt.Failure!.Kind));
+
         Assert.False(second.IsAnswered);
     }
 
@@ -218,8 +226,49 @@ public class WebSearchTests
         await search.FindAsync(["grain"]);
         var outcome = await search.FindAsync(["barley", "rye"]);
 
-        Assert.Equal(4, outcome.Attempts.Count);
-        Assert.DoesNotContain(outcome.Attempts, attempt => attempt.Provider == "A");
+        var asked = outcome.Attempts.Where(attempt => attempt.Failure?.Kind != SearchFailureKind.Resting).ToList();
+
+        Assert.Equal(4, asked.Count);
+        Assert.DoesNotContain(asked, attempt => attempt.Provider == "A");
+    }
+
+    /// <summary>
+    /// A provider left out is a fact the caller can state, not only one the log holds: the attempt says it was
+    /// not asked and when its rest ends.
+    /// </summary>
+    /// <remarks>
+    /// "Every engine answered and nothing matched" and "the engines that answer this kind of question are all
+    /// resting" arrived as the same empty outcome, and they call for opposite reactions — the first is about
+    /// the query, the second about the search.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_RestingProvider_SaysSoInTheAttemptsWithTheInstantItEnds()
+    {
+        var clock = new Clock(new DateTimeOffset(2026, 9, 12, 20, 0, 0, TimeSpan.Zero));
+        var search = Search(Cooldown(clock), Refusing("A"), Empty("B"));
+
+        await search.FindAsync(["grain"]);
+        var second = await search.FindAsync(["barley"]);
+
+        var unasked = Assert.Single(second.Attempts, attempt => attempt.Provider == "A");
+
+        Assert.Equal(SearchFailureKind.Resting, unasked.Failure!.Kind);
+        Assert.Equal(clock.Now.AddMinutes(5), unasked.Failure.OpensAt);
+        Assert.False(unasked.IsAnswered);
+    }
+
+    /// <summary>One entry per provider and query, like every other attempt, so a report counts them alike.</summary>
+    [Fact]
+    public async Task FindAsync_RestingProviderAndTwoQueries_SaysSoOncePerQuery()
+    {
+        var search = Search(Refusing("A"), Empty("B"));
+
+        await search.FindAsync(["grain"]);
+        var second = await search.FindAsync(["barley", "rye"]);
+
+        Assert.Equal(
+            ["barley", "rye"],
+            second.Attempts.Where(attempt => attempt.Provider == "A").Select(attempt => attempt.Query).Order());
     }
 
     [Fact]
@@ -273,6 +322,129 @@ public class WebSearchTests
         Assert.Equal(["C", "D", "E"], AskedFor(outcome, "barley"));
     }
 
+    /// <summary>Markup too deep to read says nothing about how often the engine will answer.</summary>
+    /// <remarks>
+    /// A refusal rests the engine; a fault does not, and neither does this. The kind sits beside
+    /// <see cref="SearchFailureKind.Faulted"/> in what it costs and apart from it in what it means, so the
+    /// cheapest way for it to go wrong is to be folded into the refusal arm by someone reading the enum.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_ProviderThatAnsweredMarkupTooDeepToRead_IsNotRested()
+    {
+        var cooldown = Cooldown(new Clock(DateTimeOffset.UnixEpoch));
+
+        await Search(cooldown, Unreadable("A")).FindAsync(["grain"]);
+
+        Assert.Null(cooldown.RestingUntil("A"));
+    }
+
+    /// <summary>And it is not an answer: nobody read that page, so nothing is known about the query.</summary>
+    [Fact]
+    public async Task FindAsync_EveryProviderAnsweredMarkupTooDeepToRead_IsNotAnAnsweredSearch()
+    {
+        var outcome = await Search(Unreadable("A"), Unreadable("B")).FindAsync(["grain"]);
+
+        Assert.False(outcome.IsAnswered);
+    }
+
+    private static ISearchProvider Unreadable(string name)
+        => new StubProvider(name, _ => SearchAnswer.Failed(
+            SearchFailure.Unreadable(name, new MarkupTooDeepException(1_000))));
+
+    /// <summary>
+    /// A budget is the caller saying what a query is worth, and the gate already knows what each engine costs.
+    /// </summary>
+    /// <remarks>
+    /// The engine here is paced at five minutes and has just been asked, so its gate cannot open inside a
+    /// budget of one second. Nothing about the engine is guessed: the gap is the one the deployment named and
+    /// the instant is the gate's own answer.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_BudgetShorterThanTheGateTheEngineWaitsAt_DoesNotAskItAndNamesWhenItOpens()
+    {
+        var gate = Paced(("slow.example", TimeSpan.FromMinutes(5)));
+        await Turned(gate, "https://slow.example/search");
+
+        var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
+
+        var outcome = await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"], TimeSpan.FromSeconds(1));
+
+        var attempt = Assert.Single(outcome.Attempts);
+
+        Assert.Equal(SearchFailureKind.OutOfTime, attempt.Failure!.Kind);
+        Assert.NotNull(attempt.Failure.OpensAt);
+        Assert.False(slow.Asked);
+    }
+
+    /// <summary>Without a budget the same engine is asked, which is what makes the answer above a choice.</summary>
+    [Fact]
+    public async Task FindAsync_NoBudget_AsksTheEngineWhoseGateIsShut()
+    {
+        var gate = Paced(("slow.example", TimeSpan.FromMinutes(5)));
+        await Turned(gate, "https://slow.example/search");
+
+        var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
+
+        await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"]);
+
+        Assert.True(slow.Asked);
+    }
+
+    /// <summary>
+    /// A provider that names no host is asked whatever the budget: this library knows nothing about its cost,
+    /// and refusing to ask on a guess is worse than paying it.
+    /// </summary>
+    [Fact]
+    public async Task FindAsync_WithABudget_StillAsksAProviderThatNamesNoHost()
+    {
+        var gate = Paced(("slow.example", TimeSpan.FromMinutes(5)));
+        await Turned(gate, "https://slow.example/search");
+
+        var local = new StubProvider("Corpus", _ => SearchAnswer.Success([]));
+
+        await Timed(gate, TimeProvider.System, local).FindAsync(["grain"], TimeSpan.FromSeconds(1));
+
+        Assert.True(local.Asked);
+    }
+
+    /// <summary>A budget that runs out while an engine is still answering is the budget's doing, not the caller's.</summary>
+    [Fact]
+    public async Task FindAsync_BudgetRunningOutWhileAProviderAnswers_SaysOutOfTimeRatherThanCanceled()
+    {
+        var outcome = await Timed(Open(), TimeProvider.System, new Waiting("Slow"))
+            .FindAsync(["grain"], TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(SearchFailureKind.OutOfTime, Assert.Single(outcome.Attempts).Failure!.Kind);
+    }
+
+    /// <summary>A caller that changes its mind mid-search is answered with the cancellation, budget or not.</summary>
+    /// <remarks>
+    /// Cancellation passes through this toolkit rather than being translated, and a budget is the one thing
+    /// that could have started translating it: reported as an attempt, a cancelled search would come back
+    /// looking like a search that ran and found nothing.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_CallerCancellingMidSearch_PassesTheCancellationThrough()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Timed(Open(), TimeProvider.System, new Waiting("Slow"))
+                .FindAsync(["grain"], TimeSpan.FromSeconds(30), cancellation.Token));
+    }
+
+    /// <summary>A gate with the gaps this deployment named, and one turn taken at a host to shut it.</summary>
+    private static HostPoliteness Paced(params (string Host, TimeSpan Gap)[] gentler)
+        => new(Options.Create(new PolitenessOptions
+        {
+            HostDelays = gentler.ToDictionary(named => named.Host, named => named.Gap, StringComparer.OrdinalIgnoreCase)
+        }));
+
+    private static async Task Turned(IPoliteness gate, string address)
+    {
+        await using var turn = await gate.EnterAsync(new Uri(address));
+    }
+
     private static IEnumerable<string> AskedFor(SearchOutcome outcome, string query)
         => outcome.Attempts.Where(attempt => attempt.Query == query).Select(attempt => attempt.Provider).Order();
 
@@ -280,10 +452,31 @@ public class WebSearchTests
         => Search(Cooldown(TimeProvider.System), providers);
 
     private static WebSearch Search(ISearchCooldown cooldown, params ISearchProvider[] providers)
-        => new(providers, cooldown, Options.Create(new SearchOptions()), NullLogger<WebSearch>.Instance);
+        => Built(cooldown, Open(), TimeProvider.System, new SearchOptions(), providers);
 
     private static WebSearch Search(SearchOptions options, params ISearchProvider[] providers)
-        => new(providers, Cooldown(TimeProvider.System), Options.Create(options), NullLogger<WebSearch>.Instance);
+        => Built(Cooldown(TimeProvider.System), Open(), TimeProvider.System, options, providers);
+
+    /// <summary>A search whose clock and gate the test holds, which is what a budget is measured against.</summary>
+    private static WebSearch Timed(IPoliteness gate, TimeProvider clock, params ISearchProvider[] providers)
+        => Built(Cooldown(clock), gate, clock, new SearchOptions(), providers);
+
+    private static WebSearch Built(
+        ISearchCooldown cooldown,
+        IPoliteness politeness,
+        TimeProvider clock,
+        SearchOptions options,
+        ISearchProvider[] providers)
+        => new(
+            providers,
+            cooldown,
+            politeness,
+            clock,
+            Options.Create(options),
+            NullLogger<WebSearch>.Instance);
+
+    /// <summary>A gate nobody has spoken to, which is what every host looks like until it is asked.</summary>
+    private static HostPoliteness Open() => new(Options.Create(new PolitenessOptions()));
 
     private static SearchCooldown Cooldown(TimeProvider clock)
         => new(Options.Create(new SearchOptions()), clock);
@@ -306,11 +499,34 @@ public class WebSearchTests
         => new StubProvider(name, _ =>
             SearchAnswer.Failed(new SearchFailure(SearchFailureKind.Refused, "challenge page")));
 
-    private sealed class StubProvider(string name, Func<string, SearchAnswer> answer) : ISearchProvider
+    private sealed class StubProvider(string name, Func<string, SearchAnswer> answer, string? host = null)
+        : ISearchProvider
     {
         public string Name => name;
 
+        public string? Host => host;
+
+        /// <summary>Whether this provider was asked at all, which is the whole point of a budget.</summary>
+        public bool Asked { get; private set; }
+
         public Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
-            => Task.FromResult(answer(query));
+        {
+            Asked = true;
+
+            return Task.FromResult(answer(query));
+        }
+    }
+
+    /// <summary>A provider that never answers, so what ends the attempt is the clock rather than the engine.</summary>
+    private sealed class Waiting(string name) : ISearchProvider
+    {
+        public string Name => name;
+
+        public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
+            return SearchAnswer.Success([]);
+        }
     }
 }

@@ -1,7 +1,9 @@
 using System.Globalization;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Search.Http;
+using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Search.Providers;
 
@@ -15,13 +17,27 @@ namespace Snail.Toolkit.Web.Search.Providers;
 /// endpoint, published for exactly this, not the pages it names. Whoever reads those pages afterwards is the
 /// one that has to obey them.
 /// </remarks>
-public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOptions> options) : ISearchProvider
+public sealed class DuckDuckGo(
+    IHttpClientFactory clients,
+    IBlockDetector blocks,
+    IOptions<SearchOptions> options) : ISearchProvider
 {
     /// <summary>The name this provider is registered and configured under.</summary>
     public const string ProviderName = "DuckDuckGo";
 
+    /// <summary>The host the query is sent to, named once so the gate and the request cannot drift apart.</summary>
+    /// <remarks>
+    /// The HTML endpoint rather than the site, because that is where the request goes and the gate paces
+    /// requests: pacing <c>duckduckgo.com</c> would hold a host this provider never asks. The site itself is
+    /// still named below, as the base a relative result link is resolved against.
+    /// </remarks>
+    private const string Site = "html.duckduckgo.com";
+
     /// <inheritdoc />
     public string Name => ProviderName;
+
+    /// <inheritdoc />
+    public string Host => Site;
 
     private const int MaxRequests = 5;
 
@@ -58,13 +74,20 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
             var html = page.Value;
             var added = found.Count;
 
-            foreach (var result in Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted - added))
-                found.Add(result);
+            try
+            {
+                foreach (var result in Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted - added))
+                    found.Add(result);
 
-            if (found.Count == added)
-                break;
+                if (found.Count == added)
+                    break;
 
-            offset = NextOffset(html);
+                offset = NextOffset(html);
+            }
+            catch (MarkupTooDeepException tooDeep)
+            {
+                return SearchAnswer.Failed(SearchFailure.Unreadable(ProviderName, tooDeep));
+            }
         }
 
         return SearchAnswer.Success(found);
@@ -77,8 +100,7 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
     /// </remarks>
     internal static int? NextOffset(string html)
     {
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
+        var document = Markup.Read(html);
 
         if (document.DocumentNode.SelectNodes("//input[@name='s'][@value]") is not { } controls)
             return null;
@@ -97,19 +119,28 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
         return offsets.Length == 0 ? null : offsets.Max();
     }
 
-    private static async Task<Outcome<string, SearchFailure>> PageAsync(
+    /// <remarks>
+    /// An instance method since 2026-09-15, because the wall is read here: the detector is a dependency, and
+    /// a page of this engine can be a challenge whatever status carried it.
+    /// </remarks>
+    private async Task<Outcome<string, SearchFailure>> PageAsync(
         HttpClient client,
         string query,
         int offset,
         CancellationToken ct)
     {
-        var address = $"https://html.duckduckgo.com/html/?q={Uri.EscapeDataString(query)}";
+        var address = $"https://{Site}/html/?q={Uri.EscapeDataString(query)}";
         using var response = await client.GetAsync(offset == 0 ? address : $"{address}&s={offset}", ct);
 
         if (!response.IsSuccessStatusCode)
             return Outcome<string, SearchFailure>.Failed(Refusals.Of(ProviderName, response.StatusCode));
 
-        return Outcome<string, SearchFailure>.Success(await response.Content.ReadAsStringAsync(ct));
+        var html = await response.Content.ReadAsStringAsync(ct);
+
+        if (blocks.Inspect(html, address) is { IsBlocked: true, Signal: { } signal })
+            return Outcome<string, SearchFailure>.Failed(Refusals.Wall(ProviderName, signal));
+
+        return Outcome<string, SearchFailure>.Success(html);
     }
 
     /// <summary>Reads the result blocks out of one page of markup.</summary>
@@ -120,10 +151,7 @@ public sealed class DuckDuckGo(IHttpClientFactory clients, IOptions<SearchOption
     /// </remarks>
     internal static IEnumerable<SearchResult> Parsed(string html)
     {
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
-
-        var blocks = document.DocumentNode.SelectNodes("//div[contains(@class,'web-result')]");
+        var blocks = Markup.Read(html).DocumentNode.SelectNodes("//div[contains(@class,'web-result')]");
 
         if (blocks is null)
             yield break;

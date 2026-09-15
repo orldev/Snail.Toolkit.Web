@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Snail.Toolkit.Web.Politeness;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping.Agent;
 using Snail.Toolkit.Web.Search.Browser.Agent.Extensions;
@@ -146,17 +148,123 @@ public class RegistrationTests
         Assert.Null(Outgoing.ExitOf(provider, Google.ProviderName, new Uri("https://www.google.com/url?q=1")));
     }
 
+    /// <summary>The engine is given the interval it was measured to answer at, unless one is named for it.</summary>
+    [Fact]
+    public async Task AddGoogle_WithNoGapNamed_PacesTheEngineAtTheMeasuredInterval()
+    {
+        await using var provider = Built([]);
+
+        Assert.Equal(TimeSpan.FromMinutes(2), Politeness(provider).GapFor("www.google.com"));
+    }
+
+    /// <summary>
+    /// A key above the host is how <c>HostDelays</c> is documented to cover it, so a deployment writing
+    /// <c>google.com</c> has named this engine's gap and the package must not write one beside it.
+    /// </summary>
+    /// <remarks>
+    /// The louder half of the defect this covers: until 2026-09-15 the check was an exact-key lookup, so a
+    /// deployment asking for FIVE MINUTES had <c>www.google.com = 2 minutes</c> written next to it, and the
+    /// more specific key wins — the package quietly asked the engine more often than the deployment allowed.
+    /// </remarks>
+    [Fact]
+    public async Task AddGoogle_WithTheHostAboveItNamed_LeavesThatGapStanding()
+    {
+        await using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Politeness:HostDelays:google.com"] = "00:05:00"
+        });
+
+        var politeness = Politeness(provider);
+
+        Assert.Equal(TimeSpan.FromMinutes(5), politeness.GapFor("www.google.com"));
+        Assert.DoesNotContain("www.google.com", politeness.HostDelays.Keys, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A deployment may buy the refusals, and is told what it bought.</summary>
+    /// <remarks>
+    /// The gap most likely to be found in a configuration file is the one written for the engine this package
+    /// replaced, which was asked by address and paced in seconds. It stands — the deployment decides — but a
+    /// setting that quietly turns a measured floor into a rate the engine answers with a challenge is worth a
+    /// line naming both numbers.
+    /// </remarks>
+    [Fact]
+    public async Task AddGoogle_AskedFasterThanMeasured_KeepsTheNamedGapAndSaysSo()
+    {
+        var recorded = new Recording();
+
+        await using var provider = Built(
+            new Dictionary<string, string?> { ["Web:Politeness:HostDelays:google.com"] = "00:00:05" },
+            recorded);
+
+        Assert.Equal(TimeSpan.FromSeconds(5), Politeness(provider).GapFor("www.google.com"));
+        Assert.Contains(recorded.Warnings, line => line.Contains("00:00:05") && line.Contains("00:02:00"));
+    }
+
+    /// <summary>The line is said only where it is news: a gap at or above the measurement is not.</summary>
+    [Fact]
+    public async Task AddGoogle_AskedSlowerThanMeasured_SaysNothing()
+    {
+        var recorded = new Recording();
+
+        await using var provider = Built(
+            new Dictionary<string, string?> { ["Web:Politeness:HostDelays:google.com"] = "00:05:00" },
+            recorded);
+
+        Politeness(provider);
+
+        Assert.Empty(recorded.Warnings);
+    }
+
+    private static PolitenessOptions Politeness(IServiceProvider provider)
+        => provider.GetRequiredService<IOptions<PolitenessOptions>>().Value;
+
     private static SocketsHttpHandler Exit(IServiceProvider provider)
         => Assert.IsType<SocketsHttpHandler>(Outgoing.HandlerOf(provider, Google.ProviderName));
 
-    private static ServiceProvider Built(Dictionary<string, string?> settings)
+    private static ServiceProvider Built(Dictionary<string, string?> settings, Recording? recording = null)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var services = new ServiceCollection();
 
-        services.AddLogging();
+        services.AddLogging(logging =>
+        {
+            if (recording is not null)
+                logging.AddProvider(recording);
+        });
+
         services.AddGoogle(configuration);
 
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>Keeps the warnings written during registration, so a line meant for a person can be asserted on.</summary>
+    private sealed class Recording : ILoggerProvider, ILogger
+    {
+        private readonly List<string> _warnings = [];
+
+        public IReadOnlyList<string> Warnings => _warnings;
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+
+            if (logLevel >= LogLevel.Warning)
+                _warnings.Add(formatter(state, exception));
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }

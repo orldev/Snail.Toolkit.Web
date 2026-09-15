@@ -90,46 +90,15 @@ public class HostilePageTextTests
         Assert.Equal("hello", new TextExtraction().Clean(Nested(999)));
     }
 
-    /// <summary>Markup nested deeper than the ceiling is refused, and refused FAST.</summary>
-    /// <remarks>
-    /// The refusal is the point, and so is its speed — a ceiling that still pays for the parse before
-    /// complaining is not a cure. MEASURED on 2026-09-15 by <c>probes/Markup.cs</c>, both arms interleaved by
-    /// round so neither is the one running on a cold process:
-    /// <list type="bullet">
-    /// <item><description>5,000 levels — 200 ms parsed, 1.4 ms refused.</description></item>
-    /// <item><description>20,000 levels — 2.79 s parsed, 1.6 ms refused.</description></item>
-    /// </list>
-    /// <para>
-    /// THE THRESHOLD IS DERIVED FROM BOTH NUMBERS rather than picked: 100 ms sits seventy times above the
-    /// refusal and half the parse at the shallower of the two arms, so this check fails on markup that is
-    /// parsed and passes only on markup that is turned away. Without the ceiling it fails twice over — no
-    /// exception, and at 20,000 it would take twenty-eight times its own budget.
-    /// </para>
-    /// </remarks>
-    [Theory]
-    [InlineData(5_000)]
-    [InlineData(20_000)]
-    public void Clean_MarkupNestedDeeperThanItMayBe_IsRefusedRatherThanRead(int depth)
-    {
-        var html = Nested(depth);
-        var started = Stopwatch.GetTimestamp();
-
-        var refusal = Assert.Throws<MarkupTooDeepException>(() => new TextExtraction().Clean(html));
-
-        var taken = Stopwatch.GetElapsedTime(started);
-
-        Assert.Equal(1_000, refusal.MostNesting);
-        Assert.True(
-            taken < TimeSpan.FromMilliseconds(100),
-            $"refusing took {taken.TotalMilliseconds:0} ms, which is the cost of parsing rather than of refusing");
-    }
-
     /// <summary>Refusing deep markup costs the same whatever the depth, which time cannot witness.</summary>
     /// <remarks>
-    /// The check beside this one holds the refusal to a hundred milliseconds, and a threshold in milliseconds
-    /// is the flakiest thing a suite can own: it measures the machine as much as the code, and on a loaded
-    /// runner it fails for reasons that have nothing to do with the page. Allocation does not move with the
-    /// machine. This is the same guarantee said in a unit that holds still.
+    /// A check in milliseconds stood beside this one until 2026-09-15 and was REMOVED, which its own remark
+    /// had predicted: a threshold in milliseconds is the flakiest thing a suite can own — it measures the
+    /// machine as much as the code, and on a loaded runner it fails for reasons that have nothing to do with
+    /// the page. It did exactly that twice in one evening, both times only in a full run of the six suites
+    /// beside the browser containers, and the second time it reported 146 ms against its budget of 100.
+    /// Nothing was lost by its going: it asserted the ceiling (kept below) and a speed that this check
+    /// witnesses better. Allocation does not move with the machine.
     /// <para>
     /// MEASURED on 2026-09-15, per thread:
     /// <list type="bullet">
@@ -156,10 +125,11 @@ public class HostilePageTextTests
 
         var before = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.Throws<MarkupTooDeepException>(() => text.Clean(html));
+        var refusal = Assert.Throws<MarkupTooDeepException>(() => text.Clean(html));
 
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
+        Assert.Equal(1_000, refusal.MostNesting);
         Assert.True(
             allocated < 2L * 1024 * 1024,
             $"refusing markup {depth} levels deep cost {allocated / 1024} KB, which is the cost of parsing it");

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
 using Snail.Toolkit.Web.Identity;
@@ -38,25 +39,55 @@ public static class ServiceCollectionExtensions
         }
     }
 
-    /// <summary>Gives this engine a gap measured in minutes unless the deployment named its own.</summary>
+    /// <summary>The shortest interval this engine was measured to answer at rather than refuse.</summary>
     /// <remarks>
-    /// The default gap is one second, which is a rate this engine answers with a challenge. Measured on
-    /// 2026-09-13 from one address: four queries spaced two to four minutes apart, each on a clean context,
-    /// were answered with results, and the shortest interval that passed was two minutes. Faster was never
-    /// measured to work, so two minutes is the floor written here rather than a rate known to be safe — a
-    /// deployment that asks more often should expect the refusal that frequency buys.
+    /// Measured on 2026-09-13 from one address: four queries spaced two to four minutes apart, each on a clean
+    /// context, were answered with results, and the shortest interval that passed was two minutes. Faster was
+    /// never measured to work, so this is a floor written from a measurement rather than a rate known to be
+    /// safe — a deployment that asks more often should expect the refusal that frequency buys.
+    /// </remarks>
+    private static readonly TimeSpan Measured = TimeSpan.FromMinutes(2);
+
+    /// <summary>Gives this engine <see cref="Measured"/> unless the deployment named a gap that covers it.</summary>
+    /// <remarks>
+    /// The default gap is one second, which is a rate this engine answers with a challenge. Named after the
+    /// configured front end rather than hard-coded, so a country domain is paced too.
     /// <para>
-    /// Named after the configured front end rather than hard-coded, so a country domain is paced too, and
-    /// only when the deployment has not set its own gap for that host.
+    /// "Named its own" is asked of <see cref="PolitenessOptions.GapFor"/> rather than of an exact key, and
+    /// that is the whole of the fix made on 2026-09-15. <c>Web:Politeness:HostDelays</c> covers a host by any
+    /// key above it, so a deployment writing <c>google.com</c> has named this engine's gap; the exact-key
+    /// check read that as silence and wrote <c>www.google.com</c> beside it, where the more specific key wins.
+    /// Both directions were wrong and the louder one is the second: a deployment naming FIVE MINUTES was
+    /// quietly asked every two, which is the package overriding a deployment in the direction of more traffic.
+    /// </para>
+    /// <para>
+    /// A gap shorter than the measurement stands — the deployment is entitled to buy the refusals — but it is
+    /// said out loud once, with both numbers, because the setting was more likely written for the engine this
+    /// package replaced, which was asked by address and paced in seconds.
     /// </para>
     /// </remarks>
     private static void Paced(this IServiceCollection services)
         => services
             .AddOptions<PolitenessOptions>()
-            .PostConfigure<IOptions<GoogleOptions>>((politeness, google) =>
+            .PostConfigure<IOptions<GoogleOptions>, ILoggerFactory>((politeness, google, loggers) =>
             {
-                if (!politeness.HostDelays.ContainsKey(google.Value.Domain))
-                    politeness.HostDelays[google.Value.Domain] = TimeSpan.FromMinutes(2);
+                var host = google.Value.Domain;
+
+                if (politeness.GapFor(host) is not { } named)
+                {
+                    politeness.HostDelays[host] = Measured;
+
+                    return;
+                }
+
+                if (named >= Measured)
+                    return;
+
+                loggers.CreateLogger<Google>().LogWarning(
+                    "{Host} is paced at {Named} by configuration, faster than the {Measured} this engine was measured to answer at; the configured gap stands and refusals are to be expected",
+                    host,
+                    named,
+                    Measured);
             });
 
     /// <summary>Adds the client that asks where a wrapped link leads without going there.</summary>

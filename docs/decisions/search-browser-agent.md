@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-8 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+9 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## Google.AnsweredAsync
 
@@ -24,15 +24,13 @@ The consent wall was not met from that address and so is not in the errand. A de
 Everything that is not Google-specific — the outbound filter, the ceiling, telling a refusal from an unreadable page — stays in `BrowserSearch`. What is left here is one errand, one parser, and the request that turns a wrapped link into the address it wraps.
 
 
-## ServiceCollectionExtensions.Paced
+## ServiceCollectionExtensions.Measured
 
 `2026-09-13` · *internal*
 
-*Gives this engine a gap measured in minutes unless the deployment named its own.*
+*The shortest interval this engine was measured to answer at rather than refuse.*
 
-The default gap is one second, which is a rate this engine answers with a challenge. Measured on 2026-09-13 from one address: four queries spaced two to four minutes apart, each on a clean context, were answered with results, and the shortest interval that passed was two minutes. Faster was never measured to work, so two minutes is the floor written here rather than a rate known to be safe — a deployment that asks more often should expect the refusal that frequency buys.
-
-Named after the configured front end rather than hard-coded, so a country domain is paced too, and only when the deployment has not set its own gap for that host.
+Measured on 2026-09-13 from one address: four queries spaced two to four minutes apart, each on a clean context, were answered with results, and the shortest interval that passed was two minutes. Faster was never measured to work, so this is a floor written from a measurement rather than a rate known to be safe — a deployment that asks more often should expect the refusal that frequency buys.
 
 
 ## Google.ResolvedAsync
@@ -84,3 +82,16 @@ Redirects are off because the redirect is the answer: with the handler following
 Deliberately not `AddSearchClient`. That one holds the per-host gate, and this engine's gate is the two minutes set just above — a seven-link answer would take a quarter of an hour to resolve through it, because the gate paces searches and these are the links of one search. The gap between two follows is `FollowDelay` instead, and unlike the ceiling it is a rate measured to work.
 
 It leaves by the configured exit all the same, which it did not until 2026-09-14: a bare handler was built here and the engine's own address saw the search arrive from the proxy and the link resolved from somewhere else moments later. The link it is resolving is an encrypted blob that engine issued to that session, so it is the one party able to join the two addresses, and it is handed the join.
+
+
+## ServiceCollectionExtensions.Paced
+
+`2026-09-15` · *internal*
+
+*Gives this engine `Measured` unless the deployment named a gap that covers it.*
+
+The default gap is one second, which is a rate this engine answers with a challenge. Named after the configured front end rather than hard-coded, so a country domain is paced too.
+
+"Named its own" is asked of `GapFor` rather than of an exact key, and that is the whole of the fix made on 2026-09-15. `Web:Politeness:HostDelays` covers a host by any key above it, so a deployment writing `google.com` has named this engine's gap; the exact-key check read that as silence and wrote `www.google.com` beside it, where the more specific key wins. Both directions were wrong and the louder one is the second: a deployment naming FIVE MINUTES was quietly asked every two, which is the package overriding a deployment in the direction of more traffic.
+
+A gap shorter than the measurement stands — the deployment is entitled to buy the refusals — but it is said out loud once, with both numbers, because the setting was more likely written for the engine this package replaced, which was asked by address and paced in seconds.

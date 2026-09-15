@@ -27,10 +27,15 @@
     work is spread across threads is machinery behind both. A type published at 0.1.0 is a promise to every
     later version, and the asymmetry decides it — public to internal is a breaking change, internal to public
     is not, so the reversible direction is the one to take before there is a consumer.
+
+    The third name was added on 2026-09-15 for Markup, which is the same argument reaching a different type:
+    the ceiling on nesting depth is not a policy a consumer tunes, so the parser stays internal, and the
+    browser-backed engines read their results pages through it rather than each building a parser of its own.
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Search" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Tests" />
   </ItemGroup>
 

@@ -1,3 +1,4 @@
+using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -151,6 +152,29 @@ public class BrowserSearchTests
     public async Task FindAsync_AddressThatIsNotAbsolute_IsNotAResult()
         => Assert.Empty(await Found("/goto?url=CAESWAHrOzAVblob"));
 
+    /// <summary>
+    /// A results page nested deeper than the parser will go is a named refusal, not a page with no results.
+    /// </summary>
+    /// <remarks>
+    /// The ceiling is the core's and the page normally passes through the reader, which applies it first — so
+    /// this drives the base with markup that never went through a reader, which is the shape a future engine
+    /// fetching its own page would have. Without the parse living here it costs 400 ms of CPU and answers
+    /// "nothing matched", which is a statement about the query and untrue.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_PageNestedDeeperThanItMayBe_IsUnreadableRatherThanEmpty()
+    {
+        var deep = string.Concat(Enumerable.Repeat("<div>", 5_000))
+                   + "https://one.example/a"
+                   + string.Concat(Enumerable.Repeat("</div>", 5_000));
+
+        var answer = await Engine(new StubReader(_ => Fixture.Read(deep))).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Unreadable, answer.Failure.Kind);
+        Assert.Contains("Elsewhere", answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
     private static async Task<IReadOnlyList<SearchResult>> Found(string page)
         => (await Engine(new StubReader(_ => Fixture.Read(page))).FindAsync("grain")).Value;
 
@@ -172,8 +196,8 @@ public class BrowserSearchTests
                 Link.Of($"https://search.example/find?q={Uri.EscapeDataString(query)}"),
                 ct);
 
-        protected override IEnumerable<SearchResult> Parsed(string html)
-            => html
+        protected override IEnumerable<SearchResult> Parsed(HtmlDocument document)
+            => document.DocumentNode.InnerText
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(line => new SearchResult
                 {

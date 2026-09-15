@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-11 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+12 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## Effect
 
@@ -111,3 +111,14 @@ Waiting is still not among them, because a wait is not a move: it is the `Effect
 *Why the step at this position produced nothing.*
 
 The document is inspected for a refusal first, because a step stops producing anything the moment the site shows the door, and the two answers call for opposite reactions: a challenge is `Blocked` and worth another identity, while `Empty` is final and worth none. Measured against Google on 2026-09-13: the errand typed the query, the site accepted the submit and began loading the results, then redirected to a reCAPTCHA — and the outcome came back as a step that produced nothing, so the one fact worth acting on was left in the prose while the kind a caller branches on said the opposite. The arrival and the finished page are each checked by the agent itself; this is the third door, and it was the one standing open.
+
+
+## Errand.Appetite
+
+`2026-09-14`, `2026-09-15`
+
+*Gets how much of the page the browser may fetch while the errand is walked.*
+
+Everything by default, and the default is the interesting half: a page that is DRIVEN rather than read needs the scripts that build what is driven — Google's query is typed into a field that does not exist without them. The reader's default is the same for the same reason, and both are a choice rather than an economy: measured against Brave on 2026-09-14, one ordinary page load cost 71 to 73 requests and was answered `429` three times out of three, while the document alone cost one and was answered `200` three times out of three.
+
+An errand that only waits for something already in the markup — a registry page whose table is served with it, a site walked to read rather than to use — asks for the document and pays one request. Until 2026-09-15 it had no way to say so: the agent opened every visit at `Everything` whatever the errand was for, so the choice existed for the reader and not here.

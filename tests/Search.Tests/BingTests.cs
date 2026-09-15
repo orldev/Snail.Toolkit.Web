@@ -1,4 +1,8 @@
+using Snail.Toolkit.Web.Detection;
+using System.Net;
+using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Search.Providers;
+using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Search.Tests;
 
@@ -33,6 +37,45 @@ public class BingTests
         Assert.Equal(broken, Bing.Unwrapped(broken));
     }
 
+    /// <summary>
+    /// The engine's own page goes through the same door every other page does, ceiling included.
+    /// </summary>
+    /// <remarks>
+    /// Until 2026-09-15 the four engines built their own parser, and the ceiling on nesting depth — measured
+    /// at 400 ms of CPU for 161 KB nested five thousand deep, 5.6 s at twenty thousand — guarded every page
+    /// this library reads EXCEPT the ones it asks for itself.
+    /// </remarks>
+    /// <summary>A wall under a success status is a refusal here too: the cure is not one engine's.</summary>
+    [Fact]
+    public async Task FindAsync_AChallengePageUnderASuccessStatus_IsARefusalRatherThanAnEmptyAnswer()
+    {
+        var answer = await Provider(new StubClients("<html><body>Unusual traffic from your network</body></html>"))
+            .FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure.Kind);
+        Assert.Contains("unusual traffic", answer.Failure.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parsed_MarkupNestedDeeperThanItMayBe_IsRefusedRatherThanRead()
+        => Assert.Throws<MarkupTooDeepException>(() => Bing.Parsed(Nested(5_000)).ToList());
+
+    /// <summary>The refusal reaches the caller as data, named, and not as an empty page.</summary>
+    /// <remarks>
+    /// <see cref="SearchFailureKind.NoResults"/> would be the one untrue answer available here: it is a
+    /// statement about the query, and the query is not what went wrong.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_MarkupNestedDeeperThanItMayBe_IsUnreadableRatherThanEmpty()
+    {
+        var answer = await Provider(new StubClients(Nested(5_000))).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Unreadable, answer.Failure.Kind);
+        Assert.Contains(Bing.ProviderName, answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Parsed_AMarkupWithoutResults_ReportsNothing()
         => Assert.Empty(Bing.Parsed("""<html><body><ol id="b_results"></ol></body></html>"""));
@@ -51,5 +94,26 @@ public class BingTests
         Assert.Equal("https://www.gazprom.ru/", found.Address.Canonical);
         Assert.Equal("Крупнейшая газовая компания.", found.Snippet);
         Assert.Equal(Bing.ProviderName, found.Provider);
+    }
+
+    /// <summary>The engine with a real block detector, because a wall is read before the markup is parsed.</summary>
+    private static Bing Provider(IHttpClientFactory clients)
+        => new(clients, new BlockDetector(), Options.Create(new SearchOptions()));
+
+    private static string Nested(int depth)
+        => string.Concat(Enumerable.Repeat("<div>", depth))
+           + "hello"
+           + string.Concat(Enumerable.Repeat("</div>", depth));
+
+    /// <summary>Answers every request with one page, so the reading is what is under test.</summary>
+    private sealed class StubClients(string page, HttpStatusCode status = HttpStatusCode.OK) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(new StubHandler(page, status));
+
+        private sealed class StubHandler(string page, HttpStatusCode status) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+                => Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(page) });
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-16 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+17 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -144,7 +144,20 @@ The ceiling is the parser's own, checked INSIDE the parse rather than after it, 
 
 WHY 1000 AND NOT A SETTING. Every real page measured sits two orders below it: an article nests twelve deep, a catalogue twenty. The ceiling is not a policy a consumer tunes to taste — nobody wants a page nested a thousand deep read — it is the line past which markup stops being a document, and putting a number like that in configuration invites it to be raised by someone who has met a refusal rather than a page. What a consumer needs instead is to be TOLD, which is why the refusal is named rather than silent. If a real page is ever found above this, the answer to weigh is a setting, and this paragraph is where the argument against one already stands.
 
-WHAT THIS DELIBERATELY DOES NOT COVER, said here because it is the obvious next thing to propose. The four search providers — Bing, DuckDuckGo, Brave and Google — build their own `HtmlDocument` and do not come through here. That is not an oversight and not yet a decision: their markup comes from four engines chosen by us rather than from any address a caller hands over, so the exposure is different, and the answer would have to be worded in their own vocabulary rather than in this one. A provider cannot raise `MarkupTooDeepException` at a caller expecting `SearchFailure`, so covering them means deciding what a refused result page IS — no results, or a named refusal — and that is a question about the search contract, not about the parser.
+THE FOUR SEARCH ENGINES CAME THROUGH HERE ON 2026-09-15, and the question that had kept them out was the one this paragraph named: what a refused results page IS. It is neither of the two answers that were available — not "no results", which is a statement about the query, and not a fault, which is a defect on our side to go and fix — so the search contract grew a third, `SearchFailureKind.Unreadable`, which rests no engine because markup too deep to read says nothing about how often the engine will answer. The two engines that fetch over HTTP parse here and map the refusal themselves; the two driven by a browser parse in `BrowserSearch`, which is why that package is named beside the others in Web.csproj.
+
+
+## PolitenessOptions.GapFor
+
+`2026-09-15`
+
+*The gap named for this host by its own key or by the nearest one above it, when one is named at all.*
+
+The walk is the rule `HostDelays` states, written once rather than in each caller: the host is tried whole and then shortened one label at a time, so `news.example.com` looks for `news.example.com`, then `example.com`, then `com`. A name that merely ends the same way is not a parent, because the cut is always at a dot.
+
+Nothing rather than `MinDelayPerHost` when no key covers the host, because that is the question a second caller had to ask: a package pacing its own engine has to tell "nobody named a gap here" from "the deployment named exactly the default", and a floor cannot say which it is. Measured on 2026-09-15 against the first consumer of the Google package: a deployment naming `google.com` was read as naming nothing, because the check there was an exact-key lookup for `www.google.com`, and both keys ended up standing with the more specific one winning — so the deployment's setting was overridden by a package that had decided it was absent.
+
+Case is compared here rather than left to the dictionary's own comparer: the default instance ignores it, and an instance arriving from configuration binding is not promised to.
 
 
 ## Remembered.Sweep

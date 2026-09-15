@@ -38,7 +38,7 @@ public class SearchCooldownCeilingTests
         for (var refusal = 0; refusal < 60; refusal++)
             cooldown.Refused("Bing");
 
-        Assert.True(cooldown.IsResting("Bing"));
+        Assert.NotNull(cooldown.RestingUntil("Bing"));
     }
 
     /// <summary>The rest never exceeds the ceiling, whatever the ceiling is.</summary>

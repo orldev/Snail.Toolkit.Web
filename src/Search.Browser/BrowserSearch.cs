@@ -1,6 +1,8 @@
+using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
+using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Search.Browser;
 
@@ -34,6 +36,13 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// <summary>Gets the host queries are sent to, without a scheme.</summary>
     protected abstract string Domain { get; }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The same host the engine is read at, said once more where the search can see it: a caller weighing what
+    /// a query costs asks the gate about this, and an engine driven through a browser is the expensive kind.
+    /// </remarks>
+    public string Host => Domain;
+
     /// <summary>Gets the most results one query may answer with.</summary>
     /// <remarks>
     /// Read here rather than by each engine so that an engine which pays per link — one that has to ask where
@@ -53,11 +62,16 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// <summary>Asks the engine one query and hands back the page it answered with.</summary>
     protected abstract Task<PageOutcome> AnsweredAsync(string query, CancellationToken ct);
 
-    /// <summary>Reads the links off one results page.</summary>
+    /// <summary>Reads the links off one results page, already parsed.</summary>
     /// <remarks>
+    /// The document rather than its markup since 2026-09-15, and the reason is the ceiling on nesting depth:
+    /// an engine handed a string parses it itself, and four engines parsing their own were four ways past the
+    /// one door the parser is supposed to have. Parsing here also means an engine cannot forget it.
+    /// <para>
     /// Markup that cannot be followed must answer with nothing rather than throw: the caller then records an
     /// answered attempt that found nothing, and an engine whose layout changed shows up in the metrics as one
     /// that suddenly always answers empty. An exception per query would only look like an outage.
+    /// </para>
     /// <para>
     /// The results are handed over whole and the ceiling is applied by the caller of this, so an engine
     /// supplies a parser and nothing else. Until 2026-09-13 no ceiling was applied here at all:
@@ -65,7 +79,7 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// by neither of the two that drive a browser, and Brave alone answered with a hundred links.
     /// </para>
     /// </remarks>
-    protected abstract IEnumerable<SearchResult> Parsed(string html);
+    protected abstract IEnumerable<SearchResult> Parsed(HtmlDocument document);
 
     /// <summary>Turns the addresses a results page carries into the addresses they lead to.</summary>
     /// <remarks>
@@ -97,7 +111,19 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
             return SearchAnswer.Failed(Unread(outcome.Failure));
 
         var page = outcome.Value;
-        var offered = await ResolvedAsync([.. Parsed(page.Html)], ct);
+
+        HtmlDocument document;
+
+        try
+        {
+            document = Markup.Read(page.Html);
+        }
+        catch (MarkupTooDeepException tooDeep)
+        {
+            return SearchAnswer.Failed(SearchFailure.Unreadable(Name, tooDeep));
+        }
+
+        var offered = await ResolvedAsync([.. Parsed(document)], ct);
 
         IReadOnlyList<SearchResult> results =
         [

@@ -2,7 +2,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Search.Http;
+using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Search.Providers;
 
@@ -26,13 +28,22 @@ namespace Snail.Toolkit.Web.Search.Providers;
 /// not yet known, so an identifier query should not be trusted to this provider alone.
 /// </para>
 /// </remarks>
-public sealed partial class Bing(IHttpClientFactory clients, IOptions<SearchOptions> options) : ISearchProvider
+public sealed partial class Bing(
+    IHttpClientFactory clients,
+    IBlockDetector blocks,
+    IOptions<SearchOptions> options) : ISearchProvider
 {
     /// <summary>The name this provider is registered and its HTTP client is keyed by.</summary>
     public const string ProviderName = "Bing";
 
+    /// <summary>The host the query is sent to, named once so the gate and the request cannot drift apart.</summary>
+    private const string Site = "www.bing.com";
+
     /// <inheritdoc />
     public string Name => ProviderName;
+
+    /// <inheritdoc />
+    public string Host => Site;
 
     /// <inheritdoc />
     public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
@@ -44,16 +55,28 @@ public sealed partial class Bing(IHttpClientFactory clients, IOptions<SearchOpti
         var client = clients.CreateClient(ProviderName);
 
         using var answered = await client.GetAsync(
-            $"https://www.bing.com/search?q={Uri.EscapeDataString(query)}&count={Math.Min(wanted, 30)}",
+            $"https://{Site}/search?q={Uri.EscapeDataString(query)}&count={Math.Min(wanted, 30)}",
             ct);
 
         if (!answered.IsSuccessStatusCode)
             return SearchAnswer.Failed(Refusals.Of(ProviderName, answered.StatusCode));
 
         var html = await answered.Content.ReadAsStringAsync(ct);
+
+        if (blocks.Inspect(html, answered.RequestMessage?.RequestUri?.ToString() ?? string.Empty)
+            is { IsBlocked: true, Signal: { } wall })
+            return SearchAnswer.Failed(Refusals.Wall(ProviderName, wall));
+
         var seen = new HashSet<Link>();
 
-        return SearchAnswer.Success([.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)]);
+        try
+        {
+            return SearchAnswer.Success([.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)]);
+        }
+        catch (MarkupTooDeepException tooDeep)
+        {
+            return SearchAnswer.Failed(SearchFailure.Unreadable(ProviderName, tooDeep));
+        }
     }
 
     /// <summary>Reads the result blocks out of one page of markup.</summary>
@@ -64,11 +87,7 @@ public sealed partial class Bing(IHttpClientFactory clients, IOptions<SearchOpti
     /// </remarks>
     internal static IEnumerable<SearchResult> Parsed(string html)
     {
-        var document = new HtmlDocument();
-
-        document.LoadHtml(html);
-
-        var blocks = document.DocumentNode.SelectNodes("//li[contains(@class,'b_algo')]");
+        var blocks = Markup.Read(html).DocumentNode.SelectNodes("//li[contains(@class,'b_algo')]");
 
         if (blocks is null)
             yield break;

@@ -1,3 +1,5 @@
+using Snail.Toolkit.Web.Detection;
+using Snail.Toolkit.Web.Text;
 using System.Net;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Search.Providers;
@@ -190,8 +192,72 @@ public class DuckDuckGoTests
         Assert.Equal(2, clients.Asked.Count);
     }
 
+    /// <summary>
+    /// A challenge page is a refusal even when the status says success — and saying otherwise is the one
+    /// answer here that would be untrue.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED 15.09.2026 from a datacentre address: this engine answered <c>202</c> with a captcha page.
+    /// Status <c>202</c> is a success, so nothing was read as a refusal; the parser found no result blocks in
+    /// the wall and the search recorded NO RESULTS — a statement about the QUERY — for a page that was a
+    /// statement about the ADDRESS. A dossier built on that says "nothing was written about this company on
+    /// the open web" when the truth is "we were not let in".
+    /// <para>
+    /// The second cost was invisible and worse: only a refusal rests an engine, so the wall was asked again
+    /// at the next query, which is how a wall becomes a ban.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_AChallengePageUnderASuccessStatus_IsARefusalRatherThanAnEmptyAnswer()
+    {
+        const string wall =
+            """
+            <!doctype html><html><body>
+            <div class="anomaly-modal__description">Please complete the following challenge to confirm this search was made by a human.</div>
+            </body></html>
+            """;
+
+        var answer = await Provider(new StubClients(wall, HttpStatusCode.Accepted)).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure.Kind);
+        Assert.Contains(DuckDuckGo.ProviderName, answer.Failure.Message!, StringComparison.Ordinal);
+        Assert.Contains("confirm this search was made by a human", answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
+    /// <summary>The engine's own page goes through the same door every other page does, ceiling included.</summary>
+    [Fact]
+    public void Parsed_MarkupNestedDeeperThanItMayBe_IsRefusedRatherThanRead()
+        => Assert.Throws<MarkupTooDeepException>(() => DuckDuckGo.Parsed(Nested(5_000)).ToList());
+
+    /// <summary>
+    /// The next-page control is read out of the same markup, so it is the second way in and is covered too.
+    /// </summary>
+    [Fact]
+    public void NextOffset_MarkupNestedDeeperThanItMayBe_IsRefusedRatherThanRead()
+        => Assert.Throws<MarkupTooDeepException>(() => DuckDuckGo.NextOffset(Nested(5_000)));
+
+    /// <summary>The refusal reaches the caller as data, named, and not as an empty page.</summary>
+    [Fact]
+    public async Task FindAsync_MarkupNestedDeeperThanItMayBe_IsUnreadableRatherThanEmpty()
+    {
+        var answer = await Provider(new StubClients(Nested(5_000))).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Unreadable, answer.Failure.Kind);
+        Assert.Contains(DuckDuckGo.ProviderName, answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
+    private static string Nested(int depth)
+        => string.Concat(Enumerable.Repeat("<div>", depth))
+           + "hello"
+           + string.Concat(Enumerable.Repeat("</div>", depth));
+
     private static DuckDuckGo Provider(IHttpClientFactory clients, int maxResults = 30)
-        => new(clients, Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }));
+        => new(
+            clients,
+            new BlockDetector(),
+            Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }));
 
     private sealed class StubClients(string page, HttpStatusCode status = HttpStatusCode.OK) : IHttpClientFactory
     {

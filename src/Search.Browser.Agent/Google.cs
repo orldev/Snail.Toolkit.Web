@@ -62,10 +62,9 @@ public sealed class Google(
     /// names on this page are generated and change without notice, so matching them would break silently and
     /// look exactly like a day when nothing matched.
     /// </remarks>
-    protected override IEnumerable<SearchResult> Parsed(string html)
+    protected override IEnumerable<SearchResult> Parsed(HtmlDocument document)
     {
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
+        ArgumentNullException.ThrowIfNull(document);
 
         var anchors = document.DocumentNode.SelectNodes("//a[@href][.//h3]");
 

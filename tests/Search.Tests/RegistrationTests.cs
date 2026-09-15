@@ -112,7 +112,7 @@ public class RegistrationTests
 
         provider.GetRequiredService<ISearchCooldown>().Refused(DuckDuckGo.ProviderName);
 
-        Assert.True(provider.GetRequiredService<ISearchCooldown>().IsResting(DuckDuckGo.ProviderName));
+        Assert.NotNull(provider.GetRequiredService<ISearchCooldown>().RestingUntil(DuckDuckGo.ProviderName));
     }
 
     [Fact]

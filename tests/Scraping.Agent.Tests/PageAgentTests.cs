@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Agent.Extensions;
 using Snail.Toolkit.Web.Scraping.Behavior;
+using Snail.Toolkit.Web.Scraping.Browsers;
 using Xunit.Abstractions;
 using Snail.Toolkit.Web.Tests.Browsers;
 
@@ -50,6 +51,42 @@ public class PageAgentTests(FormFixture site, ITestOutputHelper output)
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("Case A40-1/2026 for Acme Holdings", outcome.Value.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An errand that only reads what the markup already carries asks for the document and pays one request.
+    /// </summary>
+    /// <remarks>
+    /// The page is served as "quiet" and rewritten to "tracked" by the script beside it, so the title says
+    /// whether a subresource was fetched at all. Measured against Brave on 2026-09-14, the difference is 71 to
+    /// 73 requests against one, and a site counting requests rather than pages reads the first as a burst.
+    /// </remarks>
+    [Fact]
+    public async Task PerformAsync_ErrandWantingTheDocumentAlone_RefusesTheSubresource()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Agent.PerformAsync(
+            new Errand(Link.Of($"{FormFixture.BaseUrl}/tracked.html"), []) { Appetite = Appetite.DocumentOnly });
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("<title>quiet</title>", outcome.Value.Html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// And the errand as written before this existed still fetches everything, which is what makes the pair
+    /// mean something: a page that is driven needs the scripts that build what is driven.
+    /// </summary>
+    [Fact]
+    public async Task PerformAsync_ErrandThatNamesNoAppetite_StillFetchesTheSubresource()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Agent.PerformAsync(
+            new Errand(Link.Of($"{FormFixture.BaseUrl}/tracked.html"), []));
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("<title>tracked</title>", outcome.Value.Html, StringComparison.Ordinal);
     }
 
     /// <summary>

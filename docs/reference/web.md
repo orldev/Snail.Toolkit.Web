@@ -307,6 +307,14 @@ The gate keeps one entry per host and nothing used to remove one, so a crawl acr
 
 It never shortens a rest. A host still being held back, or with a request in flight, is not forgotten whatever this says.
 
+**GapFor** — The gap named for this host by its own key or by the nearest one above it, when one is named at all.
+
+The walk is the rule `HostDelays` states, written once rather than in each caller: the host is tried whole and then shortened one label at a time, so `news.example.com` looks for `news.example.com`, then `example.com`, then `com`. A name that merely ends the same way is not a parent, because the cut is always at a dot.
+
+Nothing rather than `MinDelayPerHost` when no key covers the host, because that is the question a second caller had to ask: a package pacing its own engine has to tell "nobody named a gap here" from "the deployment named exactly the default", and a floor cannot say which it is. Measured on 2026-09-15 against the first consumer of the Google package: a deployment naming `google.com` was read as naming nothing, because the check there was an exact-key lookup for `www.google.com`, and both keys ended up standing with the more specific one winning — so the deployment's setting was overridden by a package that had decided it was absent.
+
+Case is compared here rather than left to the dictionary's own comparer: the default instance ignores it, and an instance arriving from configuration binding is not promised to.
+
 **HostDelays** — Gets or sets the hosts that are pressed more gently than the rest, each with its own smallest gap.
 
 One gap for every host is the wrong shape for a client that talks to a search engine and a regional newspaper in the same minute: the engines measured on 2026-09-12 closed over frequency, one of them after three answers in an evening, while a site with a sitemap does not mind a page a second. A key matches the host itself and every host beneath it, so `example.com` covers `www.example.com` too, and the most specific key wins. A site's own `Crawl-delay` still applies on top — both are floors.

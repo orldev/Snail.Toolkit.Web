@@ -35,14 +35,13 @@ namespace Snail.Toolkit.Web.Text;
 /// argument against one already stands.
 /// </para>
 /// <para>
-/// WHAT THIS DELIBERATELY DOES NOT COVER, said here because it is the obvious next thing to propose. The four
-/// search providers — Bing, DuckDuckGo, Brave and Google — build their own <see cref="HtmlDocument"/> and do
-/// not come through here. That is not an oversight and not yet a decision: their markup comes from four
-/// engines chosen by us rather than from any address a caller hands over, so the exposure is different, and
-/// the answer would have to be worded in their own vocabulary rather than in this one. A provider cannot
-/// raise <see cref="MarkupTooDeepException"/> at a caller expecting <c>SearchFailure</c>, so covering them
-/// means deciding what a refused result page IS — no results, or a named refusal — and that is a question
-/// about the search contract, not about the parser.
+/// THE FOUR SEARCH ENGINES CAME THROUGH HERE ON 2026-09-15, and the question that had kept them out was the
+/// one this paragraph named: what a refused results page IS. It is neither of the two answers that were
+/// available — not "no results", which is a statement about the query, and not a fault, which is a defect on
+/// our side to go and fix — so the search contract grew a third, <c>SearchFailureKind.Unreadable</c>, which
+/// rests no engine because markup too deep to read says nothing about how often the engine will answer. The
+/// two engines that fetch over HTTP parse here and map the refusal themselves; the two driven by a browser
+/// parse in <c>BrowserSearch</c>, which is why that package is named beside the others in Web.csproj.
 /// </para>
 /// </remarks>
 internal static class Markup

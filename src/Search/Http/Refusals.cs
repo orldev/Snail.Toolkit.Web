@@ -13,6 +13,22 @@ namespace Snail.Toolkit.Web.Search.Http;
 /// </remarks>
 internal static class Refusals
 {
+    /// <summary>Reads a challenge page as the refusal it is, whatever status carried it.</summary>
+    /// <remarks>
+    /// The other half of this class, and the half that was missing until 2026-09-15. A status says nothing
+    /// when the wall arrives as a successful one: measured that day, an engine answered <c>202</c> with a
+    /// captcha page, the parser found no results in it, and the search recorded NO RESULTS — a statement
+    /// about the QUERY — for a page that was a statement about the ADDRESS. The engine was then asked again
+    /// at the next query, because only a refusal rests an engine, which is how a wall becomes a ban.
+    /// <para>
+    /// The signal is named in the message because the caller cannot see the page: "refused" alone sends a
+    /// reader to look at the query, and <c>markup:confirm this search was made by a human</c> sends them to
+    /// look at the address.
+    /// </para>
+    /// </remarks>
+    public static SearchFailure Wall(string provider, string signal)
+        => new(SearchFailureKind.Refused, $"{provider} answered a challenge page ({signal}).");
+
     /// <summary>Reads a status that is not success as the reason there are no results.</summary>
     public static SearchFailure Of(string provider, HttpStatusCode status)
         => IsRefusal(status)

@@ -42,9 +42,11 @@ Politeness towards the engine, as distinct from politeness towards a host: the p
 
 An empty answer counts: the engine let the request through, and that is the whole question here.
 
-**IsResting** — Answers whether a provider is resting and must not be asked.
-
 **Refused** — Records that a provider refused, and answers how long it will now be left alone.
+
+**RestingUntil** — When the rest of a provider that must not be asked ends, or nothing when it may be asked.
+
+The instant rather than a yes-or-no since 2026-09-15, and for a reason outside this interface: a provider left out of a search is a fact the CALLER has to be able to state — "not asked, resting until 14:20" reads differently from "asked and said nothing", and a boolean can only produce the first half of that sentence. Answering nothing rather than an instant in the past keeps the question single: a caller asks whether it may ask, and gets the reason it may not.
 
 
 ## ISearchProvider
@@ -70,6 +72,12 @@ global using SearchAnswer = Snail.Toolkit.Web.Outcome<
 
 It is not shipped in the package on purpose. A global using arriving with a dependency lands in every file of the consumer's project whether they wanted it or not, and collides outright with the one they may already have declared — which is exactly what the first consumer to implement this interface did.
 
+**Host** — The host this provider's queries go to, or nothing when it does not talk to one.
+
+Nothing by default because not every provider is a site: an index in the same process answers with no request at all, and giving it a host would put it behind a gate built for strangers.
+
+A provider that names its host can be asked what it costs before it is asked for results. The price is not a number this interface invents — it is the per-host gate, which already holds the gap this deployment decided for that host and the moment the host next opens, and until 2026-09-15 the search could not reach it because a provider was an opaque name. The engines differ by three orders of magnitude here: measured on 2026-09-13, one of them answers at one request a second and another only at one every two minutes, and a caller with a deadline cannot spend the second on the first.
+
 **Name** — Identifies the provider in configuration, metrics and logs.
 
 Must equal the name the provider is registered under. Declare it as a `const` on the implementation and return that constant here, so registration and runtime cannot drift.
@@ -81,9 +89,19 @@ Asks every registered provider and merges what they answer.
 
 **FindAsync** — Runs every query against every provider and collects what came back.
 
+**FindAsync** — Runs every query the budget allows, and says which providers it did not stretch to.
+
+An overload rather than a defaulted parameter, so a search stays one short line for the callers who are in no hurry — which is nearly all of them, and the shape every caller had before 2026-09-15.
+
+WHAT A CALLER IS SAYING HERE IS WHAT THE QUERY IS WORTH, not which engine to use. The engines differ by three orders of magnitude — measured on 2026-09-13, one answers at a request a second and another only at one every two minutes — so a caller with a deadline had no way to ask the cheap ones only. NAMING THE ENGINE WAS THE OBVIOUS ANSWER AND IS NOT THIS ONE: the aggregator exists because which engine answers a given client from a given address is a fact that changes, and a caller that names engines has taken that fact back. A budget says the same thing in the caller's own terms and leaves the choice where the measurements are. A caller who genuinely wants one engine registers one, or resolves `ISearchProvider` and asks it directly; neither costs anything.
+
+The budget is spent on waiting, not on cutting: a provider whose host does not open inside it is not asked at all and says so as `OutOfTime`, which is knowable before the request because the per-host gate holds it. What is already in flight when the budget runs out is cancelled, and comes back under the same kind rather than as `Canceled` — the caller did not change its mind, the search kept the caller's promise.
+
 **StreamAsync** — Yields each provider-and-query attempt as it finishes, failures included.
 
 Results are not deduplicated here — deduplication needs the whole answer, and a caller streaming attempts has chosen to see them arrive instead.
+
+**StreamAsync** — Yields each attempt as it finishes, and each one the budget did not stretch to.
 
 
 ## IdentityHandler
@@ -136,6 +154,22 @@ The reason an attempt produced no results.
 
 Kept apart from `SearchFailureKind` alone because a fault is only actionable with the message the provider threw, while `NoResults` has nothing to add.
 
+**OpensAt** — Gets the soonest this provider could be asked, when that is known.
+
+Carried as an instant rather than only in the message, for the same reason `PageFailure.RetryAfter` is: a caller deciding whether to wait or to report has to compare it with a clock. One field rather than one per kind, and the wording is the gate's own (`IPoliteness.OpensAt`), because the two kinds that set it are the same fact with different causes: `Resting` is the engine holding itself back after a refusal, `OutOfTime` the per-host gate holding it back — and a caller writing "not asked, ask again after X" does not care which.
+
+**OutOfTime** — The reason a provider nobody reached before the budget ran out was left out of a search.
+
+No instant here on purpose: the budget ran out, and when this provider's host would next open is a question nobody asked — answering it would mean consulting the gate for an engine the search has already decided against, and an invented instant reads exactly like a measured one.
+
+**Resting** — The reason a provider was left out of a search rather than asked.
+
+**TooLate** — The reason a provider whose host opens too late was left out of a search.
+
+**Unreadable** — The reason a page was refused by the ceiling on nesting depth rather than read.
+
+Worded once because four engines say it: the message names the engine, since a caller running several of them has to know whose page it was, and names the ceiling rather than the depth the page reached — the parser stops counting at the ceiling and never learns how much deeper the markup went.
+
 
 ## SearchFailureKind
 
@@ -149,9 +183,27 @@ Why one attempt carried no results.
 
 This is an answer, not a failure of the provider — which is why `IsAnswered` counts it as one.
 
+**OutOfTime** — The provider was not asked: it could not answer inside the budget this search was given.
+
+Apart from `Canceled`, which it used to arrive as, and the difference is who decided: a caller that cancels has changed its mind, while this is the search keeping the promise the caller made it. Folded together, a deployment could not tell a deadline it had set from a user closing a page.
+
+Two shapes of the same fact. Either the host this engine talks to does not open inside the budget — known BEFORE asking, from the per-host gate, and then `OpensAt` names when it would have — or the budget ran out while other providers were answering.
+
 **Refused** — The provider was turned away: a challenge, a consent wall, a rate limit.
 
 Kept apart from `Faulted` because the two call for opposite reactions. A fault is a defect on this side — a parser that no longer follows the markup, a socket that died — and the right answer is to look at it. A refusal is the engine asking to be left alone, and the right answer is to leave it alone for a while, which is what `ISearchCooldown` does with it. Folding the two together, as the search once did, would have rested an engine over our own bug.
+
+**Resting** — The provider was not asked at all: it is resting after a refusal.
+
+Not a failure of the engine and not an answer from it — it is this library declining to ask, and until 2026-09-15 it was visible only in the log. The caller needs it because the two sentences it tells apart call for opposite reactions: "every engine answered and nothing matched" is a fact about the query, while "the engines that know this kind of question are all resting" is a fact about the search, and both arrived as an outcome with no results in it.
+
+The instant the rest ends travels with it in `OpensAt`, because a caller writing that sentence for a person has to name a time rather than reproduce prose.
+
+**Unreadable** — The engine answered, and the answer is markup this library will not parse.
+
+Kept apart from `Faulted`, which it would otherwise be folded into, because the two send a reader to different places. A fault is a defect on this side and the answer is to look at it; this is a page refused on purpose by a ceiling on nesting depth, and there is nothing to fix — the measurement behind that ceiling is recorded on the parser. Kept apart from `NoResults` for the sharper reason: that one is a statement about the QUERY, and reporting a page nobody read as "nothing matched" is the single answer here that would be untrue.
+
+It rests no engine. A refusal is the engine asking to be left alone; markup too deep to read says nothing about how often it is willing to be asked.
 
 
 ## SearchOptions
@@ -243,3 +295,7 @@ Registered as an enumerable so providers accumulate instead of replacing each ot
 Runs a batch of queries across the registered providers, a few per query and in turn.
 
 Deduplication is why several providers are worth asking at once, and it is decided by `Link` equality rather than by string comparison: grouping on the raw address kept the same page three times. One provider failing is a recorded attempt, never an exception — a slow or blocked back end must not take the whole answer with it. A provider that refused is recorded as refused rather than faulted, and is left out of the following searches until its rest is over: the engines measured on 2026-09-12 closed over frequency, not fingerprint, and asking a challenged engine again at once is how a pause becomes a ban. For the same reason a query goes to `ProvidersPerQuery` providers rather than to all of them, the next query to the next ones in the round, so that a batch spreads what it asks.
+
+**StreamAsync** — *no summary*
+
+The validation stays in a method that is not an iterator, and the walk lives in the one below it: an iterator defers its whole body to the first enumeration, so a caller handed a null list of queries would learn about it later and somewhere else.

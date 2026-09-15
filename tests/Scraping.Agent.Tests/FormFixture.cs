@@ -62,6 +62,8 @@ public sealed class FormFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Turning), "/usr/share/nginx/html/turning.html")
             .WithResourceMapping(Bytes(Pages.Minting), "/usr/share/nginx/html/minting.html")
             .WithResourceMapping(Bytes(Pages.Suggestions), "/usr/share/nginx/html/suggest.json")
+            .WithResourceMapping(Bytes(Pages.Tracked), "/usr/share/nginx/html/tracked.html")
+            .WithResourceMapping(Bytes(Pages.Tracker), "/usr/share/nginx/html/tracker.js")
             .WithResourceMapping(Bytes(Pages.Robots), "/usr/share/nginx/html/robots.txt")
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(80))
             .Build();
@@ -105,6 +107,21 @@ public sealed class FormFixture : IAsyncLifetime
         /// to validate a real token anyway. Echoing the query string is what makes the claim testable: the
         /// assertion is that the page attached the credential it was told to mint, under the right action.
         /// </remarks>
+        /// <summary>A page whose title says whether the browser fetched the script beside it.</summary>
+        /// <remarks>
+        /// The same shape the reader's own fixture uses, so the two answers are comparable: served as
+        /// "quiet" and rewritten to "tracked" by a subresource. An errand asking for the document alone
+        /// reads the first; one asking for everything reads the second.
+        /// </remarks>
+        public const string Tracked =
+            """
+            <!doctype html>
+            <html><head><title>quiet</title><script src="tracker.js"></script></head>
+            <body><h1>Case list</h1><p>Case A40-1/2026 for Acme Holdings.</p></body></html>
+            """;
+
+        public const string Tracker = "document.title = 'tracked';";
+
         public const string Nginx =
             $$"""
             server {

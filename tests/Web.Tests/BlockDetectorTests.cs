@@ -113,4 +113,45 @@ public class BlockDetectorTests
     [Fact]
     public void Inspect_EmptyDocument_ReportsClear()
         => Assert.False(_detector.Inspect(string.Empty, "https://example.com/").IsBlocked);
+
+    /// <summary>
+    /// The wall an engine puts up instead of results, which carried none of the earlier signals.
+    /// </summary>
+    /// <remarks>
+    /// Captured on 2026-09-15 from a live engine: 14 228 bytes answered with status <c>202</c> — a SUCCESS —
+    /// and no Cloudflare marker, no recaptcha widget and no "unusual traffic" anywhere in it. The word that
+    /// does appear sixty-seven times, <c>anomaly</c>, is the bare word this class refuses to carry. What is
+    /// matched instead is the sentence, because the asset paths beside it belong to the vendor and will be
+    /// renamed while the sentence has to keep meaning what it says.
+    /// </remarks>
+    [Fact]
+    public void Inspect_AnEngineAskingToProveThereIsAHuman_IsBlocked()
+    {
+        // Разметка воспроизведена как её отдаёт движок: предложение целиком в одном узле и в одной
+        // строке — проверено по сохранённому ответу. Перенос внутри фразы её бы не нашёл, и это
+        // известная цена подстроки: сигнал переживает смену вёрстки вокруг, но не перенос внутри себя.
+        const string wall =
+            """
+            <!doctype html><html><body>
+            <div class="anomaly-modal__title">Unfortunately, bots use DuckDuckGo too.</div>
+            <div class="anomaly-modal__description">Please complete the following challenge to confirm this search was made by a human.</div>
+            <div class="anomaly-modal__instructions">Select all squares containing a duck:</div>
+            </body></html>
+            """;
+
+        var verdict = new BlockDetector().Inspect(wall, "https://html.duckduckgo.com/html/?q=postgresql");
+
+        Assert.True(verdict.IsBlocked);
+        Assert.Contains("confirm this search was made by a human", verdict.Signal!, StringComparison.Ordinal);
+    }
+
+    /// <summary>And a page that merely writes ABOUT such walls is not one, which is what the list costs.</summary>
+    [Fact]
+    public void Inspect_AnArticleAboutBotWalls_IsNotBlocked()
+        => Assert.False(
+            new BlockDetector()
+                .Inspect(
+                    "<html><body><h1>Как устроены проверки на робота</h1><p>Сайты просят решить задачу.</p></body></html>",
+                    "https://example.com/blog/anomaly-detection")
+                .IsBlocked);
 }

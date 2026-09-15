@@ -11,8 +11,15 @@ namespace Snail.Toolkit.Web.Search;
 /// </remarks>
 public interface ISearchCooldown
 {
-    /// <summary>Answers whether a provider is resting and must not be asked.</summary>
-    bool IsResting(string provider);
+    /// <summary>When the rest of a provider that must not be asked ends, or nothing when it may be asked.</summary>
+    /// <remarks>
+    /// The instant rather than a yes-or-no since 2026-09-15, and for a reason outside this interface: a
+    /// provider left out of a search is a fact the CALLER has to be able to state — "not asked, resting until
+    /// 14:20" reads differently from "asked and said nothing", and a boolean can only produce the first half
+    /// of that sentence. Answering nothing rather than an instant in the past keeps the question single: a
+    /// caller asks whether it may ask, and gets the reason it may not.
+    /// </remarks>
+    DateTimeOffset? RestingUntil(string provider);
 
     /// <summary>Records that a provider refused, and answers how long it will now be left alone.</summary>
     TimeSpan Refused(string provider);

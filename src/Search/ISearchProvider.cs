@@ -18,6 +18,21 @@ public interface ISearchProvider
     /// </remarks>
     string Name { get; }
 
+    /// <summary>The host this provider's queries go to, or nothing when it does not talk to one.</summary>
+    /// <remarks>
+    /// Nothing by default because not every provider is a site: an index in the same process answers with no
+    /// request at all, and giving it a host would put it behind a gate built for strangers.
+    /// <para>
+    /// A provider that names its host can be asked what it costs before it is asked for results. The price is
+    /// not a number this interface invents — it is the per-host gate, which already holds the gap this
+    /// deployment decided for that host and the moment the host next opens, and until 2026-09-15 the search
+    /// could not reach it because a provider was an opaque name. The engines differ by three orders of
+    /// magnitude here: measured on 2026-09-13, one of them answers at one request a second and another only
+    /// at one every two minutes, and a caller with a deadline cannot spend the second on the first.
+    /// </para>
+    /// </remarks>
+    string? Host => null;
+
     /// <summary>Runs one query and answers with links, or with the reason there are none.</summary>
     /// <remarks>
     /// Failure is data here as it is everywhere else in this toolkit. A provider used to be contracted to throw,

@@ -41,17 +41,6 @@ How the page is obtained is left to the engine, because the two ways differ in m
 An engine is a type of its own rather than a configured instance because that is what lets it be registered with `AddSearchProvider<T>()` and stay idempotent: a factory registration could not be deduplicated and a second call would ask the same engine twice per query.
 
 
-## BrowserSearch.Parsed
-
-`2026-09-13` · *internal*
-
-*Reads the links off one results page.*
-
-Markup that cannot be followed must answer with nothing rather than throw: the caller then records an answered attempt that found nothing, and an engine whose layout changed shows up in the metrics as one that suddenly always answers empty. An exception per query would only look like an outage.
-
-The results are handed over whole and the ceiling is applied by the caller of this, so an engine supplies a parser and nothing else. Until 2026-09-13 no ceiling was applied here at all: `MaxResultsPerProvider` was read by the two engines that fetch over HTTP and by neither of the two that drive a browser, and Brave alone answered with a hundred links.
-
-
 ## ServiceCollectionExtensions.AddBrowserSearch
 
 `2026-09-13`
@@ -79,3 +68,16 @@ The document alone, because this engine counts requests rather than pages. Measu
 An engine whose markup states the address it means needs nothing here, and the default does nothing. Google is the reason this exists: measured on 2026-09-14, every result on its page is a relative `/goto` link whose query is an encrypted blob, and the address behind it is known only by asking the engine where the link leads. Asking costs one request per link, which is why the engine that pays it also caps the list here rather than handing over everything its parser found.
 
 This runs before `IsOutbound` and not after, because a wrapper carries no host at all: the filter would read every one of them as belonging to the engine and drop the whole page. Until 2026-09-14 it did exactly that, and Google answered a megabyte of markup with no results.
+
+
+## BrowserSearch.Parsed
+
+`2026-09-15`, `2026-09-13` · *internal*
+
+*Reads the links off one results page, already parsed.*
+
+The document rather than its markup since 2026-09-15, and the reason is the ceiling on nesting depth: an engine handed a string parses it itself, and four engines parsing their own were four ways past the one door the parser is supposed to have. Parsing here also means an engine cannot forget it.
+
+Markup that cannot be followed must answer with nothing rather than throw: the caller then records an answered attempt that found nothing, and an engine whose layout changed shows up in the metrics as one that suddenly always answers empty. An exception per query would only look like an outage.
+
+The results are handed over whole and the ceiling is applied by the caller of this, so an engine supplies a parser and nothing else. Until 2026-09-13 no ceiling was applied here at all: `MaxResultsPerProvider` was read by the two engines that fetch over HTTP and by neither of the two that drive a browser, and Brave alone answered with a hundred links.

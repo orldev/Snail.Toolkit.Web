@@ -10,8 +10,8 @@ public class SearchCooldownTests
     private static readonly DateTimeOffset Evening = new(2026, 9, 12, 20, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void IsResting_ProviderNeverRefused_IsFalse()
-        => Assert.False(Cooldown(new Clock(Evening)).IsResting("A"));
+    public void RestingUntil_ProviderNeverRefused_AnswersNothing()
+        => Assert.Null(Cooldown(new Clock(Evening)).RestingUntil("A"));
 
     [Fact]
     public void Refused_FirstTime_RestsForTheConfiguredCooldown()
@@ -19,11 +19,11 @@ public class SearchCooldownTests
         var cooldown = Cooldown(new Clock(Evening));
 
         Assert.Equal(TimeSpan.FromMinutes(5), cooldown.Refused("A"));
-        Assert.True(cooldown.IsResting("A"));
+        Assert.Equal(Evening.AddMinutes(5), cooldown.RestingUntil("A"));
     }
 
     [Fact]
-    public void IsResting_OnceTheRestHasRunOut_IsFalse()
+    public void RestingUntil_OnceTheRestHasRunOut_AnswersNothing()
     {
         var clock = new Clock(Evening);
         var cooldown = Cooldown(clock);
@@ -31,7 +31,7 @@ public class SearchCooldownTests
         cooldown.Refused("A");
         clock.Now += TimeSpan.FromMinutes(5);
 
-        Assert.False(cooldown.IsResting("A"));
+        Assert.Null(cooldown.RestingUntil("A"));
     }
 
     /// <summary>An engine that refuses, waits out its rest and refuses again is saying the rest was too short.</summary>
@@ -75,7 +75,7 @@ public class SearchCooldownTests
         cooldown.Refused("A");
         cooldown.Answered("A");
 
-        Assert.False(cooldown.IsResting("A"));
+        Assert.Null(cooldown.RestingUntil("A"));
         Assert.Equal(TimeSpan.FromMinutes(5), cooldown.Refused("A"));
     }
 
@@ -86,7 +86,7 @@ public class SearchCooldownTests
 
         cooldown.Refused("A");
 
-        Assert.False(cooldown.IsResting("B"));
+        Assert.Null(cooldown.RestingUntil("B"));
     }
 
     private static SearchCooldown Cooldown(TimeProvider clock, TimeSpan? ceiling = null)

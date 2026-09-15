@@ -38,6 +38,10 @@ How the page is obtained is left to the engine, because the two ways differ in m
 
 An engine is a type of its own rather than a configured instance because that is what lets it be registered with `AddSearchProvider<T>()` and stay idempotent: a factory registration could not be deduplicated and a second call would ask the same engine twice per query.
 
+**Host** — *no summary*
+
+The same host the engine is read at, said once more where the search can see it: a caller weighing what a query costs asks the gate about this, and an engine driven through a browser is the expensive kind.
+
 
 ## ServiceCollectionExtensions
 

@@ -24,12 +24,12 @@ public sealed class SearchCooldown(IOptions<SearchOptions> options, TimeProvider
     private readonly Lock _gate = new();
 
     /// <inheritdoc />
-    public bool IsResting(string provider)
+    public DateTimeOffset? RestingUntil(string provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
 
         lock (_gate)
-            return _rests.TryGetValue(provider, out var rest) && rest.Until > clock.GetUtcNow();
+            return _rests.TryGetValue(provider, out var rest) && rest.Until > clock.GetUtcNow() ? rest.Until : null;
     }
 
     /// <inheritdoc />

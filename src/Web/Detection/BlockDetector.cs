@@ -19,6 +19,16 @@ namespace Snail.Toolkit.Web.Detection;
 /// a refusal is transient the reader then spent three identities proving it again. A signal belongs here only
 /// when the words are a refusal wherever they appear, which is why what is left are whole paths and hosts.
 /// </para>
+/// <para>
+/// THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own
+/// wall answered <c>202</c> — a success status — with 14 228 bytes reading "Unfortunately, bots use
+/// DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select
+/// all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha
+/// widget, and the word that appears sixty-seven times on that page — <c>anomaly</c> — is exactly the bare
+/// word this list refuses to carry, since an article about anomaly detection would match it. What was taken
+/// instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the
+/// asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
+/// </para>
 /// </remarks>
 public sealed partial class BlockDetector : IBlockDetector
 {
@@ -35,7 +45,8 @@ public sealed partial class BlockDetector : IBlockDetector
         "are you a robot",
         "enable javascript and cookies to continue",
         "request blocked",
-        "attention required! | cloudflare"
+        "attention required! | cloudflare",
+        "confirm this search was made by a human"
     ];
 
     private static readonly string[] UrlSignals =

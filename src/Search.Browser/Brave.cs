@@ -72,10 +72,9 @@ public sealed class Brave(
     /// clamped to one line in the markup while the attribute carries it whole.
     /// </para>
     /// </remarks>
-    protected override IEnumerable<SearchResult> Parsed(string html)
+    protected override IEnumerable<SearchResult> Parsed(HtmlDocument document)
     {
-        var document = new HtmlDocument();
-        document.LoadHtml(html);
+        ArgumentNullException.ThrowIfNull(document);
 
         var blocks = document.DocumentNode.SelectNodes("//div[@data-type='web']");
 

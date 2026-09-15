@@ -59,4 +59,47 @@ public sealed class PolitenessOptions
     /// most specific key wins. A site's own <c>Crawl-delay</c> still applies on top — both are floors.
     /// </remarks>
     public Dictionary<string, TimeSpan> HostDelays { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The gap named for this host by its own key or by the nearest one above it, when one is named at all.</summary>
+    /// <remarks>
+    /// The walk is the rule <see cref="HostDelays"/> states, written once rather than in each caller: the host
+    /// is tried whole and then shortened one label at a time, so <c>news.example.com</c> looks for
+    /// <c>news.example.com</c>, then <c>example.com</c>, then <c>com</c>. A name that merely ends the same way
+    /// is not a parent, because the cut is always at a dot.
+    /// <para>
+    /// Nothing rather than <see cref="MinDelayPerHost"/> when no key covers the host, because that is the
+    /// question a second caller had to ask: a package pacing its own engine has to tell "nobody named a gap
+    /// here" from "the deployment named exactly the default", and a floor cannot say which it is. Measured on
+    /// 2026-09-15 against the first consumer of the Google package: a deployment naming <c>google.com</c> was
+    /// read as naming nothing, because the check there was an exact-key lookup for <c>www.google.com</c>, and
+    /// both keys ended up standing with the more specific one winning — so the deployment's setting was
+    /// overridden by a package that had decided it was absent.
+    /// </para>
+    /// <para>
+    /// Case is compared here rather than left to the dictionary's own comparer: the default instance ignores
+    /// it, and an instance arriving from configuration binding is not promised to.
+    /// </para>
+    /// </remarks>
+    public TimeSpan? GapFor(string host)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        var candidate = host;
+
+        while (true)
+        {
+            foreach (var named in HostDelays)
+            {
+                if (string.Equals(named.Key, candidate, StringComparison.OrdinalIgnoreCase))
+                    return named.Value;
+            }
+
+            var dot = candidate.IndexOf('.');
+
+            if (dot < 0)
+                return null;
+
+            candidate = candidate[(dot + 1)..];
+        }
+    }
 }

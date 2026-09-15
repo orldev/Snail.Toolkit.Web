@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-7 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+13 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## Bing
 
@@ -81,3 +81,67 @@ The builder is handed back so a consumer can add a header of their own, or repla
 The standard handler retries a `429` and waits the `Retry-After` the site sent, which is right until the number is larger than the caller has. Measured on 2026-09-14 against a handler that counts what reaches it: a gap of three seconds cost four requests and nine seconds, inside a thirty-second budget; a gap of thirty, inside a budget of twenty, made one request and then spent the whole budget waiting to be refused a second time, ending in a timeout that named neither the status nor the gap. The site had already said both in the first answer, and this hands that answer back instead of sitting on it.
 
 The gate still holds the host for the full gap — `PolitenessHandler` writes it there on the way out — so declining to wait here makes nobody ruder, only better informed.
+
+
+## ISearchCooldown.RestingUntil
+
+`2026-09-15`
+
+*When the rest of a provider that must not be asked ends, or nothing when it may be asked.*
+
+The instant rather than a yes-or-no since 2026-09-15, and for a reason outside this interface: a provider left out of a search is a fact the CALLER has to be able to state — "not asked, resting until 14:20" reads differently from "asked and said nothing", and a boolean can only produce the first half of that sentence. Answering nothing rather than an instant in the past keeps the question single: a caller asks whether it may ask, and gets the reason it may not.
+
+
+## ISearchProvider.Host
+
+`2026-09-15`, `2026-09-13`
+
+*The host this provider's queries go to, or nothing when it does not talk to one.*
+
+Nothing by default because not every provider is a site: an index in the same process answers with no request at all, and giving it a host would put it behind a gate built for strangers.
+
+A provider that names its host can be asked what it costs before it is asked for results. The price is not a number this interface invents — it is the per-host gate, which already holds the gap this deployment decided for that host and the moment the host next opens, and until 2026-09-15 the search could not reach it because a provider was an opaque name. The engines differ by three orders of magnitude here: measured on 2026-09-13, one of them answers at one request a second and another only at one every two minutes, and a caller with a deadline cannot spend the second on the first.
+
+
+## IWebSearch.FindAsync
+
+`2026-09-15`, `2026-09-13`
+
+*Runs every query the budget allows, and says which providers it did not stretch to.*
+
+An overload rather than a defaulted parameter, so a search stays one short line for the callers who are in no hurry — which is nearly all of them, and the shape every caller had before 2026-09-15.
+
+WHAT A CALLER IS SAYING HERE IS WHAT THE QUERY IS WORTH, not which engine to use. The engines differ by three orders of magnitude — measured on 2026-09-13, one answers at a request a second and another only at one every two minutes — so a caller with a deadline had no way to ask the cheap ones only. NAMING THE ENGINE WAS THE OBVIOUS ANSWER AND IS NOT THIS ONE: the aggregator exists because which engine answers a given client from a given address is a fact that changes, and a caller that names engines has taken that fact back. A budget says the same thing in the caller's own terms and leaves the choice where the measurements are. A caller who genuinely wants one engine registers one, or resolves `ISearchProvider` and asks it directly; neither costs anything.
+
+The budget is spent on waiting, not on cutting: a provider whose host does not open inside it is not asked at all and says so as `OutOfTime`, which is knowable before the request because the per-host gate holds it. What is already in flight when the budget runs out is cancelled, and comes back under the same kind rather than as `Canceled` — the caller did not change its mind, the search kept the caller's promise.
+
+
+## SearchFailureKind.Resting
+
+`2026-09-15`
+
+*The provider was not asked at all: it is resting after a refusal.*
+
+Not a failure of the engine and not an answer from it — it is this library declining to ask, and until 2026-09-15 it was visible only in the log. The caller needs it because the two sentences it tells apart call for opposite reactions: "every engine answered and nothing matched" is a fact about the query, while "the engines that know this kind of question are all resting" is a fact about the search, and both arrived as an outcome with no results in it.
+
+The instant the rest ends travels with it in `OpensAt`, because a caller writing that sentence for a person has to name a time rather than reproduce prose.
+
+
+## WebSearch.Awake
+
+`2026-09-15` · *internal*
+
+*The providers that may be asked right now, with the resting ones named in the log.*
+
+A search in which every provider rests asks nobody and comes back unanswered — which is the truth, and louder in the log than the usual line, because from the caller's side it looks like a search that found nothing. Since 2026-09-15 the caller is told the same thing in the answer rather than only here: the log is for whoever runs the process, and this is a fact about the search the process was asked to run.
+
+
+## WebSearch.AttemptAsync
+
+`2026-09-15` · *internal*
+
+*Asks one provider one query, and turns every way that can end into an attempt.*
+
+A cancellation has to say WHOSE it was: the budget running out is `OutOfTime`, and everything else stays `Canceled`. Told apart nowhere else, a deadline a deployment set would read exactly like a user closing a page. The condition is on the token the work runs under, because a provider that timed out inside itself — its own client's clock, nothing to do with this search — must not be reported as the budget's doing.
+
+A SECOND HALF WAS WRITTEN HERE AND TAKEN OUT, and the reason is recorded because it is the obvious thing to propose again: `&& !caller.IsCancellationRequested`, to keep a caller's own cancellation out of this arm. MEASURED BY REMOVAL on 2026-09-15 — no test could tell the two apart, and none can: when the caller cancels, the fan-out this attempt is written to is reading under that same token, so the enumeration ends and the attempt is never yielded to anybody. A condition nothing can observe is a claim about behaviour that does not exist.
