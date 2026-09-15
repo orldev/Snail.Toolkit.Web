@@ -1,0 +1,22 @@
+{% extends "main.html" %}
+
+{#
+  A static template has NO page object -- any page.* here is Undefined and a test against it stops the build.
+  Everything this file needs comes from config. The links are absolute because this page is served from
+  whatever depth the reader was at when they missed, so a relative path would resolve against nothing.
+#}
+{% block content %}
+<article class="prose">
+  <section>
+    <h2>404</h2>
+    <div class="body">
+      <p class="lead">There is nothing at this address.</p>
+      <p>
+        The page may have been renamed, or the link that brought you here may predate it.
+        Start from <a href="/Snail.Toolkit.Web/">the overview</a>, or read
+        <a href="/Snail.Toolkit.Web/principles/">the principles</a> the library is written by.
+      </p>
+    </div>
+  </section>
+</article>
+{% endblock %}

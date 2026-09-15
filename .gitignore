@@ -426,3 +426,6 @@ ASALocalRun/
 /browser/out/
 /browser/profile/
 *.tar.xz
+
+# The documentation site is built from docs/ and theme/ by mkdocs; the output is never committed.
+site/

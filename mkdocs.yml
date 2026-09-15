@@ -1,0 +1,59 @@
+# The theme is our own: theme.name is null and custom_dir points at theme/, so MkDocs renders with the
+# templates in this repository and nothing else. That decision is what makes the design identical to the
+# system it is drawn from rather than approximately like it -- the header, the navigation and the search
+# field are markup, and no amount of CSS turns somebody else's markup into a row of names separated by commas.
+site_name: Snail.Toolkit.Web
+site_description: Questions about the web, answered separately, on one shared foundation.
+site_url: https://orldev.github.io/Snail.Toolkit.Web/
+repo_url: https://github.com/orldev/Snail.Toolkit.Web
+copyright: MIT
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: null
+  custom_dir: theme
+  # Declared HERE rather than in a mkdocs_theme.yml beside the templates: that file is read only for a NAMED
+  # theme, so with name: null it is never opened and a template without a page of its own is never rendered.
+  static_templates:
+    - 404.html
+
+# The nav is written by hand while the pages under reference/ and decisions/ are generated, and that is the
+# guard rather than an oversight: --strict fails on a page missing from the nav and on a nav entry missing its
+# page, so a package added without touching this file stops the build in both directions.
+nav:
+  - Overview: index.md
+  - Getting started: getting-started.md
+  - Architecture: architecture.md
+  - Principles: principles.md
+  - Reference:
+      - All packages: reference/index.md
+      - Snail.Toolkit.Web: reference/web.md
+      - Snail.Toolkit.Web.Search: reference/search.md
+      - Snail.Toolkit.Web.Scraping: reference/scraping.md
+      - Snail.Toolkit.Web.Search.Browser: reference/search-browser.md
+      - Snail.Toolkit.Web.Search.Browser.Agent: reference/search-browser-agent.md
+      - Snail.Toolkit.Web.Scraping.Agent: reference/scraping-agent.md
+  - Decisions:
+      - All packages: decisions/index.md
+      - Snail.Toolkit.Web: decisions/web.md
+      - Snail.Toolkit.Web.Search: decisions/search.md
+      - Snail.Toolkit.Web.Scraping: decisions/scraping.md
+      - Snail.Toolkit.Web.Search.Browser: decisions/search-browser.md
+      - Snail.Toolkit.Web.Search.Browser.Agent: decisions/search-browser-agent.md
+      - Snail.Toolkit.Web.Scraping.Agent: decisions/scraping-agent.md
+
+markdown_extensions:
+  - tables
+  - attr_list
+  - def_list
+  - md_in_html
+  - toc:
+      permalink: false
+  - pymdownx.superfences
+
+plugins:
+  - search
+
+strict: true

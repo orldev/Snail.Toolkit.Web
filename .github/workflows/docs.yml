@@ -1,0 +1,78 @@
+# The site is built from docs/ and theme/ with our own theme -- mkdocs.yml sets theme.name to null, so nothing
+# of somebody else's markup is involved and the build has no npm step and no theme package to track.
+#
+# --strict is the point of this job rather than a flourish: it turns a broken internal link, a page missing
+# from the nav and a nav entry missing its page into a failed build. Documentation drifts silently otherwise,
+# and the drift is invisible to every other check in this repository.
+name: docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # THE DOCUMENTATION PIPELINE NOW DEPENDS ON THE .NET SDK, which it did not until the reference and the
+      # decisions became generated. The prose on those pages is the compiler's xml output, and whether a
+      # declaration belongs in a consumer's reference is read from the built assembly -- neither exists
+      # without a build. A docs job that skipped it would publish yesterday's API.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build the packages and the generator
+        run: dotnet build gen/Gen.csproj --configuration Release -warnaserror
+
+      # The drift guard, and the reason it is a separate step with its own name: a public type added without
+      # regenerating, or a generated page edited by hand, both end here rather than on the site. Neither is
+      # visible to any other check in this repository -- a page that is MISSING looks exactly like a page that
+      # is correct.
+      - name: Check the generated pages against the code
+        run: dotnet run --project gen --configuration Release --no-build -- check
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Pinned, both of them. pymdown-extensions used to arrive as a dependency of a theme package; with the
+      # theme gone it has to be asked for by name, and a floating version would change the rendering of the
+      # documentation without changing the documentation.
+      - name: Install the generator
+        run: pip install mkdocs==1.6.1 pymdown-extensions==10.21.3
+
+      - name: Build
+        run: mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

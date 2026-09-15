@@ -189,6 +189,35 @@ dotnet test --filter "Category!=Integration"   # no Docker needed
 dotnet test                                    # adds the integration suites
 ```
 
+## Documentation
+
+The site at [orldev.github.io/Snail.Toolkit.Web](https://orldev.github.io/Snail.Toolkit.Web/) is built from
+`docs/` with the theme in `theme/` — MkDocs with `theme.name` set to null, so the templates in this repository
+are the whole of it and there is no theme package to track.
+
+```bash
+dotnet run --project gen -- docs               # regenerate reference/ and decisions/
+pip install mkdocs==1.6.1 pymdown-extensions==10.21.3
+mkdocs serve                                   # http://127.0.0.1:8000
+mkdocs build --strict                          # what CI runs
+```
+
+Two of the sections are **generated from the compiler's own documentation** and are checked in, so the site
+builds without the SDK and so a change to them shows up in a diff:
+
+- **Reference** — every public declaration, per package. Public is read from the built assembly, because the
+  xml does not record accessibility: filtering on the xml alone would publish the internal types as API.
+- **Decisions** — every remark that names a date, including the internal ones. That is where most of the
+  reasoning lives, and a date is what separates a measurement from a paraphrase.
+
+`dotnet run --project gen -- check` fails when what is on disk is not what the code would produce now. CI runs
+it before the site is built, because a page that is missing looks exactly like a page that is correct to every
+other check here.
+
+`--strict` is what CI runs and what a change to the documentation has to pass: a broken internal link, a page
+missing from the nav or a nav entry missing its page fails the build. Prose drifts silently otherwise, and
+nothing else in this repository would notice.
+
 ## License
 
 MIT. See [LICENSE](https://github.com/orldev/Snail.Toolkit.Web/blob/main/LICENSE).

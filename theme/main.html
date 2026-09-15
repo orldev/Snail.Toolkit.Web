@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  {% if page and page.meta and page.meta.description %}
+  <meta name="description" content="{{ page.meta.description }}">
+  {% else %}
+  <meta name="description" content="{{ config.site_description }}">
+  {% endif %}
+  <title>{% if page and page.title and not page.is_homepage %}{{ page.title }} · {% endif %}{{ config.site_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{{ 'css/site.css'|url }}">
+</head>
+<body{% if page and page.is_homepage %} class="home"{% endif %}>
+  {% include "partials/header.html" %}
+
+  <main class="sheet">
+    {% block content %}
+    <article class="prose">
+      {{ page.content }}
+    </article>
+    {% endblock %}
+  </main>
+
+  {% include "partials/footer.html" %}
+
+  <script src="{{ 'js/site.js'|url }}"></script>
+</body>
+</html>

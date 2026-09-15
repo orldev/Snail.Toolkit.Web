@@ -1,0 +1,284 @@
+/*
+  Design system v191125: one grotesque, one mono, six greys and no fill anywhere. Everything that reads as
+  structure on these pages is a distance or a hairline. Light only, by decision -- the palette has no dark
+  counterpart because it has no surfaces, only ink on paper.
+*/
+:root {
+  color-scheme: light;
+
+  --bg:          #FFFFFF;
+  --ink:         #000000;
+  --data:        #141414;
+  --sec:         #565656;
+  --muted:       #7A7A7A;
+  --hl:          #A1A1A1;
+  --line:        #DADADA;
+  --line-strong: #B4B4B4;
+
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --margin-col: 152px;
+  --content-col: 1056px;
+  --grid-gap: 40px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--data);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 24px;
+  padding-inline: 24px;
+  padding-block: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sheet {
+  max-width: calc(var(--margin-col) + var(--content-col) + var(--grid-gap));
+  margin: 0 auto;
+}
+
+a { color: var(--ink); text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- masthead: the name, the rail of commas, the search field ---------- */
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+  max-width: calc(var(--margin-col) + var(--content-col) + var(--grid-gap));
+  margin: 0 auto;
+  padding-block: 32px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.masthead .mark {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.rail { font-size: 13px; color: var(--muted); }
+.rail a { color: var(--muted); text-decoration: none; }
+.rail a:hover { color: var(--ink); }
+.rail a.here { color: var(--ink); font-weight: 500; }
+.rail .comma { color: var(--line-strong); margin-right: 4px; }
+
+/* The field is a segment of the masthead's own rule, darkened -- not a box added to the page. */
+.find { position: relative; margin-left: auto; display: flex; align-items: baseline; gap: 8px; }
+
+.find input {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  background: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 24px;
+  color: var(--ink);
+  width: 200px;
+  padding: 0 0 4px;
+  outline: none;
+}
+
+.find input::placeholder { color: var(--hl); }
+.find input:focus { border-bottom-color: var(--ink); }
+.find .key { font-family: var(--mono); font-size: 11px; color: var(--hl); }
+
+.found { border-bottom: 1px solid var(--line); }
+.found .inner { display: flex; flex-direction: column; padding-block: 12px 16px; }
+
+.found a {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--data);
+}
+
+.found a:last-child { border-bottom: 0; }
+.found a:hover { border-bottom-color: var(--ink); }
+.found .t { font-size: 14px; color: var(--ink); }
+.found .w { font-family: var(--mono); font-size: 12px; color: var(--hl); margin-left: auto; }
+.found .none { margin: 8px 0; font-size: 13px; color: var(--muted); }
+
+/* ---------- the one grid that gives both columns ---------- */
+
+.prose {
+  display: grid;
+  grid-template-columns: var(--margin-col) minmax(0, var(--content-col));
+  gap: 0 var(--grid-gap);
+  padding-bottom: 40px;
+}
+
+.prose > * { grid-column: 2; margin: 0; min-width: 0; }
+.prose > * + * { margin-top: 20px; }
+
+/* A section heading is physically a marginal note: it sits in column one, and the element that follows it
+   starts on the same row. Both carry the 80 that separates sections. */
+.prose > h2 {
+  grid-column: 1;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-top: 80px;
+  text-wrap: balance;
+}
+
+.prose > h2 + * { margin-top: 80px; }
+
+.prose > h1 {
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin-top: 104px;
+  text-wrap: balance;
+}
+
+/* On the overview the title only repeats the masthead, so it steps back into the margin and the first
+   sentence takes the large slot instead. Everywhere else the title carries meaning and keeps it. */
+.home .prose > h1 {
+  grid-column: 1;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  margin-top: 104px;
+}
+
+.home .prose > h1 + p {
+  margin-top: 104px;
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.prose > h3 {
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 40px;
+}
+
+.prose > p, .prose > ul, .prose > ol { max-width: 62ch; }
+.prose > p.wide, .prose > .scroll { max-width: none; }
+
+.prose strong { font-weight: 500; color: var(--ink); }
+.prose em { font-style: italic; }
+
+.prose ul, .prose ol { padding-left: 20px; }
+.prose li + li { margin-top: 8px; }
+
+.prose code {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.prose pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 22px;
+  color: var(--data);
+  overflow-x: auto;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: none;
+  max-width: none;
+}
+
+.prose pre code { font-size: 12px; }
+
+.prose blockquote {
+  border-left: 1px solid var(--line-strong);
+  padding-left: 24px;
+  color: var(--sec);
+  max-width: 62ch;
+}
+
+/* ---------- tables: rules only, and a row's own rule darkens under the cursor ---------- */
+
+.scroll { overflow-x: auto; max-width: 100%; }
+
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 520px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.prose th {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  padding: 0 24px 12px 0;
+  border-bottom: 1px solid var(--line-strong);
+  white-space: nowrap;
+}
+
+.prose td {
+  padding: 16px 24px 16px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.prose tbody tr:hover td { border-bottom-color: var(--ink); }
+.prose th:last-child, .prose td:last-child { padding-right: 0; }
+
+/* ---------- colophon ---------- */
+
+.colophon { border-top: 1px solid var(--line); margin-top: 96px; }
+
+.colophon .inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  padding-block: 20px 40px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--muted);
+}
+
+.colophon a { color: var(--muted); }
+
+/* ---------- below the grid the margin becomes a line above ---------- */
+
+@media (max-width: 900px) {
+  .prose { grid-template-columns: minmax(0, 1fr); }
+  .prose > *, .prose > h2, .home .prose > h1 { grid-column: auto; }
+  .prose > h1, .home .prose > h1 + p { margin-top: 48px; font-size: 24px; line-height: 32px; }
+  .home .prose > h1 { font-size: 13px; line-height: 20px; margin-top: 48px; }
+  .prose > h2 { margin-top: 48px; }
+  .prose > h2 + * { margin-top: 16px; }
+  .find { margin-left: 0; width: 100%; }
+  .find input { width: 100%; }
+  .colophon { margin-top: 64px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
