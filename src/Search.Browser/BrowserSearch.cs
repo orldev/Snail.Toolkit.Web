@@ -99,6 +99,22 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
         CancellationToken ct)
         => Task.FromResult(results);
 
+    /// <summary>Whether the page the engine answered with is an answer to the query that was asked.</summary>
+    /// <remarks>
+    /// The default says yes, because most engines either answer or refuse and there is no third thing to
+    /// name. Bing is the third thing, measured on 2026-09-15: asked in Russian from a datacentre address it
+    /// sometimes serves a page of ten confident results about something else entirely — bible sites for
+    /// «Роснано», Italian pages about e-cigarettes for «отзыв лицензии КИВИ Банк» — and a parser cannot tell
+    /// that from an answer, because structurally it IS one.
+    /// <para>
+    /// An engine that can be served that page overrides this and says so, and the search then records a
+    /// refusal rather than results. Left here rather than pushed into every engine because the caller's
+    /// question — «did I get an answer to what I asked» — is the same for all of them; only the evidence
+    /// differs, and only an engine that has been measured should claim to have any.
+    /// </para>
+    /// </remarks>
+    protected virtual bool Answers(string query, IReadOnlyList<SearchResult> results) => true;
+
     /// <inheritdoc />
     public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
     {
@@ -137,6 +153,11 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
                 "{Provider} answered with {Length} characters of markup that yielded no results, which is what "
                 + "a layout change looks like from here.",
                 Name, page.Html.Length);
+
+        if (results.Count > 0 && !Answers(query, results))
+            return SearchAnswer.Failed(new SearchFailure(
+                SearchFailureKind.Refused,
+                $"{Name} answered a page of {results.Count} results about something other than the query."));
 
         return SearchAnswer.Success(results);
     }

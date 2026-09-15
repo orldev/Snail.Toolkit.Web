@@ -30,7 +30,42 @@ public static class ServiceCollectionExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            return services.AddBrave(configuration);
+            services.AddBrave(configuration);
+
+            return services.AddBing(configuration);
+        }
+
+        /// <summary>Adds Bing, read through a browser instead of over plain HTTP.</summary>
+        /// <remarks>
+        /// TAKES THE PLACE OF THE HTTP PROVIDER OF THE SAME NAME, and that is the point rather than a side
+        /// effect. Measured on 2026-09-15 from a datacentre address: over HTTP the engine answered four
+        /// Russian queries out of five with ten confident results about something else — bible sites for
+        /// «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a
+        /// browser answered with the company, its Wikipedia article and the news about its licence.
+        /// <para>
+        /// Two providers under one name would be worse than either: a report that says «Bing answered
+        /// nothing» could no longer say which Bing, and the aggregator would spend two of its slots per query
+        /// on one engine. So the browser reading replaces the plain one wherever this method is called, and a
+        /// deployment with no browser keeps the plain one by simply not calling it.
+        /// </para>
+        /// </remarks>
+        public IServiceCollection AddBing(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            services.AddSearch(configuration);
+            services.AddScraping(configuration);
+
+            var plain = services.FirstOrDefault(registered =>
+                registered.ServiceType == typeof(ISearchProvider)
+                && registered.ImplementationType == typeof(Providers.Bing));
+
+            if (plain is not null)
+                services.Remove(plain);
+
+            Validated(services.BindOnce<BingOptions>(configuration, BingOptions.SectionName));
+
+            return services.AddSearchProvider<Bing>();
         }
 
         /// <summary>Adds Brave, read at its own results address.</summary>
@@ -60,6 +95,13 @@ public static class ServiceCollectionExtensions
             return services.AddSearchProvider<Brave>();
         }
     }
+
+    private static void Validated(OptionsBuilder<BingOptions> builder)
+        => builder
+            .Validate(
+                settings => IsHost(settings.Domain),
+                $"'{BingOptions.SectionName}:{nameof(BingOptions.Domain)}' has to be a bare host such as 'www.bing.com', without a scheme or a path.")
+            .ValidateOnStart();
 
     private static void Validated(OptionsBuilder<BraveOptions> builder)
         => builder

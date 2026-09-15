@@ -22,6 +22,31 @@ public class RegistrationTests
         Assert.Equal([Bing.ProviderName, Brave.ProviderName, DuckDuckGo.ProviderName], names);
     }
 
+    /// <summary>
+    /// The engine named Bing here is the browser reading of it, and there is only one of it.
+    /// </summary>
+    /// <remarks>
+    /// The test above cannot tell the two apart — both are called «Bing» — and that is exactly why this one
+    /// exists. Measured on 2026-09-15 from a datacentre address: read over plain HTTP the engine answered
+    /// four Russian queries out of five with ten confident results about something else entirely, while the
+    /// same address read through a browser answered with the company, its encyclopedia article and the news
+    /// about its licence. Two providers under one name would also make a report unable to say which of them
+    /// stayed silent.
+    /// </remarks>
+    [Fact]
+    public async Task AddBrowserSearch_TheEngineNamedBing_IsTheBrowserReadingAndTheOnlyOne()
+    {
+        await using var provider = Built([]);
+
+        var named = provider
+            .GetRequiredService<IEnumerable<ISearchProvider>>()
+            .Where(one => one.Name == Browser.Bing.ProviderName)
+            .ToList();
+
+        Assert.Single(named);
+        Assert.IsType<Browser.Bing>(named[0]);
+    }
+
     [Fact]
     public async Task AddBrowserSearch_PageReader_IsRegisteredForTheBrowserProviderToUse()
     {
