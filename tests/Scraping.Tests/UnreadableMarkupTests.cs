@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Options;
-using Snail.Toolkit.Web;
 using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Scraping;
 using Snail.Toolkit.Web.Text;
 
 namespace Snail.Toolkit.Web.Scraping.Tests;

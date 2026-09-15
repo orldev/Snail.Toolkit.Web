@@ -124,6 +124,47 @@ public class HostilePageTextTests
             $"refusing took {taken.TotalMilliseconds:0} ms, which is the cost of parsing rather than of refusing");
     }
 
+    /// <summary>Refusing deep markup costs the same whatever the depth, which time cannot witness.</summary>
+    /// <remarks>
+    /// The check beside this one holds the refusal to a hundred milliseconds, and a threshold in milliseconds
+    /// is the flakiest thing a suite can own: it measures the machine as much as the code, and on a loaded
+    /// runner it fails for reasons that have nothing to do with the page. Allocation does not move with the
+    /// machine. This is the same guarantee said in a unit that holds still.
+    /// <para>
+    /// MEASURED on 2026-09-15, per thread:
+    /// <list type="bullet">
+    /// <item><description>refused — 682 KB at five thousand levels, 686 KB at twenty thousand.</description></item>
+    /// <item><description>parsed — 5.3 MB at five thousand, 21.3 MB at twenty thousand.</description></item>
+    /// </list>
+    /// THE TWO REFUSAL FIGURES BEING THE SAME IS THE POINT, and it is a statement the timing check cannot
+    /// make: a parse stopped at a thousand nested nodes does identical work whether the document goes on for
+    /// four thousand more levels or nineteen thousand. Cost that stops growing with the input is the whole of
+    /// what a ceiling is for.
+    /// </para>
+    /// <para>
+    /// Two megabytes sits three times above the refusal and two and a half times below the cheapest parse,
+    /// so it is not a number this can drift past without the ceiling having gone.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(5_000)]
+    [InlineData(20_000)]
+    public void Clean_MarkupNestedDeeperThanItMayBe_CostsTheSameWhateverTheDepth(int depth)
+    {
+        var html = Nested(depth);
+        var text = new TextExtraction();
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Throws<MarkupTooDeepException>(() => text.Clean(html));
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.True(
+            allocated < 2L * 1024 * 1024,
+            $"refusing markup {depth} levels deep cost {allocated / 1024} KB, which is the cost of parsing it");
+    }
+
     /// <summary>The link reader refuses the same markup, because it goes through the same door.</summary>
     /// <remarks>
     /// Worth its own check because the two readers reach the parser separately and only one of them was ever

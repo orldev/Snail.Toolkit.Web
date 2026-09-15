@@ -1,6 +1,5 @@
 using Microsoft.Playwright;
 using Snail.Toolkit.Web.Identity;
-using Snail.Toolkit.Web.Scraping;
 
 namespace Snail.Toolkit.Web.Scraping.Tests;
 

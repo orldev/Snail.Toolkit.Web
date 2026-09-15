@@ -15,9 +15,6 @@ internal static class Fixture
     public static PageOutcome Walked(string html)
         => PageOutcome.Success(
             new PageContent(Link.Of("https://engine.example/"), html, string.Empty, DateTimeOffset.UtcNow));
-
-    public static PageOutcome Refused(FailureKind kind, string message, int? status = null)
-        => PageOutcome.Failed(new PageFailure(kind, message) { StatusCode = status });
 }
 
 /// <summary>

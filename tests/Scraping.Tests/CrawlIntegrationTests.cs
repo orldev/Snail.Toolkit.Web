@@ -1,8 +1,5 @@
-using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Robots;
 using Snail.Toolkit.Web.Scraping.Behavior;

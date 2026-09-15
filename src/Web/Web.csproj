@@ -18,7 +18,19 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
+  <!--
+    The core names two of its own dependants here, which is worth explaining because it reads like the
+    dependency arrow pointing backwards. It is not a reference: InternalsVisibleTo is a compile-time friend
+    declaration and adds nothing to the package graph. What it buys is that Fanout and Spread — bounded
+    parallelism and host interleaving — stay OUT of the public surface. Neither is part of what this toolkit
+    promises: the packages answer "where is this written about?" and "what does this page say?", and how the
+    work is spread across threads is machinery behind both. A type published at 0.1.0 is a promise to every
+    later version, and the asymmetry decides it — public to internal is a breaking change, internal to public
+    is not, so the reversible direction is the one to take before there is a consumer.
+  -->
   <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Tests" />
   </ItemGroup>
 

@@ -1,7 +1,6 @@
 using System.Text;
 using DotNet.Testcontainers.Builders;
 using Snail.Toolkit.Web.Tests.Browsers;
-using Snail.Toolkit.Web.Scraping.Browsers;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
 
@@ -35,9 +34,6 @@ public sealed class FormFixture : IAsyncLifetime
 
     /// <summary>The engine that server drives, which the toolkit has to be told about to connect at all.</summary>
     public Engine Engine => BrowserImage.Engine;
-
-    private static string Version =>
-        typeof(Microsoft.Playwright.Playwright).Assembly.GetName().Version!.ToString(3);
 
     /// <inheritdoc />
     public async Task InitializeAsync()

@@ -1,4 +1,3 @@
-using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Snail.Toolkit.Web.Politeness;

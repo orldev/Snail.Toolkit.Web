@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net;
 using Snail.Toolkit.Web.Identity;
 
 namespace Snail.Toolkit.Web.Scraping.Http;

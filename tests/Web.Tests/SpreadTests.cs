@@ -137,6 +137,49 @@ public class SpreadTests
 
     private static DateTimeOffset Now => DateTimeOffset.MinValue;
 
+    /// <summary>A source of one host is held back by a bound rather than drained into memory.</summary>
+    /// <remarks>
+    /// ONE HOST IS THE CASE THAT REACHES THE BOUND, and no other does — which is why this check looks nothing
+    /// like the one above it. Read-ahead normally stops because <c>wanted</c> different hosts are in hand; a
+    /// source that offers only one host can never satisfy that, so it runs until
+    /// <c>held &lt; wanted * HeldBackPerHost</c> stops it. That is the only line standing between a crawl of
+    /// one site and its whole frontier held in memory at once.
+    /// <para>
+    /// MEASURED on 2026-09-15, two hundred thousand addresses of one host, ten taken:
+    /// <list type="bullet">
+    /// <item><description>with the bound — 13 KB.</description></item>
+    /// <item><description>without it — 20.8 GB, and the check took thirty-two seconds to get there.</description></item>
+    /// </list>
+    /// The ceiling of one megabyte is derived from both: eighty times the observed cost, and twenty thousand
+    /// times below the failure. Nothing this check could drift into lands between them.
+    /// </para>
+    /// <para>
+    /// PER THREAD, NOT PER PROCESS, and that is not a detail. <see cref="GC.GetTotalAllocatedBytes"/> counts
+    /// the whole process, and xunit runs test classes in parallel — the first version of this measurement
+    /// reported a refusal at depth twenty thousand costing twenty-five megabytes and the same refusal at five
+    /// thousand costing under one, for work that is identical by construction. That was other tests
+    /// allocating on other threads. Everything measured here is synchronous, so the per-thread counter is
+    /// exact; an asynchronous one would need the process-wide counter and a threshold loose enough to survive
+    /// the noise.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void OverHosts_ASourceOfOneHost_HoldsBackABoundedNumberOfItems()
+    {
+        string[] items = [.. Enumerable.Range(0, 200_000).Select(index => $"a{index}")];
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var spread = Spread.OverHosts(items, HostOf, 4).Take(10).ToArray();
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(10, spread.Length);
+        Assert.True(
+            allocated < 1024L * 1024,
+            $"ten addresses of one host cost {allocated / 1024} KB, which is the source being drained");
+    }
+
     private static DateTimeOffset Soon => DateTimeOffset.UtcNow.AddMilliseconds(20);
 
     private static DateTimeOffset Later => DateTimeOffset.UtcNow.AddSeconds(5);

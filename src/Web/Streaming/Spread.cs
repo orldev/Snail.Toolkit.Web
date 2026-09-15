@@ -21,7 +21,7 @@ namespace Snail.Toolkit.Web.Streaming;
 /// is still the whole of the gain on a list that holds no refusals.
 /// </para>
 /// </remarks>
-public static class Spread
+internal static class Spread
 {
     /// <summary>How many items may be held back while looking for a different host, per host wanted.</summary>
     /// <remarks>

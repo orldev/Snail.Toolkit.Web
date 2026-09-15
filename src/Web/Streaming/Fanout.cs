@@ -16,7 +16,7 @@ namespace Snail.Toolkit.Web.Streaming;
 /// a caller that did not took the whole run down with one page. It is now a parameter, so there is no way to
 /// fan work out without saying what a failed item looks like.
 /// </remarks>
-public static class Fanout
+internal static class Fanout
 {
     /// <summary>How long a consumer that has left waits for work it has already cancelled.</summary>
     private static readonly TimeSpan Grace = TimeSpan.FromSeconds(5);
@@ -78,11 +78,25 @@ public static class Fanout
     /// to stop. Cancellation has already been asked for; work that does not watch its token would otherwise
     /// hold the caller for as long as it likes, and the caller has said it no longer wants the answer.
     /// <para>
-    /// Both callers inside this toolkit are bounded by something else — Playwright's navigation timeout on one
-    /// side, a Polly total-request timeout on the other — so this is for the consumer who fans out over
-    /// something that is not. The grace period is long enough that an orderly stop is always awaited and short
-    /// enough that a disorderly one is not mistaken for progress; the work is then left to finish on its own,
-    /// where its exception is observed rather than raised at a caller that has already gone.
+    /// The grace period is long enough that an orderly stop is always awaited and short enough that a
+    /// disorderly one is not mistaken for progress; the work is then left to finish on its own, where its
+    /// exception is observed rather than raised at a caller that has already gone.
+    /// </para>
+    /// <para>
+    /// WHOSE CARELESSNESS THIS GUARDS AGAINST CHANGED ON 2026-09-15, and the paragraph is rewritten rather
+    /// than left standing because it had become untrue. This bound was added while <see cref="Fanout"/> was
+    /// public, and the reason given was that the work would be a stranger's; the type is internal now, so
+    /// there is no stranger. Both callers that exist — the crawler under Playwright's navigation timeout, the
+    /// search under a Polly total-request timeout — are bounded by something else, and neither can produce
+    /// the failure this prevents.
+    /// </para>
+    /// <para>
+    /// It is kept anyway, and the justification is weaker than the one it replaces: what it now guards
+    /// against is OUR OWN next caller. Nothing about this type makes a third one expensive to add, and
+    /// nothing about it warns that the work handed over must watch its token — the requirement lives here, in
+    /// prose, where an author reaching for bounded parallelism will not look. The cost of keeping it is a
+    /// timer that never elapses. That is a smaller price than the failure, which is silent: a consumer that
+    /// has already left the loop, still held.
     /// </para>
     /// </remarks>
     private static async Task Ended(Task producer)

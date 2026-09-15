@@ -30,18 +30,41 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// several processes would have cost a fraction. Against a browser server that cannot be bought back at any
 /// price, and the retry in <see cref="IAttempts{TValue}"/> is what answers it.
 /// </para>
+/// <para>
+/// WHAT WAS TAKEN OUT OF HERE ON 2026-09-15, and what deliberately was not. This file was 439 lines and had
+/// been the source of a defect three times over. Three of its four jobs came out cleanly and are now
+/// <see cref="Driver"/> (start Playwright, open a browser of the configured engine), <see cref="Permits"/>
+/// (how many pages at once, and the idle clock) and <see cref="Reaper"/> (close a browser nobody is using).
+/// Two of the three historical defects lived in what is now the first and second of those.
+/// </para>
+/// <para>
+/// THE FOURTH — opening the browser — WAS PROPOSED AND REFUSED, and the reason is written here because it is
+/// the obvious next thing to suggest about a class that is still the longest in the package. It reads as a
+/// separable job and is not one: what makes it correct is the two things it shares with shutdown, and both
+/// are things a second object could only be handed a copy of. The gate it waits on is linked to
+/// <c>_shutdown</c>, which also releases callers queued in <see cref="QueuedAsync"/> for a page — one
+/// cancellation serving two gates, and the remark on <see cref="OpeningAsync"/> says outright that the two
+/// are written as a pair and for the same reason. And what decides whether a browser that has finished
+/// opening is published or closed is <c>_isDisposed</c>, read at the one instant that races shutdown; handed
+/// across an object boundary it becomes two facts that have to be kept in step by whoever remembers to,
+/// which is the exact shape of the defect that cost a hung test host.
+/// </para>
+/// <para>
+/// There is a third, smaller reason and it is the one this library cares about most: all three refusals a
+/// caller can meet in there name <c>BrowserPool</c>. Moved, they would name a type the caller has never
+/// heard of — which is word for word the failure the remark on <see cref="OpeningAsync"/> exists to prevent.
+/// </para>
 /// </remarks>
 public sealed class BrowserPool : IBrowserPool
 {
     private readonly ScrapingOptions _options;
     private readonly ILogger<BrowserPool> _logger;
-    private readonly int _ceiling;
-    private readonly SemaphoreSlim _pages;
+    private readonly Driver _driver;
+    private readonly Permits _permits;
     private readonly SemaphoreSlim _opening = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _reaper;
     private IBrowser? _browser;
-    private long _idleSince = DateTimeOffset.UtcNow.UtcTicks;
     private int _isDisposed;
 
     /// <summary>Creates a pool that allows <see cref="ScrapingOptions.MaxDegreeOfParallelism"/> pages at once.</summary>
@@ -51,10 +74,10 @@ public sealed class BrowserPool : IBrowserPool
 
         _options = options.Value;
         _logger = logger;
-        _ceiling = Math.Max(1, _options.MaxDegreeOfParallelism);
-        _pages = new SemaphoreSlim(_ceiling, _ceiling);
+        _driver = new Driver(_options);
+        _permits = new Permits(Math.Max(1, _options.MaxDegreeOfParallelism));
 
-        if (IsRemote && _options.BrowserArguments.Count > 0)
+        if (_driver.IsRemote && _options.BrowserArguments.Count > 0)
             _logger.LogWarning(
                 "{Count} browser arguments are configured but a browser server is in use, and a connection "
                 + "carries no command line: the server was started with its own. Measured consequence: with "
@@ -62,10 +85,15 @@ public sealed class BrowserPool : IBrowserPool
                 + "navigator.webdriver as true. Pass the arguments to the server's own launch command instead.",
                 _options.BrowserArguments.Count);
 
-        _reaper = IsRemote ? Task.CompletedTask : Task.Run(() => ReapIdleAsync(_shutdown.Token));
+        _reaper = _driver.IsRemote
+            ? Task.CompletedTask
+            : Task.Run(() => new Reaper(
+                _options.BrowserIdleTimeout,
+                _permits,
+                () => Volatile.Read(ref _browser) is not null,
+                CloseAsync,
+                _logger).ReapAsync(_shutdown.Token));
     }
-
-    private bool IsRemote => !string.IsNullOrWhiteSpace(_options.BrowserServer);
 
     /// <inheritdoc />
     /// <remarks>
@@ -85,7 +113,7 @@ public sealed class BrowserPool : IBrowserPool
         }
         catch
         {
-            Return();
+            _permits.Return();
             throw;
         }
     }
@@ -96,7 +124,7 @@ public sealed class BrowserPool : IBrowserPool
         {
             using var waiting = CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown.Token);
 
-            await _pages.WaitAsync(waiting.Token);
+            await _permits.WaitAsync(waiting.Token);
         }
         catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException
                                           && !ct.IsCancellationRequested)
@@ -170,7 +198,7 @@ public sealed class BrowserPool : IBrowserPool
 
             _logger.LogInformation(
                 "Browser is ready: {Engine}, {Mode}, up to {Pages} page(s) at once",
-                _options.Engine, IsRemote ? "connected" : "launched", _ceiling);
+                _options.Engine, _driver.IsRemote ? "connected" : "launched", _permits.Ceiling);
 
             return opened;
         }
@@ -194,7 +222,7 @@ public sealed class BrowserPool : IBrowserPool
     /// </remarks>
     private async Task<IBrowser> Opened(CancellationToken ct)
     {
-        var opening = OpenedAsync(ct);
+        var opening = _driver.OpenedAsync(ct);
 
         try
         {
@@ -224,117 +252,6 @@ public sealed class BrowserPool : IBrowserPool
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
-    private async Task<IBrowser> OpenedAsync(CancellationToken ct)
-    {
-        var driver = await _driver.Value.WaitAsync(ct);
-
-        var chosen = Chosen(driver);
-
-        return IsRemote
-            ? await chosen.ConnectAsync(_options.BrowserServer!, new BrowserTypeConnectOptions
-            {
-                Timeout = _options.NavigationTimeoutMs
-            })
-            : await chosen.LaunchAsync(new BrowserTypeLaunchOptions
-            {
-                Headless = _options.Headless,
-                Args = _options.Engine is Engine.Chromium ? ChromiumArguments.For(_options) : null
-            });
-    }
-
-    private IBrowserType Chosen(IPlaywright driver) => _options.Engine switch
-    {
-        Engine.Firefox => driver.Firefox,
-        Engine.WebKit => driver.Webkit,
-        _ => driver.Chromium
-    };
-
-    /// <summary>The Playwright driver, started once however many callers arrive together.</summary>
-    /// <remarks>
-    /// Was a null check, a semaphore and a second null check — double-checked locking with no barrier on the
-    /// unguarded read, which the pattern requires and which this did not have. What it buys is not a crash but
-    /// a second driver: another node process, started and then forgotten, for the whole life of the pool.
-    /// <see cref="Lazy{T}"/> runs its factory exactly once and publishes it safely by default, which is the
-    /// whole of what the semaphore was there for.
-    /// <para>
-    /// KNOWN AND NOT FIXED, so that it is not rediscovered as news: exactly once includes once unsuccessfully.
-    /// The factory returns a <see cref="Task{TResult}"/> rather than throwing, so a driver that fails to start
-    /// is a faulted task cached for the life of the pool, and every later <see cref="RentAsync"/> awaits that
-    /// same fault — one transient failure at start-up is a pool that never works again. It is left alone
-    /// because nothing here can demonstrate it: <see cref="Playwright.CreateAsync"/> is static, so no test in
-    /// this suite can make it fail, and a retry written against a failure nobody can produce is a guess about
-    /// the hot path rather than a fix. Making it testable means giving the pool a driver factory to be handed,
-    /// which is the change to weigh — not a retry bolted on here.
-    /// </para>
-    /// </remarks>
-    private readonly Lazy<Task<IPlaywright>> _driver = new(Playwright.CreateAsync);
-
-    private async Task ReapIdleAsync(CancellationToken ct)
-    {
-        if (_options.BrowserIdleTimeout <= TimeSpan.Zero)
-            return;
-
-        using var timer = new PeriodicTimer(Sweep(_options.BrowserIdleTimeout));
-
-        try
-        {
-            while (await timer.WaitForNextTickAsync(ct))
-                await SweepOnceAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    /// <summary>Closes the browser when nothing has used it for a while.</summary>
-    /// <remarks>
-    /// Every page's permission is taken before the browser is closed, and the sweep gives up if it cannot have
-    /// them all. That is what makes closing safe without any cancellation juggling: a caller is either holding
-    /// a permit, in which case the sweep does nothing, or it is not, in which case it cannot be inside.
-    /// </remarks>
-    private async Task SweepOnceAsync()
-    {
-        if (Volatile.Read(ref _browser) is null)
-            return;
-
-        if (DateTimeOffset.UtcNow.UtcTicks - Interlocked.Read(ref _idleSince) <= _options.BrowserIdleTimeout.Ticks)
-            return;
-
-        if (!Emptied())
-            return;
-
-        try
-        {
-            _logger.LogInformation("The browser was idle for {Timeout} and is being closed", _options.BrowserIdleTimeout);
-
-            await CloseAsync();
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "The idle browser could not be closed");
-        }
-        finally
-        {
-            _pages.Release(_ceiling);
-        }
-    }
-
-    private bool Emptied()
-    {
-        var taken = 0;
-
-        while (taken < _ceiling && _pages.Wait(0))
-            taken++;
-
-        if (taken == _ceiling)
-            return true;
-
-        if (taken > 0)
-            _pages.Release(taken);
-
-        return false;
-    }
-
     private async Task CloseAsync()
     {
         var browser = Volatile.Read(ref _browser);
@@ -361,19 +278,6 @@ public sealed class BrowserPool : IBrowserPool
         }
     }
 
-    private void Return()
-    {
-        Interlocked.Exchange(ref _idleSince, DateTimeOffset.UtcNow.UtcTicks);
-        _pages.Release();
-    }
-
-    private static TimeSpan Sweep(TimeSpan idleTimeout)
-    {
-        var half = idleTimeout / 2;
-
-        return half < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : half;
-    }
-
     /// <inheritdoc />
     /// <remarks>
     /// Every step here is something that can fail, and none of them may take the rest down with it. The
@@ -381,13 +285,20 @@ public sealed class BrowserPool : IBrowserPool
     /// reaper is awaited for its ending rather than its answer; and the driver and the tokens are released in a
     /// <c>finally</c>, because a browser that refuses to close would otherwise leak the process that hosts it.
     /// <para>
-    /// NEITHER semaphore is disposed, for the reason their counterpart in the politeness gate is not: a
-    /// caller released after shutdown would meet a disposed object, and nothing here holds a handle worth
-    /// reclaiming. That was true of the page semaphore from the start and was not extended to the opening
-    /// one, which cost more than an unhelpful exception. <see cref="SemaphoreSlim.Dispose()"/> does not wake
-    /// anybody waiting on it — a caller queued behind an opening browser was left on a gate nobody would
-    /// open again and never returned at all, which is word for word the failure the page semaphore already
-    /// had a paragraph about. MEASURED on 2026-09-15: the test host had to be killed.
+    /// NEITHER GATE IS DISPOSED — not <see cref="_opening"/> here, and not the one inside
+    /// <see cref="Permits"/>, which is why that type has no <c>Dispose</c> to call. A caller released after
+    /// shutdown would meet a disposed object, and nothing here holds a handle worth reclaiming:
+    /// <see cref="SemaphoreSlim"/> allocates one only for <c>AvailableWaitHandle</c>, which nobody asks for.
+    /// <see cref="SemaphoreSlim.Dispose()"/> does not wake anybody waiting on it either — a caller queued
+    /// behind an opening browser was left on a gate nobody would open again and never returned at all.
+    /// MEASURED on 2026-09-15: the test host had to be killed.
+    /// </para>
+    /// <para>
+    /// The rule held for the page semaphore from the start and was not extended to this one, which is exactly
+    /// the kind of omission a paragraph cannot prevent and a type can. Half of it is now enforced by
+    /// <see cref="Permits"/> having no way to be disposed; this field is the half still kept by hand, and it
+    /// is kept here rather than moved because what it guards — publishing the browser — is what shutdown
+    /// races with.
     /// </para>
     /// </remarks>
     public async ValueTask DisposeAsync()
@@ -415,8 +326,7 @@ public sealed class BrowserPool : IBrowserPool
         }
         finally
         {
-            if (_driver.IsValueCreated && _driver.Value.IsCompletedSuccessfully)
-                (await _driver.Value).Dispose();
+            _driver.Dispose();
 
             _shutdown.Dispose();
         }
@@ -431,7 +341,7 @@ public sealed class BrowserPool : IBrowserPool
         public ValueTask DisposeAsync()
         {
             if (Interlocked.Exchange(ref _isReturned, 1) == 0)
-                pool.Return();
+                pool._permits.Return();
 
             return ValueTask.CompletedTask;
         }

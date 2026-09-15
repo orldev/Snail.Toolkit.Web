@@ -10,11 +10,17 @@ namespace Snail.Toolkit.Web.Tests;
 /// the batch carries on — and the suite covers that. What it has never been given is work that does not come
 /// back when it is asked to, which is the ordinary condition of anything reaching over a network.
 /// <para>
-/// This is public API in the core package, so the work is whatever a consumer passes. Inside the toolkit both
-/// callers happen to be bounded — Playwright's own navigation timeout on one side, a Polly total-request
-/// timeout on the other — so nothing here is reachable from <c>Crawler</c> or <c>WebSearch</c> today. It is
-/// reachable from the first consumer who fans out over something else, and the shape is the same one that
-/// made <c>Fanout</c> tie its producer to the enumeration in the first place.
+/// Neither caller that exists can produce it. The crawler is bounded by Playwright's navigation timeout and
+/// the search by a Polly total-request timeout, so work that ignores its token is not something
+/// <c>Crawler</c> or <c>WebSearch</c> can hand over. This was written while <see cref="Fanout"/> was public,
+/// when the answer was "the work is a stranger's"; the type became internal on 2026-09-15 and that answer is
+/// gone with it.
+/// <para>
+/// The check stays, and what it holds is the shape rather than a caller: <c>Fanout</c> is the place inside
+/// this toolkit where bounded parallelism is reached for, a third caller costs nothing to add, and the
+/// requirement that the work watch its token is written in prose nobody has to read. This is the guard that
+/// makes leaving the loop unconditional, and it is the reason the bound in <c>Ended</c> can be justified at
+/// all now that there is no consumer to justify it.
 /// </para>
 /// </remarks>
 public class FanoutChaosTests

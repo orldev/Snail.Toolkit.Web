@@ -1,7 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Snail.Toolkit.Web.Search.Browser.Extensions;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;

@@ -67,6 +67,22 @@ public class CrawlCeilingTests
     /// carries more links than a real page has room for. The ceiling that is meant to make a crawl affordable
     /// governs neither number.
     /// </para>
+    /// <para>
+    /// THE COUNTER IS PROCESS-WIDE AND THE THRESHOLD IS LOOSE FOR THE SAME REASON: this crawl is
+    /// asynchronous, so the work does not stay on one thread and
+    /// <see cref="GC.GetAllocatedBytesForCurrentThread"/> would measure only whichever part of it happened to
+    /// land back here. <see cref="GC.GetTotalAllocatedBytes"/> counts everything — including the other test
+    /// classes xunit is running in parallel — so a tight budget here would fail on a busy run and say nothing
+    /// about this code. Two hundred and fifty-six megabytes is a guard against holding them ALL, which is the
+    /// claim in the name, rather than a budget.
+    /// </para>
+    /// <para>
+    /// The synchronous checks in <c>Web.Tests</c> use the per-thread counter and can afford thresholds three
+    /// times their measurement, because nothing else can contaminate them. Which counter to reach for is
+    /// decided by whether the code under measurement stays on one thread, and getting it wrong is not a small
+    /// error: the first attempt at those checks reported a refusal costing twenty-five megabytes at one depth
+    /// and under one at another, for work that is identical by construction.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task CrawlAsync_PagesCarryingFarMoreLinksThanItMayRead_DoesNotHoldThemAll()

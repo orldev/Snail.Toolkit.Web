@@ -4,7 +4,6 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using DotNet.Testcontainers.Builders;
 using Snail.Toolkit.Web.Tests.Browsers;
-using Snail.Toolkit.Web.Scraping.Browsers;
 using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Networks;
 
