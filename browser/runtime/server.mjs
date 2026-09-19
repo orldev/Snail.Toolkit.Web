@@ -19,7 +19,26 @@ const server = await firefox.launchServer({
 console.log(`browser server ready: ws://<host>:${port}/`);
 console.log(`local endpoint:      ${server.wsEndpoint()}`);
 
+let stopping = false;
+
+// СМЕРТЬ БРАУЗЕРА — ЭТО ОТКАЗ, А НЕ КОНЕЦ РАБОТЫ. Тяжёлая выдача (замер
+// 16.09.2026: страница Яндекса) убивает Firefox, сервер закрывается следом, и
+// node выходил с кодом НОЛЬ — то есть «отработал и закончил». Для docker с
+// restart: on-failure это означало «не перезапускать», а у всех подключённых
+// соединение рвалось с «socket hang up», неотличимым от сетевой икоты.
+// Ненулевой код превращает это в отказ, который видно и по которому
+// перезапускаются.
+server.on('close', () => {
+  if (stopping)
+    return;
+
+  console.error('browser server closed on its own: the browser inside it died');
+  process.exit(1);
+});
+
 const stop = async (signal) => {
+  stopping = true;
+
   console.log(`got ${signal}, closing`);
   await server.close();
   process.exit(0);

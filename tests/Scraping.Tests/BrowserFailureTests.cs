@@ -24,6 +24,22 @@ public class BrowserFailureTests
     public void Of_PlaywrightMessage_IsReadAsTheKindItNames(string message, FailureKind expected)
         => Assert.Equal(expected, Failure(new PlaywrightException(message)).Kind);
 
+    /// <summary>
+    /// The browser server going away is the browser going away, whatever the wire calls it.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 16.09.2026: one heavy page killed Firefox inside the container, the Playwright server closed
+    /// with it, and every caller's connection broke. What arrived here was
+    /// <c>Navigation — WebSocket error: socket hang up</c>: a statement about the SITE, indistinguishable from
+    /// a network hiccup on the page being read, while the browser this library holds had ceased to exist.
+    /// </remarks>
+    [Theory]
+    [InlineData("Navigation failed because browser has disconnected!")]
+    [InlineData("page.goto: WebSocket error: socket hang up")]
+    [InlineData("browserType.connect: WebSocket error: connect ECONNREFUSED 127.0.0.1:3000")]
+    public void Of_ConnectionToTheBrowserServerBreaking_IsTheBrowserBeingUnavailable(string message)
+        => Assert.Equal(FailureKind.BrowserUnavailable, Failure(new PlaywrightException(message)).Kind);
+
     /// <summary>A locator wait is the one place Playwright 1.62 raises the framework's own timeout.</summary>
     [Fact]
     public void Of_TimeoutFromALocatorWait_IsATimeout()

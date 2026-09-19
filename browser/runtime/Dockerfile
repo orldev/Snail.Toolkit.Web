@@ -57,8 +57,11 @@ ENV TZ=America/New_York \
     DISPLAY=:99 \
     PORT=3000
 
+# tini стоит первым процессом: Firefox плодит дочерние процессы, а node не
+# умеет быть init и не хоронит их. После нескольких падений браузера контейнер
+# копил зомби, и только это отличало «живой» контейнер от рабочего.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      xvfb xauth tzdata fontconfig ca-certificates \
+      tini xvfb xauth tzdata fontconfig ca-certificates \
       fonts-liberation fonts-dejavu-core fonts-noto-core \
       libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2 libx11-xcb1 \
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
@@ -88,4 +91,4 @@ RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
