@@ -24,7 +24,10 @@ namespace Snail.Toolkit.Web;
 /// may be dropped the moment no answer could come from it any more.
 /// </para>
 /// </remarks>
-internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, DateTimeOffset, bool> isStale)
+internal sealed class Remembered<TValue>(
+    TimeSpan forgetAfter,
+    Func<TValue, DateTimeOffset, bool> isStale,
+    TimeProvider clock)
     where TValue : class
 {
     private readonly ConcurrentDictionary<string, Kept> _kept = new(StringComparer.OrdinalIgnoreCase);
@@ -38,6 +41,8 @@ internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, Date
     {
         if (_kept.TryGetValue(key, out var kept))
         {
+            kept.Asked(clock.GetUtcNow());
+
             value = kept.Value;
 
             return true;
@@ -52,11 +57,15 @@ internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, Date
     public TValue Of(string key, Func<string, TValue> create)
     {
         if (_kept.TryGetValue(key, out var known))
+        {
+            known.Asked(clock.GetUtcNow());
+
             return known.Value;
+        }
 
         Sweep();
 
-        return _kept.GetOrAdd(key, name => new Kept(create(name), DateTimeOffset.UtcNow)).Value;
+        return _kept.GetOrAdd(key, name => new Kept(create(name), clock.GetUtcNow())).Value;
     }
 
     /// <summary>Forgets this host, unless what is remembered about it has been replaced since it was read.</summary>
@@ -87,6 +96,14 @@ internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, Date
     /// different gate. <c>MaxConcurrentPerHost</c> is the setting that exists to make that impossible.
     /// </para>
     /// <para>
+    /// The window is measured from the last time the entry was ASKED FOR, not from when it was made, and that
+    /// difference was read on 2026-09-20. Measured from creation, the rule protects a value made a moment ago
+    /// and nothing else — so a host last visited an hour ago and visited again NOW was swept out from under the
+    /// caller it had just been handed to, whose rest then landed on an object the map no longer held and whose
+    /// successor built a second gate for the same host. Being handed to a caller is the evidence that somebody
+    /// has been to this host lately, which is the whole of what the window asks.
+    /// </para>
+    /// <para>
     /// A value younger than <c>forgetAfter</c> is kept whatever the predicate says, because that
     /// is what the name already promises. It closes every configuration but one: a forgetting of zero is
     /// eager by request, and no rule here can hold against it — a gate is stale the instant it is made.
@@ -95,7 +112,7 @@ internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, Date
     /// </remarks>
     private void Sweep()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = clock.GetUtcNow();
         var due = Interlocked.Read(ref _sweepDue);
 
         if (now.UtcTicks < due)
@@ -108,11 +125,39 @@ internal sealed class Remembered<TValue>(TimeSpan forgetAfter, Func<TValue, Date
 
         foreach (var (key, kept) in _kept)
         {
-            if (kept.AddedAt <= since && isStale(kept.Value, since))
+            if (kept.AskedAt <= since && isStale(kept.Value, since))
                 Forget(key, kept.Value);
         }
     }
 
-    /// <summary>What is remembered about one host, and when this library started remembering it.</summary>
-    private sealed record Kept(TValue Value, DateTimeOffset AddedAt);
+    /// <summary>What is remembered about one host, and when anybody last asked for it.</summary>
+    /// <remarks>
+    /// The instant moves only forwards and is written under <see cref="Interlocked"/>, because every reader of
+    /// the map writes it: two callers arriving together must not leave it holding half of one instant beside
+    /// half of another, and the older of two answers is never the one to keep.
+    /// </remarks>
+    private sealed class Kept(TValue value, DateTimeOffset at)
+    {
+        private long _askedAt = at.UtcTicks;
+
+        public TValue Value => value;
+
+        public DateTimeOffset AskedAt => new(Interlocked.Read(ref _askedAt), TimeSpan.Zero);
+
+        public void Asked(DateTimeOffset at)
+        {
+            var moved = at.UtcTicks;
+            var standing = Interlocked.Read(ref _askedAt);
+
+            while (moved > standing)
+            {
+                var found = Interlocked.CompareExchange(ref _askedAt, moved, standing);
+
+                if (found == standing)
+                    return;
+
+                standing = found;
+            }
+        }
+    }
 }

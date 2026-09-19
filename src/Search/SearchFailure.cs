@@ -133,6 +133,17 @@ public sealed record SearchFailure(SearchFailureKind Kind, string? Message = nul
     public static SearchFailure OutOfTime(string provider)
         => new(SearchFailureKind.OutOfTime, $"{provider} was not asked: the budget for this search ran out.");
 
+    /// <summary>The reason a page of results about something else is recorded as a refusal.</summary>
+    /// <remarks>
+    /// A refusal rather than an empty answer, because that is what it is: the engine did not answer THIS
+    /// caller, and the caller that hears "nothing found" would go on to say so about the world. It rests the
+    /// engine, which is the right reaction to a wall served as a page of links.
+    /// </remarks>
+    public static SearchFailure Unrelated(string provider, int results)
+        => new(
+            SearchFailureKind.Refused,
+            $"{provider} answered a page of {results} results about something other than the query.");
+
     /// <summary>The reason a page was refused by the ceiling on nesting depth rather than read.</summary>
     /// <remarks>
     /// Worded once because four engines say it: the message names the engine, since a caller running several

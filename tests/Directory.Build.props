@@ -14,6 +14,12 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
+    <!--
+      A clock the test moves by hand, with the timers to match: Task.Delay under it finishes when the test
+      says so. Without it every assertion about the pacing gate is an assertion about the machine's load,
+      and the full run occasionally failed on one of them while the same test alone never did.
+    -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all"

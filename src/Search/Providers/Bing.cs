@@ -71,7 +71,12 @@ public sealed partial class Bing(
 
         try
         {
-            return SearchAnswer.Success([.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)]);
+            IReadOnlyList<SearchResult> found =
+                [.. Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted)];
+
+            return Relevance.Answers(query, found)
+                ? SearchAnswer.Success(found)
+                : SearchAnswer.Failed(SearchFailure.Unrelated(ProviderName, found.Count));
         }
         catch (MarkupTooDeepException tooDeep)
         {

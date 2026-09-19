@@ -16,6 +16,7 @@ public sealed class SiteRules : ISiteRules
     private readonly IRobotsSource _source;
     private readonly RobotsOptions _options;
     private readonly Remembered<Entry> _cache;
+    private readonly TimeProvider _clock;
 
     /// <summary>How many origins are currently remembered.</summary>
     internal int RememberedOrigins => _cache.Count;
@@ -26,13 +27,14 @@ public sealed class SiteRules : ISiteRules
     /// two and so forgets an entry a download's worth of time early. That costs at most one extra fetch, and
     /// only for an origin nobody asked about for a whole lifetime — which was going to be re-read anyway.
     /// </remarks>
-    public SiteRules(IRobotsSource source, IOptions<RobotsOptions> options)
+    public SiteRules(IRobotsSource source, IOptions<RobotsOptions> options, TimeProvider? clock = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _source = source;
         _options = options.Value;
-        _cache = new Remembered<Entry>(_options.CacheLifetime, (entry, since) => entry.StartedAt <= since);
+        _clock = clock ?? TimeProvider.System;
+        _cache = new Remembered<Entry>(_options.CacheLifetime, (entry, since) => entry.StartedAt <= since, _clock);
     }
 
     /// <inheritdoc />
@@ -92,7 +94,7 @@ public sealed class SiteRules : ISiteRules
                 throw;
             }
 
-            if (DateTimeOffset.UtcNow - cached.ReadAt <= _options.CacheLifetime)
+            if (_clock.GetUtcNow() - cached.ReadAt <= _options.CacheLifetime)
                 return cached.Rules;
 
             _cache.Forget(origin.AbsoluteUri, entry);
@@ -107,7 +109,7 @@ public sealed class SiteRules : ISiteRules
     /// <see cref="RobotsOptions.CacheLifetime"/>, which is exactly the set an answer can still come from.
     /// </remarks>
     private Entry EntryFor(Uri origin, ProxyEndpoint? proxy)
-        => _cache.Of(origin.AbsoluteUri, _ => new Entry(Deferred(origin, proxy), DateTimeOffset.UtcNow));
+        => _cache.Of(origin.AbsoluteUri, _ => new Entry(Deferred(origin, proxy), _clock.GetUtcNow()));
 
     /// <summary>Starts one read per origin, detached from any single caller's cancellation.</summary>
     /// <remarks>
@@ -122,7 +124,7 @@ public sealed class SiteRules : ISiteRules
     {
         var rules = await _source.ReadAsync(origin, proxy, CancellationToken.None);
 
-        return new Cached(rules, DateTimeOffset.UtcNow);
+        return new Cached(rules, _clock.GetUtcNow());
     }
 
     private sealed record Cached(RobotsFile Rules, DateTimeOffset ReadAt);

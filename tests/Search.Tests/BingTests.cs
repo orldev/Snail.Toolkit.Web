@@ -96,6 +96,44 @@ public class BingTests
         Assert.Equal(Bing.ProviderName, found.Provider);
     }
 
+    /// <summary>
+    /// The page this engine is known to serve instead of an answer: ten confident results about something
+    /// else entirely. It is a refusal, not an empty answer and not a list of links.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-15 from a datacentre address: «"Роснано"» came back as biblical sites and Netflix,
+    /// «отзыв лицензии КИВИ Банк» as car parts and Microsoft sign-in pages. The browser reading of this engine
+    /// has distrusted such a page since 2026-09-15; the HTTP reading kept handing it on, which is the fifteenth
+    /// item on the consumer's list. The rule is one for both roads since 2026-09-20.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_PageOfResultsAboutSomethingElse_IsARefusalRatherThanAnAnswer()
+    {
+        var answer = await Provider(new StubClients(Unrelated(10))).FindAsync("отзыв лицензии КИВИ Банк");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure.Kind);
+        Assert.Contains(Bing.ProviderName, answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
+    /// <summary>And the page that does answer is handed on, which is what says the rule is not a blanket.</summary>
+    [Fact]
+    public async Task FindAsync_PageOfResultsAboutTheQuery_IsAnAnswer()
+    {
+        var answer = await Provider(new StubClients(About(10, "лицензии"))).FindAsync("отзыв лицензии КИВИ Банк");
+
+        Assert.True(answer.IsSuccess);
+        Assert.Equal(10, answer.Value.Count);
+    }
+
+    private static string Unrelated(int results) => About(results, "Rooms and rates");
+
+    private static string About(int results, string subject)
+        => "<ol id=\"b_results\">"
+           + string.Concat(Enumerable.Range(0, results).Select(index =>
+               $"""<li class="b_algo"><h2><a href="https://example.com/{index}">{subject} {index}</a></h2></li>"""))
+           + "</ol>";
+
     /// <summary>The engine with a real block detector, because a wall is read before the markup is parsed.</summary>
     private static Bing Provider(IHttpClientFactory clients)
         => new(clients, new BlockDetector(), Options.Create(new SearchOptions()));

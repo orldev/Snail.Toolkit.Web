@@ -100,10 +100,16 @@ public static class ServiceCollectionExtensions
             return services;
         }
 
-        /// <summary>Registers the per-host gate.</summary>
-        /// <remarks>Singleton because a gate is only a limit while every caller waits at the same one.</remarks>
+        /// <summary>Registers the per-host gate and the clock it reads.</summary>
+        /// <remarks>
+        /// Singleton because a gate is only a limit while every caller waits at the same one. The clock is
+        /// registered beside it rather than taken for granted, so a host that keeps its own
+        /// <see cref="TimeProvider"/> — a test moving time by hand, a deployment with a clock of its own —
+        /// is the one this library reads.
+        /// </remarks>
         public IServiceCollection AddPoliteness()
         {
+            services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton<IPoliteness, HostPoliteness>();
 
             return services;

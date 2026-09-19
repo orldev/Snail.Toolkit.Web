@@ -300,11 +300,16 @@ public class DuckDuckGoTests
             });
         }
 
+        /// <summary>
+        /// The titles carry the query, as a real page's do: since 2026-09-20 a page whose results say nothing
+        /// about what was asked is read as a refusal rather than an answer, and a fixture that did not say it
+        /// would be testing pagination against a page the library is right to distrust.
+        /// </summary>
         private static string Results(int offset)
             => string.Concat(Enumerable.Range(offset, 2).Select(index =>
                 $"""
                  <div class="web-result">
-                   <a class="result__a" href="https://example.com/{index}">Result {index}</a>
+                   <a class="result__a" href="https://example.com/{index}">Grain report {index}</a>
                  </div>
                  """));
 

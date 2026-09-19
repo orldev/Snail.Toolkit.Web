@@ -96,10 +96,16 @@ internal static class Spread
 
     /// <summary>Whether more should be read before choosing, counting only the hosts that could be used now.</summary>
     /// <remarks>
+    /// The clock here is the system's, where the rest of the toolkit reads an injected
+    /// <see cref="TimeProvider"/> since 2026-09-20, and that is deliberate: this decides what to OFFER a
+    /// worker next, never whether it may go, so being wrong costs a worker queueing at a gate — which is what
+    /// it did for every item before this existed. Nothing observes the difference, so nothing could test it.
+    /// <para>
     /// Counting hosts rather than usable hosts is what the first version did, and it reduced the whole thing
     /// to nothing in the case it was written for: with three workers and three sites resting at the head of
     /// the list, three hosts were in hand and two of them shut, so at most one worker could be given anything.
     /// Measured on 2026-09-14 — two pages read in the window where eighteen were waiting.
+    /// </para>
     /// </remarks>
     private static bool Wanting<T>(
         Dictionary<string, Queue<T>> waiting,

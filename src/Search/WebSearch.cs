@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
@@ -103,12 +104,19 @@ public sealed class WebSearch(
                 yield return Unasked(provider, until, query);
         }
 
-        var work = queries.SelectMany(query => Turn(awake).Select(provider => (Provider: provider, Query: query)));
+        // Which engines are worth a place is decided as each query's turn is drawn rather than once for the
+        // batch, because the answer changes while the batch runs: the engine that refused the first query
+        // cannot answer the second, and the one whose parser is broken cannot answer any of them.
+        var faulted = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
 
-        using var timed = budget is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var work = queries.SelectMany(query =>
+            Turn(awake, faulted).Select(provider => (Provider: provider, Query: query)));
 
-        if (timed is not null && budget is { } limit)
-            timed.CancelAfter(limit);
+        // The budget's own source runs on the same clock the deadline below is read from, so a deployment or a
+        // test that keeps its own TimeProvider is obeyed by both halves of the same promise. It is deliberately
+        // NOT linked to the caller's token: what it means is "the budget ran out", and the caller cancelling is
+        // a different sentence that the fan-out already tells.
+        using var timed = budget is { } limit ? new CancellationTokenSource(limit, clock) : null;
 
         var deadline = budget is { } span ? clock.GetUtcNow() + span : (DateTimeOffset?)null;
         var spent = timed?.Token ?? CancellationToken.None;
@@ -128,7 +136,12 @@ public sealed class WebSearch(
             {
                 using var both = CancellationTokenSource.CreateLinkedTokenSource(fanned, spent);
 
-                return await AffordableAsync(item.Provider, item.Query, deadline, spent, both.Token);
+                var attempt = await AffordableAsync(item.Provider, item.Query, deadline, spent, both.Token);
+
+                if (attempt.Failure?.Kind is SearchFailureKind.Faulted)
+                    faulted.TryAdd(item.Provider.Name, 0);
+
+                return attempt;
             },
             Unexpected,
             _options.MaxDegreeOfParallelism,
@@ -265,13 +278,35 @@ public sealed class WebSearch(
     /// The round runs over the providers awake for this search, so a resting one is skipped rather than
     /// counted as a turn, and its share goes to the ones that can take it. A provider named in
     /// <see cref="SearchOptions.AlwaysAsked"/> stands outside the round and joins every query.
+    /// <para>
+    /// A PLACE IN THE ROUND GOES TO AN ENGINE THAT CAN USE IT. Measured by a consumer on 2026-09-16: four
+    /// engines, two places per query — both places went to an engine resting after a refusal and one whose
+    /// parser was faulting, and the engine that answers that subject well was never asked. So an engine that
+    /// has refused, or that has already faulted in this batch, stands aside while a healthy one is free.
+    /// </para>
+    /// <para>
+    /// It stands aside, it is not dropped: a fault is still asked for once, because resting an engine over our
+    /// own defect is how the defect stops being visible, and when there are not enough healthy engines to fill
+    /// the places the faulted ones take them again. Nothing here is remembered past this batch — a parser is
+    /// mended by a release, not by a timer, and the next search finds out for itself.
+    /// </para>
     /// </remarks>
-    private IReadOnlyList<ISearchProvider> Turn(IReadOnlyList<ISearchProvider> awake)
+    private IReadOnlyList<ISearchProvider> Turn(
+        IReadOnlyList<ISearchProvider> awake,
+        IReadOnlyDictionary<string, byte> faulted)
     {
-        var spared = awake.Where(provider => !IsAlwaysAsked(provider)).ToArray();
+        var healthy = awake
+            .Where(provider => !faulted.ContainsKey(provider.Name) && cooldown.RestingUntil(provider.Name) is null)
+            .ToArray();
+
+        var able = healthy.Count(provider => !IsAlwaysAsked(provider)) >= _options.ProvidersPerQuery
+            ? healthy
+            : awake;
+
+        var spared = able.Where(provider => !IsAlwaysAsked(provider)).ToArray();
 
         if (spared.Length <= _options.ProvidersPerQuery)
-            return awake;
+            return able;
 
         lock (_round)
         {
@@ -281,7 +316,7 @@ public sealed class WebSearch(
 
             return
             [
-                .. awake.Where(IsAlwaysAsked),
+                .. able.Where(IsAlwaysAsked),
                 .. Enumerable.Range(first, _options.ProvidersPerQuery).Select(index => spared[index % spared.Length])
             ];
         }

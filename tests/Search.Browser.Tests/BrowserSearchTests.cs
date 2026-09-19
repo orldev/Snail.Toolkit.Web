@@ -155,7 +155,9 @@ public class BrowserSearchTests
     {
         var page = string.Join('\n', Enumerable.Range(0, 50).Select(index => $"https://example.com/{index}"));
 
-        var answer = await Engine(new StubReader(_ => Fixture.Read(page)), maxResults: 5).FindAsync("grain");
+        // The query is a word the page's own titles carry: a page of fifty results saying nothing about what
+        // was asked is a refusal since 2026-09-20, and what this test is about is the ceiling.
+        var answer = await Engine(new StubReader(_ => Fixture.Read(page)), maxResults: 5).FindAsync("example");
 
         Assert.Equal(5, answer.Value.Count);
         Assert.Equal("https://example.com/0", answer.Value[0].Address.Text);

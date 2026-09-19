@@ -44,6 +44,8 @@ An empty answer counts: the engine let the request through, and that is the whol
 
 **Refused** — Records that a provider refused, and answers how long it will now be left alone.
 
+A refusal that arrives while the rest still runs is not a further refusal: it is a request that was already in flight when the engine closed, and it answers what is left of the running rest.
+
 **RestingUntil** — When the rest of a provider that must not be asked ends, or nothing when it may be asked.
 
 The instant rather than a yes-or-no since 2026-09-15, and for a reason outside this interface: a provider left out of a search is a fact the CALLER has to be able to state — "not asked, resting until 14:20" reads differently from "asked and said nothing", and a boolean can only produce the first half of that sentence. Answering nothing rather than an instant in the past keeps the question single: a caller asks whether it may ask, and gets the reason it may not.
@@ -145,6 +147,8 @@ Keeps a refused provider out of the set for a rest that doubles with every furth
 
 The first refusal starts a rest of `RefusalCooldown`; a refusal after the rest has run out doubles it, up to `MaxRefusalCooldown`; an answer clears the record. The run of refusals is remembered across rests on purpose: an engine that refuses, waits out five minutes and refuses again is saying that five minutes was not enough. Only a refusal counts — a fault leaves the record untouched, because resting an engine over a parser that no longer follows its markup would hide the one thing that needed fixing.
 
+A refusal inside a running rest leaves it as it is. Until 2026-09-20 each one doubled it, and a search running four requests at once, or a batch that kept asking, turned one refusal into the one-hour ceiling: measured that day, five queries to one refusing engine rested it for an hour instead of five minutes.
+
 There is no separate probing state. A rest that has run out lets the next request through, and the answer to that request either clears the record or doubles the rest; that is the whole mechanism.
 
 
@@ -164,11 +168,19 @@ No instant here on purpose: the budget ran out, and when this provider's host wo
 
 **Resting** — The reason a provider was left out of a search rather than asked.
 
+**Shut** — The reason a provider whose host stays shut for longer than one request may take was left out.
+
+The same fact as `TooLate` measured against a different promise: there the caller named a budget, here the deployment named how long one request may take. Both are the gate answering before the request rather than the request waiting at it.
+
 **TooLate** — The reason a provider whose host opens too late was left out of a search.
 
 **Unreadable** — The reason a page was refused by the ceiling on nesting depth rather than read.
 
 Worded once because four engines say it: the message names the engine, since a caller running several of them has to know whose page it was, and names the ceiling rather than the depth the page reached — the parser stops counting at the ceiling and never learns how much deeper the markup went.
+
+**Unrelated** — The reason a page of results about something else is recorded as a refusal.
+
+A refusal rather than an empty answer, because that is what it is: the engine did not answer THIS caller, and the caller that hears "nothing found" would go on to say so about the world. It rests the engine, which is the right reaction to a wall served as a page of links.
 
 
 ## SearchFailureKind
@@ -235,6 +247,8 @@ A challenge page is not an error in the query but a reaction to how often it was
 **Timeout** — Gets or sets how long one provider request may take, retries included.
 
 Spent by the resilience pipeline rather than by `Timeout`, and divided into a per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when the host starts rather than surfacing as a pipeline validation error on the first query.
+
+A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes — runs out of it when asked again before the gap is over, which is the setting doing what it says.
 
 
 ## SearchOutcome

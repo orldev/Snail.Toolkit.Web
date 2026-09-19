@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-13 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+16 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -107,6 +107,15 @@ Disposing gives the permission back. Failing to dispose removes it from circulat
 A `429` is the site saying how often it is willing to be asked, and `Retry-After` is the only part of that answer with a number in it. Until 2026-09-14 nothing here read the header at all, so a refusal by frequency was answered with three more requests on a schedule of our own — the toolkit's reply to "too often" was to ask again, sooner than asked.
 
 
+## PageFailure.IsRefusal
+
+`2026-09-14`, `2026-09-20`
+
+*Gets whether the site turned the request away, as distinct from failing to answer it.*
+
+A wall, a `429`, a `403` and a `503`: the four shapes in which a site says it will not answer this caller now. The HTTP side of the toolkit has read the same three statuses as a refusal since 2026-09-14; the browser side read only a wall and a `429` until 2026-09-20, so a browser engine answering `403` was a fault — never rested, asked again at every query. What a refusal calls for is asking less, which is the opposite of what a fault calls for, and that is why the two are told apart.
+
+
 ## Reaper
 
 `2026-09-14` · *internal*
@@ -149,3 +158,21 @@ Every step here is something that can fail, and none of them may take the rest d
 NEITHER GATE IS DISPOSED — not `_opening` here, and not the one inside `Permits`, which is why that type has no `Dispose` to call. A caller released after shutdown would meet a disposed object, and nothing here holds a handle worth reclaiming: `SemaphoreSlim` allocates one only for `AvailableWaitHandle`, which nobody asks for. `Dispose` does not wake anybody waiting on it either — a caller queued behind an opening browser was left on a gate nobody would open again and never returned at all. MEASURED on 2026-09-15: the test host had to be killed.
 
 The rule held for the page semaphore from the start and was not extended to this one, which is exactly the kind of omission a paragraph cannot prevent and a type can. Half of it is now enforced by `Permits` having no way to be disposed; this field is the half still kept by hand, and it is kept here rather than moved because what it guards — publishing the browser — is what shutdown races with.
+
+
+## Driver
+
+`2026-09-15` · *internal*
+
+*Holds the Playwright installation and opens browsers from it, launched here or connected to elsewhere.*
+
+The installation is started once and kept, because unpacking it is the expensive part and every browser after the first comes from the same one. A start that FAILED is not kept, and that distinction is the whole of this class: a `Lazy<Task<IPlaywright>>` caches the task, so one failure — a machine busy while the driver unpacks, a temporary file that was not there yet — answered every later rent with the same exception until the process restarted. It was named in the code as undemonstrable on 2026-09-15, since `CreateAsync` is static and no test can make it fail. Asking for it through a function rather than by name is what made it demonstrable, and the test that follows failed before this was written.
+
+
+## BrowserFailure.KindOf
+
+`2026-09-20` · *internal*
+
+*Reads what Playwright said into the kind a caller branches on.*
+
+A broken WebSocket is the browser going away, not a page that would not load. Until 2026-09-20 it read as `Navigation` — a statement about the SITE — and a measurement on 16.09.2026 shows why that matters: one heavy page killed Firefox inside the container, the Playwright server closed with it, and every caller saw `WebSocket error: socket hang up` on whatever page it happened to be reading. A reader looking at that line goes to the site; the thing to look at was the browser.

@@ -18,17 +18,25 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
 
     private readonly PolitenessOptions _options;
     private readonly Remembered<Gate> _gates;
+    private readonly TimeProvider _clock;
 
     /// <summary>How many hosts are currently remembered.</summary>
     internal int RememberedHosts => _gates.Count;
 
     /// <summary>Builds the gate from the configured pacing.</summary>
-    public HostPoliteness(IOptions<PolitenessOptions> options)
+    /// <param name="options">The pacing every host is held to.</param>
+    /// <param name="clock">
+    /// The clock every instant here is read from. Optional so that a consumer registering nothing keeps the
+    /// system clock, and injected so that a test can move time instead of waiting it out: every assertion
+    /// about this gate used to be an assertion about the machine's load as well.
+    /// </param>
+    public HostPoliteness(IOptions<PolitenessOptions> options, TimeProvider? clock = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options.Value;
-        _gates = new Remembered<Gate>(_options.ForgetHostAfter, (gate, since) => gate.IsIdleSince(since));
+        _clock = clock ?? TimeProvider.System;
+        _gates = new Remembered<Gate>(_options.ForgetHostAfter, (gate, since) => gate.IsIdleSince(since), _clock);
     }
 
     /// <inheritdoc />
@@ -45,9 +53,9 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
 
         try
         {
-            await DelayAsync(gate, requested, ct);
+            await DelayAsync(gate, requested, _clock, ct);
 
-            return new Turn(gate);
+            return new Turn(gate, _clock);
         }
         catch
         {
@@ -81,7 +89,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         if (gap <= TimeSpan.Zero)
             return;
 
-        var from = DateTimeOffset.UtcNow;
+        var from = _clock.GetUtcNow();
 
         GateFor(url.Host).RestUntil(gap < DateTimeOffset.MaxValue - from ? from + gap : DateTimeOffset.MaxValue);
     }
@@ -118,7 +126,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
 
         var free = gate.Slots.CurrentCount > 0
             ? gate.ReleasedAt + gate.Floor
-            : DateTimeOffset.UtcNow + gate.Floor;
+            : _clock.GetUtcNow() + gate.Floor;
 
         return free > gate.RestingUntil ? free : gate.RestingUntil;
     }
@@ -132,14 +140,14 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
     /// process ran. A rest that long is a site to be left alone, not a defect to be raised at whoever arrives
     /// next — and a caller that will not wait it out cancels, which is the answer it already had.
     /// </remarks>
-    private static async Task DelayAsync(Gate gate, TimeSpan? requested, CancellationToken ct)
+    private static async Task DelayAsync(Gate gate, TimeSpan? requested, TimeProvider clock, CancellationToken ct)
     {
         var wanted = requested > gate.Floor ? requested.Value : gate.Floor;
         var ready = gate.ReleasedAt + wanted;
         var opens = ready > gate.RestingUntil ? ready : gate.RestingUntil;
 
-        while (opens - DateTimeOffset.UtcNow is { Ticks: > 0 } remaining)
-            await Task.Delay(remaining < LongestStretch ? remaining : LongestStretch, ct);
+        while (opens - clock.GetUtcNow() is { Ticks: > 0 } remaining)
+            await Task.Delay(remaining < LongestStretch ? remaining : LongestStretch, clock, ct);
     }
 
     /// <inheritdoc />
@@ -204,7 +212,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         }
     }
 
-    private sealed class Turn(Gate gate) : IAsyncDisposable
+    private sealed class Turn(Gate gate, TimeProvider clock) : IAsyncDisposable
     {
         private int _isReleased;
 
@@ -212,7 +220,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         {
             if (Interlocked.Exchange(ref _isReleased, 1) == 0)
             {
-                gate.Released(DateTimeOffset.UtcNow);
+                gate.Released(clock.GetUtcNow());
                 gate.Slots.Release();
             }
 

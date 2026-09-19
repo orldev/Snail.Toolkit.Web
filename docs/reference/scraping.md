@@ -559,6 +559,10 @@ The original exception is kept on `Cause` instead of being flattened into `Messa
 
 **Cause** — Gets the exception this failure was translated from.
 
+**IsRefusal** — Gets whether the site turned the request away, as distinct from failing to answer it.
+
+A wall, a `429`, a `403` and a `503`: the four shapes in which a site says it will not answer this caller now. The HTTP side of the toolkit has read the same three statuses as a refusal since 2026-09-14; the browser side read only a wall and a `429` until 2026-09-20, so a browser engine answering `403` was a fault — never rested, asked again at every query. What a refusal calls for is asking less, which is the opposite of what a fault calls for, and that is why the two are told apart.
+
 **IsTransient** — Gets whether trying again with a different identity or proxy could succeed.
 
 Retrying a `RobotsDisallowed` or an `Empty` answer only repeats the same work: the site already gave its final answer. The same is true of most client errors — a 404 is a fact about the URL, and retrying it three times with exponential backoff spends minutes to be told the same thing. A 429 is the exception, because it explicitly asks for a later attempt, as does anything the server blames on itself.

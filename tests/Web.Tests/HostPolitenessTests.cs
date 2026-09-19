@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Politeness;
 
 namespace Snail.Toolkit.Web.Tests;
@@ -10,25 +11,31 @@ namespace Snail.Toolkit.Web.Tests;
 public class HostPolitenessTests
 {
     /// <summary>
-    /// The gap is measured from the moment the previous request finished. Two hundred milliseconds is long
-    /// enough to measure without making the suite slow; the assertion allows for timer coarseness.
+    /// The gap is measured from the moment the previous request finished: until it has passed the gate holds
+    /// the next caller, and when it has passed the caller goes through.
     /// </summary>
+    /// <remarks>
+    /// Time is moved by hand rather than waited out. Until 2026-09-20 these assertions read a stopwatch, so
+    /// each of them was also an assertion about how loaded the machine was — and the full run failed on one of
+    /// them twice in six runs while the same test alone never did.
+    /// </remarks>
     [Fact]
     public async Task EnterAsync_SecondTurnOnOneHost_WaitsTheConfiguredGap()
     {
-        using var politeness = Gate(TimeSpan.FromMilliseconds(200), 1);
+        var clock = new FakeTimeProvider();
+        using var politeness = Gate(TimeSpan.FromSeconds(30), 1, clock);
 
         await using (await politeness.EnterAsync(new Uri("https://example.com/a")))
         {
         }
 
-        var started = Stopwatch.GetTimestamp();
+        var entering = politeness.EnterAsync(new Uri("https://example.com/b"));
 
-        await using (await politeness.EnterAsync(new Uri("https://example.com/b")))
-        {
-        }
+        Assert.False(await Opened(entering));
 
-        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        await entering.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>Limits are per host, so a crawl spread across many sites keeps its throughput.</summary>
@@ -50,38 +57,40 @@ public class HostPolitenessTests
     [Fact]
     public async Task EnterAsync_SiteAsksForALongerGap_WaitsThatLong()
     {
-        using var politeness = Gate(TimeSpan.Zero, 1);
+        var clock = new FakeTimeProvider();
+        using var politeness = Gate(TimeSpan.Zero, 1, clock);
 
         await using (await politeness.EnterAsync(new Uri("https://example.com/a")))
         {
         }
 
-        var started = Stopwatch.GetTimestamp();
+        var entering = politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.FromSeconds(30));
 
-        await using (await politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.FromMilliseconds(200)))
-        {
-        }
+        Assert.False(await Opened(entering));
 
-        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        await entering.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>A site asking for a short gap cannot talk a careful caller down to it.</summary>
     [Fact]
     public async Task EnterAsync_SiteAsksForAShorterGap_KeepsTheConfiguredOne()
     {
-        using var politeness = Gate(TimeSpan.FromMilliseconds(200), 1);
+        var clock = new FakeTimeProvider();
+        using var politeness = Gate(TimeSpan.FromSeconds(30), 1, clock);
 
         await using (await politeness.EnterAsync(new Uri("https://example.com/a")))
         {
         }
 
-        var started = Stopwatch.GetTimestamp();
+        var entering = politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.Zero);
 
-        await using (await politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.Zero))
-        {
-        }
+        Assert.False(await Opened(entering));
 
-        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        await entering.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>
@@ -91,38 +100,40 @@ public class HostPolitenessTests
     [Fact]
     public async Task EnterAsync_HostWithItsOwnGap_WaitsThatLong()
     {
-        using var politeness = Gate(TimeSpan.Zero, 1, ("engine.example", TimeSpan.FromMilliseconds(200)));
+        var clock = new FakeTimeProvider();
+        using var politeness = Gate(TimeSpan.Zero, 1, clock, ("engine.example", TimeSpan.FromSeconds(30)));
 
         await using (await politeness.EnterAsync(new Uri("https://engine.example/a")))
         {
         }
 
-        var started = Stopwatch.GetTimestamp();
+        var entering = politeness.EnterAsync(new Uri("https://engine.example/b"));
 
-        await using (await politeness.EnterAsync(new Uri("https://engine.example/b")))
-        {
-        }
+        Assert.False(await Opened(entering));
 
-        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        await entering.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>A host beneath a named one inherits its gap, so one line covers a site together with its subdomains.</summary>
     [Fact]
     public async Task EnterAsync_HostBeneathANamedOne_InheritsItsGap()
     {
-        using var politeness = Gate(TimeSpan.Zero, 1, ("example.com", TimeSpan.FromMilliseconds(200)));
+        var clock = new FakeTimeProvider();
+        using var politeness = Gate(TimeSpan.Zero, 1, clock, ("example.com", TimeSpan.FromSeconds(30)));
 
         await using (await politeness.EnterAsync(new Uri("https://news.example.com/a")))
         {
         }
 
-        var started = Stopwatch.GetTimestamp();
+        var entering = politeness.EnterAsync(new Uri("https://news.example.com/b"));
 
-        await using (await politeness.EnterAsync(new Uri("https://news.example.com/b")))
-        {
-        }
+        Assert.False(await Opened(entering));
 
-        Assert.True(Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(150));
+        clock.Advance(TimeSpan.FromSeconds(30));
+
+        await entering.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     /// <summary>The cut is at a dot: <c>ample.com</c> is not a parent of <c>example.com</c>, however it ends.</summary>
@@ -299,14 +310,29 @@ public class HostPolitenessTests
             ForgetHostAfter = forgetAfter
         }));
 
+    /// <summary>Whether a caller got through without anybody moving the clock.</summary>
+    /// <remarks>
+    /// A gate that is shut cannot open on its own under a clock nothing advances, so the wait here bounds a
+    /// mistake rather than a machine: it can only be reached by the gate letting somebody through early.
+    /// </remarks>
+    private static async Task<bool> Opened(Task<IAsyncDisposable> entering)
+        => entering == await Task.WhenAny(entering, Task.Delay(TimeSpan.FromMilliseconds(50)));
+
     private static HostPoliteness Gate(
         TimeSpan minDelay,
         int maxConcurrent,
+        params (string Host, TimeSpan Gap)[] gentler)
+        => Gate(minDelay, maxConcurrent, TimeProvider.System, gentler);
+
+    private static HostPoliteness Gate(
+        TimeSpan minDelay,
+        int maxConcurrent,
+        TimeProvider clock,
         params (string Host, TimeSpan Gap)[] gentler)
         => new(Options.Create(new PolitenessOptions
         {
             MinDelayPerHost = minDelay,
             MaxConcurrentPerHost = maxConcurrent,
             HostDelays = gentler.ToDictionary(named => named.Host, named => named.Gap, StringComparer.OrdinalIgnoreCase)
-        }));
+        }), clock);
 }

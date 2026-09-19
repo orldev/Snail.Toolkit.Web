@@ -158,41 +158,4 @@ public sealed class Bing(
             return null;
         }
     }
-
-    /// <inheritdoc />
-    /// <remarks>
-    /// THIS ENGINE CAN HAND BACK A PAGE THAT IS NOT AN ANSWER, and it does so confidently: ten results, right
-    /// markup, wrong subject. Measured on 2026-09-15 across six such pages and six real ones, the difference
-    /// is plain — on a real answer eight to ten of ten results carry a word of the query in their title or
-    /// their description, and on a page about something else none of them do. A single hit is enough here:
-    /// the rule exists to catch a page about nothing to do with the question, not to judge how well the
-    /// engine answered it.
-    /// <para>
-    /// Words shorter than four characters are ignored because they match by accident, and a query made only
-    /// of them is not judged at all — refusing a page because «ООО» was not found would lose real answers.
-    /// </para>
-    /// </remarks>
-    protected override bool Answers(string query, IReadOnlyList<SearchResult> results)
-    {
-        ArgumentNullException.ThrowIfNull(results);
-
-        var words = Words(query);
-
-        if (words.Count == 0)
-            return true;
-
-        return results.Any(result => words.Any(word =>
-            result.Title.Contains(word, StringComparison.OrdinalIgnoreCase)
-            || result.Snippet.Contains(word, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    /// <summary>The parts of a query long enough to mean something when found in a title.</summary>
-    private static IReadOnlyList<string> Words(string query)
-        =>
-        [
-            .. query
-                .Split([' ', '"', '\'', '+', ',', ';', ':', '(', ')'], StringSplitOptions.RemoveEmptyEntries)
-                .Where(word => word.Length >= 4)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-        ];
 }

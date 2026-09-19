@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Politeness;
 
 namespace Snail.Toolkit.Web.Tests;
@@ -48,7 +49,7 @@ public class RememberedRaceTests
         // A real forgetting window rather than zero. Zero was the first draft and it asserts the impossible:
         // "forget immediately" is what it asks for, so nothing can promise the entry survives. The window has
         // to be short enough that the sweep throttle — a quarter of it — lets the second arrival sweep.
-        var remembered = new Remembered<Gate>(Window, (gate, since) => gate.RestingUntil <= since);
+        var remembered = new Remembered<Gate>(Window, (gate, since) => gate.RestingUntil <= since, TimeProvider.System);
 
         var mine = remembered.Of("a.example", _ => new Gate());
 
@@ -64,7 +65,50 @@ public class RememberedRaceTests
         Assert.Same(mine, remembered.Of("a.example", _ => new Gate()));
     }
 
-    /// <summary>A host held to one request at a time is still held to one when the map forgets it.</summary>
+    /// <summary>
+    /// The same window on an entry that is genuinely old: the residency rule cannot help there, and the caller
+    /// holding the value is in exactly the position the rule was written to protect.
+    /// </summary>
+    /// <remarks>
+    /// Read on 2026-09-20. The cure of 2026-09-15 keeps an entry for its first window, which closes the case
+    /// where the value was made a moment ago. It says nothing about a host visited an hour ago and visited
+    /// again now: that entry is older than any window, its gate is idle because nothing has happened on it
+    /// since, and the caller that has just been handed it is one <c>await</c> away from entering it. A sweep in
+    /// that moment drops the gate the caller holds — so its rest is written where nobody will read it, and the
+    /// next caller builds a second gate for the same host.
+    /// <para>
+    /// Deterministic: the clock is moved by hand, so "old" is a fact rather than a wait, and the sweep is
+    /// triggered by the arrival of a host nobody has mentioned, which is the only moment anything is swept.
+    /// </para>
+    /// <para>
+    /// The cure is to measure the window from the last time the entry was ASKED FOR rather than from when it
+    /// was made. What a per-host window means is "nobody has been to this host lately", and being handed to a
+    /// caller is exactly the evidence that somebody has.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Of_AgedValueHandedOutAndThenWrittenTo_IsStillTheValueTheMapHolds()
+    {
+        var clock = new FakeTimeProvider();
+        var remembered = new Remembered<Gate>(Window, (gate, since) => gate.RestingUntil <= since, clock);
+
+        remembered.Of("a.example", _ => new Gate());
+
+        // Nobody goes near that host for far longer than the forgetting window, and then somebody does.
+        clock.Advance(Window * 4);
+
+        var mine = remembered.Of("a.example", _ => new Gate());
+
+        // Another caller arrives with a host nobody has mentioned, which is what sweeps.
+        remembered.Of("b.example", _ => new Gate());
+
+        // Only now does the caller write down what it learned — the site asked to be left alone.
+        mine.RestingUntil = clock.GetUtcNow() + Long;
+
+        Assert.Same(mine, remembered.Of("a.example", _ => new Gate()));
+    }
+
+    /// <summary>A host held to one request at a time is still held to one when the map forgets it.</summary>    /// <summary>A host held to one request at a time is still held to one when the map forgets it.</summary>
     /// <remarks>
     /// The other consequence of the same window, and the more expensive one. <c>EnterAsync</c> takes the gate
     /// and then waits on its semaphore; a sweep in between drops that gate, so the next caller for the same

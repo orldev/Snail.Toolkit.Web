@@ -159,6 +159,54 @@ public class WebSearchTests
     }
 
     /// <summary>
+    /// A place in the round is worth something, and an engine that has just failed cannot use it: the query
+    /// after it goes to an engine that can answer, while the failing one is still asked once so the failure
+    /// stays visible.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED by the consumer on 2026-09-16: four engines, two per query — the round handed both places to
+    /// one engine resting after a refusal and one that was faulting, and never asked the engine that answers
+    /// this query well. The search came back empty about a subject the third engine has plenty on.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_ProviderThatFaulted_GivesUpItsPlaceInTheRoundToOneThatCanAnswer()
+    {
+        var asked = 0;
+        var faulting = new StubProvider("A", _ =>
+        {
+            asked++;
+
+            throw new InvalidOperationException("parser no longer follows the markup");
+        });
+        var options = new SearchOptions { ProvidersPerQuery = 2, MaxDegreeOfParallelism = 1 };
+        var search = Search(options, faulting, Answering("B", "https://example.com/b"), Answering("C", "https://example.com/c"));
+
+        var outcome = await search.FindAsync(["q1", "q2", "q3"]);
+
+        Assert.Equal(1, asked);
+        Assert.Equal(["B", "C"], AskedFor(outcome, "q3"));
+    }
+
+    /// <summary>
+    /// A resting engine gives up its place for the same reason, and that is the other half of the same
+    /// measurement: its place went to nobody, so a query with two places got one answer.
+    /// </summary>
+    [Fact]
+    public async Task FindAsync_ProviderThatRefused_GivesUpItsPlaceInTheRoundToOneThatCanAnswer()
+    {
+        var options = new SearchOptions { ProvidersPerQuery = 2, MaxDegreeOfParallelism = 1 };
+        var search = Search(
+            options,
+            Refusing("A"),
+            Answering("B", "https://example.com/b"),
+            Answering("C", "https://example.com/c"));
+
+        var outcome = await search.FindAsync(["q1", "q2"]);
+
+        Assert.Equal(["B", "C"], AskedFor(outcome, "q2"));
+    }
+
+    /// <summary>
     /// A fault is ours — a parser that lost the markup, a socket that died — and resting the engine over it
     /// would hide exactly the thing that needs fixing.
     /// </summary>

@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-17 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+18 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -15,13 +15,15 @@ One gap for every host is the wrong shape for a client that talks to a search en
 
 ## BlockDetector
 
-`2026-09-13`
+`2026-09-13`, `2026-09-15`
 
 *Matches the markers challenge and consent pages leave in the document or in the final URL.*
 
 The URL is inspected as well as the body because the most common refusals are redirects: Google answers with `/sorry/` and sends European visitors to a consent host, and neither page carries any of the markup markers. An earlier version watched the body alone, so a refusal arrived as a successful fetch whose parse found nothing, and the failure was recorded as "empty" rather than "blocked". The generic words `captcha` and `blocked` are deliberately absent from both lists: an article that discusses captchas would match them, and a false block is worse than a missed one — it burns a proxy and a retry.
 
 That rule was written for the markup and broken by the URL beside it, where the bare word stood until 2026-09-13: any address carrying it — `/blog/how-captcha-works` — was called a refusal, and because a refusal is transient the reader then spent three identities proving it again. A signal belongs here only when the words are a refusal wherever they appear, which is why what is left are whole paths and hosts.
+
+THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own wall answered `202` — a success status — with 14 228 bytes reading "Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha widget, and the word that appears sixty-seven times on that page — `anomaly` — is exactly the bare word this list refuses to carry, since an article about anomaly detection would match it. What was taken instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
 
 
 ## ContentBudget.Apply
@@ -90,18 +92,9 @@ The subtle part is the part worth having once. Forgetting happens on the arrival
 What counts as no longer worth keeping is the caller's to say, because the two maps disagree about it: a pacing gate may only be dropped when nobody is inside it and it is holding nobody back, while a cached file may be dropped the moment no answer could come from it any more.
 
 
-## Spread.Wanting
-
-`2026-09-14` · *internal*
-
-*Whether more should be read before choosing, counting only the hosts that could be used now.*
-
-Counting hosts rather than usable hosts is what the first version did, and it reduced the whole thing to nothing in the case it was written for: with three workers and three sites resting at the head of the list, three hosts were in hand and two of them shut, so at most one worker could be given anything. Measured on 2026-09-14 — two pages read in the window where eighteen were waiting.
-
-
 ## Fanout.Ended
 
-`2026-09-15` · *internal*
+`2026-09-15`, `2026-09-20` · *internal*
 
 *Waits for the producer to finish, and stops waiting if it will not.*
 
@@ -109,9 +102,11 @@ Tying the producer to the enumeration is what keeps it from blocking forever on 
 
 The grace period is long enough that an orderly stop is always awaited and short enough that a disorderly one is not mistaken for progress; the work is then left to finish on its own, where its exception is observed rather than raised at a caller that has already gone.
 
-WHOSE CARELESSNESS THIS GUARDS AGAINST CHANGED ON 2026-09-15, and the paragraph is rewritten rather than left standing because it had become untrue. This bound was added while `Fanout` was public, and the reason given was that the work would be a stranger's; the type is internal now, so there is no stranger. Both callers that exist — the crawler under Playwright's navigation timeout, the search under a Polly total-request timeout — are bounded by something else, and neither can produce the failure this prevents.
+WHOSE CARELESSNESS THIS GUARDS AGAINST CHANGED ON 2026-09-15, and the paragraph is rewritten rather than left standing because it had become untrue. This bound was added while `Fanout` was public, and the reason given was that the work would be a stranger's; the type is internal now, so there is no stranger.
 
-It is kept anyway, and the justification is weaker than the one it replaces: what it now guards against is OUR OWN next caller. Nothing about this type makes a third one expensive to add, and nothing about it warns that the work handed over must watch its token — the requirement lives here, in prose, where an author reaching for bounded parallelism will not look. The cost of keeping it is a timer that never elapses. That is a smaller price than the failure, which is silent: a consumer that has already left the loop, still held.
+That paragraph went on to say that neither caller that exists could produce the failure this prevents, and on 2026-09-20 it was MEASURED FALSE: the search handed its attempts a token of its own and threw away the one given here, so a caller that broke out of the loop waited the full grace while a slow engine ran on. The search now listens to this token as well. The bound is what caught it — the caller waited five seconds rather than for as long as the engine liked.
+
+It is kept, and the reason is no longer a supposition: what it guards against is OUR OWN caller, and one of ours has already been that caller. Nothing about this type makes a third one expensive to add, and nothing about it warns that the work handed over must watch its token — the requirement lives here, in prose, where an author reaching for bounded parallelism will not look. The cost of keeping it is a timer that elapses only when a caller has made that mistake. That is a smaller price than the failure, which is silent: a consumer that has already left the loop, still held.
 
 
 ## HostPoliteness.Rest
@@ -162,13 +157,15 @@ Case is compared here rather than left to the dictionary's own comparer: the def
 
 ## Remembered.Sweep
 
-`2026-09-15` · *internal*
+`2026-09-15`, `2026-09-20` · *internal*
 
 *Drops what is no longer worth keeping, and never what has only just arrived.*
 
 The residency check is the fix for a defect this class had from the day it was written, and it is worth stating because the predicate looks like it already covers it and does not. `Of` hands back a value with nothing written to it yet — a gate holding nobody, an entry whose read has not started — which is exactly the state `isStale` is looking for. The next arrival of an unknown key therefore swept it away before its owner had written anything, and the owner's write then landed on an object the map no longer held.
 
 MEASURED on 2026-09-15: sixty-four callers, fifty rounds, `ForgetHostAfter` zero — 3196 occasions on which two callers were inside one host at once, each correctly holding the only slot of a different gate. `MaxConcurrentPerHost` is the setting that exists to make that impossible.
+
+The window is measured from the last time the entry was ASKED FOR, not from when it was made, and that difference was read on 2026-09-20. Measured from creation, the rule protects a value made a moment ago and nothing else — so a host last visited an hour ago and visited again NOW was swept out from under the caller it had just been handed to, whose rest then landed on an object the map no longer held and whose successor built a second gate for the same host. Being handed to a caller is the evidence that somebody has been to this host lately, which is the whole of what the window asks.
 
 A value younger than `forgetAfter` is kept whatever the predicate says, because that is what the name already promises. It closes every configuration but one: a forgetting of zero is eager by request, and no rule here can hold against it — a gate is stale the instant it is made. Start-up validation refuses that setting instead.
 
@@ -208,3 +205,23 @@ An explicit stack rather than the call stack, and that is not a matter of taste.
 Eight thousand `div` elements is forty kilobytes of body, which any site can serve and some generate by accident. That exception cannot be caught, runs no `finally` and is not a failed page: it takes the process and every other page in flight with it, which is the one failure in this library that no amount of retrying survives.
 
 A `null` on the stack is the line break owed to a block element whose children have all been written. It is pushed before that element's children, so it is popped after them.
+
+
+## HostPoliteness.DelayAsync
+
+`2026-09-20` · *internal*
+
+*Waits until this host opens, however far off that is.*
+
+The wait is taken in stretches because `Delay` refuses anything past about forty-nine days. MEASURED on 2026-09-20: a site answering `Retry-After` of a hundred days made every later caller to that host meet an `ArgumentOutOfRangeException` naming a timer, and the host stayed broken for as long as the process ran. A rest that long is a site to be left alone, not a defect to be raised at whoever arrives next — and a caller that will not wait it out cancels, which is the answer it already had.
+
+
+## Spread.Wanting
+
+`2026-09-20`, `2026-09-14` · *internal*
+
+*Whether more should be read before choosing, counting only the hosts that could be used now.*
+
+The clock here is the system's, where the rest of the toolkit reads an injected `TimeProvider` since 2026-09-20, and that is deliberate: this decides what to OFFER a worker next, never whether it may go, so being wrong costs a worker queueing at a gate — which is what it did for every item before this existed. Nothing observes the difference, so nothing could test it.
+
+Counting hosts rather than usable hosts is what the first version did, and it reduced the whole thing to nothing in the case it was written for: with three workers and three sites resting at the head of the list, three hosts were in hand and two of them shut, so at most one worker could be given anything. Measured on 2026-09-14 — two pages read in the window where eighteen were waiting.

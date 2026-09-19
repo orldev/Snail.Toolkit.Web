@@ -12,6 +12,8 @@ The URL is inspected as well as the body because the most common refusals are re
 
 That rule was written for the markup and broken by the URL beside it, where the bare word stood until 2026-09-13: any address carrying it — `/blog/how-captcha-works` — was called a refusal, and because a refusal is transient the reader then spent three identities proving it again. A signal belongs here only when the words are a refusal wherever they appear, which is why what is left are whole paths and hosts.
 
+THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own wall answered `202` — a success status — with 14 228 bytes reading "Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha widget, and the word that appears sixty-seven times on that page — `anomaly` — is exactly the bare word this list refuses to carry, since an article about anomaly detection would match it. What was taken instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
+
 
 ## BlockVerdict
 
@@ -437,9 +439,9 @@ Registers the shared behaviour both engines stand on.
 
 **AddLinkExtraction** — Registers link extraction.
 
-**AddPoliteness** — Registers the per-host gate.
+**AddPoliteness** — Registers the per-host gate and the clock it reads.
 
-Singleton because a gate is only a limit while every caller waits at the same one.
+Singleton because a gate is only a limit while every caller waits at the same one. The clock is registered beside it rather than taken for granted, so a host that keeps its own `TimeProvider` — a test moving time by hand, a deployment with a clock of its own — is the one this library reads.
 
 **AddSiteRules** — Registers robots rules on top of the transport that can read them.
 

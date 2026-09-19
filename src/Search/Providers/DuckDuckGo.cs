@@ -90,7 +90,9 @@ public sealed class DuckDuckGo(
             }
         }
 
-        return SearchAnswer.Success(found);
+        return Relevance.Answers(query, found)
+            ? SearchAnswer.Success(found)
+            : SearchAnswer.Failed(SearchFailure.Unrelated(ProviderName, found.Count));
     }
 
     /// <summary>Reads the offset the page's own next-page control asks for, when it offers one.</summary>

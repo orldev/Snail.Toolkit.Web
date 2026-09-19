@@ -3,64 +3,30 @@ using Microsoft.Playwright;
 namespace Snail.Toolkit.Web.Scraping.Browsers;
 
 /// <summary>
-/// Starts Playwright once and opens browsers of the configured engine, connected or launched.
+/// Holds the Playwright installation and opens browsers from it, launched here or connected to elsewhere.
 /// </summary>
 /// <remarks>
-/// This is the only part of the pool that knows what a browser is made of — which engine, which arguments,
-/// whether there is a server to connect to or a process to start. The pool that owns it knows only that
-/// opening one takes a while and can be abandoned.
-/// <para>
-/// Separated out because it is the one responsibility in the pool that shares no state with the others: it
-/// touches neither the page permits, nor the shutdown, nor the browser field they all read. Everything else
-/// in there interlocks on purpose, and this did not.
-/// </para>
+/// The installation is started once and kept, because unpacking it is the expensive part and every browser
+/// after the first comes from the same one. A start that FAILED is not kept, and that distinction is the whole
+/// of this class: a <c>Lazy&lt;Task&lt;IPlaywright&gt;&gt;</c> caches the task, so one failure — a machine busy
+/// while the driver unpacks, a temporary file that was not there yet — answered every later rent with the same
+/// exception until the process restarted. It was named in the code as undemonstrable on 2026-09-15, since
+/// <see cref="Playwright.CreateAsync"/> is static and no test can make it fail. Asking for it through a
+/// function rather than by name is what made it demonstrable, and the test that follows failed before this was
+/// written.
 /// </remarks>
-internal sealed class Driver(ScrapingOptions options) : IDisposable
+internal sealed class Driver(ScrapingOptions options, Func<Task<IPlaywright>>? start = null) : IDisposable
 {
-    /// <summary>The Playwright driver, started once however many callers arrive together.</summary>
-    /// <remarks>
-    /// Was a null check, a semaphore and a second null check — double-checked locking with no barrier on the
-    /// unguarded read, which the pattern requires and which this did not have. What it buys is not a crash but
-    /// a second driver: another node process, started and then forgotten, for the whole life of the pool.
-    /// <see cref="Lazy{T}"/> runs its factory exactly once and publishes it safely by default, which is the
-    /// whole of what the semaphore was there for.
-    /// <para>
-    /// KNOWN AND NOT FIXED, so that it is not rediscovered as news: exactly once includes once unsuccessfully.
-    /// The factory returns a <see cref="Task{TResult}"/> rather than throwing, so a driver that fails to start
-    /// is a faulted task cached for the life of the pool, and every later rent awaits that same fault — one
-    /// transient failure at start-up is a pool that never works again. It is left alone because nothing here
-    /// can demonstrate it: <see cref="Playwright.CreateAsync"/> is static, so no test in this suite can make
-    /// it fail, and a retry written against a failure nobody can produce is a guess about the hot path rather
-    /// than a fix. Making it testable means giving the pool a driver factory to be handed, which is the change
-    /// to weigh — not a retry bolted on here.
-    /// </para>
-    /// <para>
-    /// THAT CHANGE IS NOW ONE CONSTRUCTOR PARAMETER AWAY, which is the only thing this extraction bought
-    /// towards it: a pool handed a <see cref="Driver"/> rather than making one can be handed a fake that
-    /// fails. It is still not made, because the argument above has not changed — what is missing is a
-    /// measurement of how a driver actually fails in the field, not the ability to write the retry.
-    /// </para>
-    /// </remarks>
-    private readonly Lazy<Task<IPlaywright>> _started = new(Playwright.CreateAsync);
+    private readonly Func<Task<IPlaywright>> _start = start ?? Playwright.CreateAsync;
+    private readonly SemaphoreSlim _starting = new(1, 1);
 
-    /// <summary>Whether a browser server is named, so browsers are connected to rather than launched.</summary>
-    /// <remarks>
-    /// Kept here rather than beside the settings because every consequence of it is a consequence for opening:
-    /// a connection carries no command line, a connection cannot be reaped, and a connection says "connected"
-    /// in the log where a process says "launched".
-    /// </remarks>
+    private Task<IPlaywright>? _started;
+
     internal bool IsRemote => !string.IsNullOrWhiteSpace(options.BrowserServer);
 
-    /// <summary>A browser of the configured engine, connected to a server or launched as a process.</summary>
-    /// <remarks>
-    /// The token is honoured only up to the point Playwright accepts one. <c>ConnectAsync</c> and
-    /// <c>LaunchAsync</c> take a timeout and no cancellation token, so once either has begun it cannot be told
-    /// to stop — which is why the caller releases itself and closes whatever arrives afterwards, rather than
-    /// expecting this to end on demand.
-    /// </remarks>
     internal async Task<IBrowser> OpenedAsync(CancellationToken ct)
     {
-        var started = await _started.Value.WaitAsync(ct);
+        var started = await StartedAsync(ct);
 
         var chosen = Chosen(started);
 
@@ -76,6 +42,47 @@ internal sealed class Driver(ScrapingOptions options) : IDisposable
             });
     }
 
+    /// <summary>The installation, started on the first ask and kept for every ask after it.</summary>
+    /// <remarks>
+    /// A start already under way is joined rather than repeated, which is what the lock is for. A start that
+    /// faulted is forgotten, so the next caller tries again; a caller that gave up waiting is not a failed
+    /// start, and the installation it left running is kept for whoever asks next.
+    /// </remarks>
+    private async Task<IPlaywright> StartedAsync(CancellationToken ct)
+    {
+        if (Volatile.Read(ref _started) is { } running)
+            return await running.WaitAsync(ct);
+
+        await _starting.WaitAsync(ct);
+
+        try
+        {
+            if (Volatile.Read(ref _started) is { } known)
+                return await known.WaitAsync(ct);
+
+            var starting = _start();
+
+            try
+            {
+                var driver = await starting.WaitAsync(ct);
+
+                Volatile.Write(ref _started, starting);
+
+                return driver;
+            }
+            catch when (!starting.IsFaulted)
+            {
+                Volatile.Write(ref _started, starting);
+
+                throw;
+            }
+        }
+        finally
+        {
+            _starting.Release();
+        }
+    }
+
     private IBrowserType Chosen(IPlaywright driver) => options.Engine switch
     {
         Engine.Firefox => driver.Firefox,
@@ -83,15 +90,11 @@ internal sealed class Driver(ScrapingOptions options) : IDisposable
         _ => driver.Chromium
     };
 
-    /// <summary>Releases the driver, and only if it ever started successfully.</summary>
-    /// <remarks>
-    /// A driver that was never asked for has nothing to release, and one whose start faulted has nothing
-    /// either — reading <see cref="Task{TResult}.Result"/> off it would raise that old fault out of a
-    /// shutdown, which is the last place anybody wants to meet it.
-    /// </remarks>
     public void Dispose()
     {
-        if (_started.IsValueCreated && _started.Value.IsCompletedSuccessfully)
-            _started.Value.Result.Dispose();
+        if (Volatile.Read(ref _started) is { IsCompletedSuccessfully: true } started)
+            started.Result.Dispose();
+
+        _starting.Dispose();
     }
 }

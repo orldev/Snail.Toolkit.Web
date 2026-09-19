@@ -14,6 +14,8 @@
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Tests" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser.Agent" />
   </ItemGroup>
 
   <ItemGroup>

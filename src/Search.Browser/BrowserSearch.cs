@@ -113,7 +113,8 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// differs, and only an engine that has been measured should claim to have any.
     /// </para>
     /// </remarks>
-    protected virtual bool Answers(string query, IReadOnlyList<SearchResult> results) => true;
+    protected virtual bool Answers(string query, IReadOnlyList<SearchResult> results)
+        => Relevance.Answers(query, results);
 
     /// <inheritdoc />
     /// <remarks>
@@ -182,9 +183,7 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
                 Name, page.Html.Length);
 
         if (results.Count > 0 && !Answers(query, results))
-            return SearchAnswer.Failed(new SearchFailure(
-                SearchFailureKind.Refused,
-                $"{Name} answered a page of {results.Count} results about something other than the query."));
+            return SearchAnswer.Failed(SearchFailure.Unrelated(Name, results.Count));
 
         return SearchAnswer.Success(results);
     }
