@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-16 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+18 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -176,3 +176,25 @@ The installation is started once and kept, because unpacking it is the expensive
 *Reads what Playwright said into the kind a caller branches on.*
 
 A broken WebSocket is the browser going away, not a page that would not load. Until 2026-09-20 it read as `Navigation` — a statement about the SITE — and a measurement on 16.09.2026 shows why that matters: one heavy page killed Firefox inside the container, the Playwright server closed with it, and every caller saw `WebSocket error: socket hang up` on whatever page it happened to be reading. A reader looking at that line goes to the site; the thing to look at was the browser.
+
+
+## Rests
+
+`2026-09-20` · *internal*
+
+*Reads the gap a site asked to be left alone for out of what it answered with.*
+
+Written once and read by everything that drives a browser. Until 2026-09-20 only the page reader read the header: the errand and the call to a site's own service carried the status and never the number, so a service that said "come back in thirty seconds" in the middle of a form told one caller and nobody else — `Attempts` writes the gap into the per-host gate, where it binds every later caller, and it had nothing to write. That is the twelfth item on the consumer's list.
+
+Headers rather than a response, so that the reading can be checked without a browser, and the instant is given rather than taken from a clock, so that a date in the header can be checked at all.
+
+
+## ScrapingOptions.RepeatsRefusals
+
+`2026-09-20`
+
+*Gets or sets whether a refusal that names no gap is one of the failures worth repeating.*
+
+On, because a wall is often a fingerprint and the next attempt draws a different one — that is what makes a retry worth making at all, and a test holds the crawl to it. Off for a deployment whose target closes over FREQUENCY, where every further request only confirms the refusal and spends the budget.
+
+MEASURED on 2026-09-20 on these defaults: a page that answers costs one request, one turn at the gate and 14 ms; a wall costs four of each and 17.7 seconds of backoff. On a host paced at thirty seconds those four turns are two minutes for one page, so a site that refuses everything turns a forty-minute crawl of some two hundred and sixty pages into one of sixty-five. That is the fourteenth item on the consumer's list, and it is a setting rather than a new default because which of the two a site is cannot be known from here — the engines of this toolkit, whose refusals are measured to be about frequency, do not repeat them at all.

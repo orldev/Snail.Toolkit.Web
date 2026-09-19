@@ -140,12 +140,17 @@ public static class ServiceCollectionExtensions
             return answered is null || !Refusals.IsRefusal(answered.StatusCode);
         }
 
-        /// <summary>Registers the providers that answer a plain request, the search that merges them, and the memory it consults first.</summary>
+        /// <summary>Registers the provider that answers a plain request, the search that merges them, and the memory it consults first.</summary>
         /// <remarks>
-        /// Two engines rather than one, because which of them answers a given client from a given address is a
-        /// fact that changes: measured on 2026-09-12 from a datacentre address, one returned results while
-        /// several others answered with a challenge. Each provider is one request per query, so a deployment
-        /// that wants only one registers it on its own instead of taking the pair.
+        /// ONE ENGINE OVER PLAIN HTTP, and it was two until 2026-09-20. Bing was removed on the owner's
+        /// instruction, because from the addresses this library is used from it does not answer: measured on
+        /// 2026-09-15, four Russian queries out of five came back as ten confident results about something else
+        /// entirely — bible sites and Netflix for «"Роснано"», a hotel chain without the quotes. A provider
+        /// that structurally answers while saying nothing is the worst of the three shapes an engine can take,
+        /// and the browser reading of the same engine, which does answer, ships in
+        /// <c>Snail.Toolkit.Web.Search.Browser</c>. A deployment that wants more engines than one adds them
+        /// itself with <c>AddSearchProvider</c>; a query goes to <see cref="SearchOptions.ProvidersPerQuery"/>
+        /// of whatever is registered.
         /// <para>
         /// The memory of refusals is one per process on purpose — a rest recorded by one search has to hold
         /// for the next — and the clock it reads is registered beside it, so a host that keeps its own
@@ -156,9 +161,6 @@ public static class ServiceCollectionExtensions
         {
             services.AddSearchProvider<DuckDuckGo>();
             services.AddSearchClient(DuckDuckGo.ProviderName);
-
-            services.AddSearchProvider<Bing>();
-            services.AddSearchClient(Bing.ProviderName);
 
             services.TryAddSingleton(TimeProvider.System);
             services.TryAddSingleton<ISearchCooldown, SearchCooldown>();

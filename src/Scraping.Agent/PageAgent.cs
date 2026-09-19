@@ -68,7 +68,14 @@ internal sealed class PageAgent(
                 WaitUntil = WaitUntilState.DOMContentLoaded
             });
 
-            var landing = await RefusedAsync(page, errand, identity, response?.Status);
+            // The gap the landing page asked for, carried into whichever refusal is recorded below. NOT OBSERVED
+            // BY ANY TEST, and named here rather than left to be discovered: the reading itself is held by
+            // RestsTests and the service call's by SiteCallJudgementTests, but these two assignments need a page
+            // answering 429 with the header, which means a browser and a server that sets headers — the fixture
+            // serves files. What would catch a regression here is the consumer's report naming a gap.
+            var asked = Rests.AskedFor(response?.Headers, DateTimeOffset.UtcNow);
+
+            var landing = await RefusedAsync(page, errand, identity, response?.Status, asked);
 
             if (landing is not null)
                 return landing;
@@ -93,7 +100,7 @@ internal sealed class PageAgent(
 
             await Task.Delay(_agent.Settle, ct);
 
-            return await ReadAsync(page, errand, identity, response?.Status);
+            return await ReadAsync(page, errand, identity, response?.Status, asked);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -105,7 +112,12 @@ internal sealed class PageAgent(
         }
     }
 
-    private async Task<PageOutcome?> RefusedAsync(IPage page, Errand errand, WebIdentity identity, int? status)
+    private async Task<PageOutcome?> RefusedAsync(
+        IPage page,
+        Errand errand,
+        WebIdentity identity,
+        int? status,
+        TimeSpan? asked)
     {
         var verdict = blocks.Inspect(await page.ContentAsync(), page.Url);
 
@@ -117,7 +129,8 @@ internal sealed class PageAgent(
         {
             Address = errand.Address,
             StatusCode = status,
-            UserAgent = identity.UserAgent
+            UserAgent = identity.UserAgent,
+            RetryAfter = asked
         });
     }
 
@@ -129,7 +142,12 @@ internal sealed class PageAgent(
     /// challenge — and the agent, having checked only the landing page, reported success and handed back two
     /// thousand characters of "prove you are not a robot" as the answer to the errand.
     /// </remarks>
-    private async Task<PageOutcome> ReadAsync(IPage page, Errand errand, WebIdentity identity, int? status)
+    private async Task<PageOutcome> ReadAsync(
+        IPage page,
+        Errand errand,
+        WebIdentity identity,
+        int? status,
+        TimeSpan? asked)
     {
         var html = await page.ContentAsync();
         var verdict = blocks.Inspect(html, page.Url);
@@ -140,7 +158,8 @@ internal sealed class PageAgent(
             {
                 Address = errand.Address,
                 StatusCode = status,
-                UserAgent = identity.UserAgent
+                UserAgent = identity.UserAgent,
+                RetryAfter = asked
             });
 
         return contents.Judged(new Document

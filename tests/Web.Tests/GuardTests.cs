@@ -49,6 +49,27 @@ public class GuardTests
             Core.GetExportedTypes(),
             type => type.Name.EndsWith(suffix, StringComparison.Ordinal));
 
+    /// <summary>
+    /// The door to the parser is open to a consumer, and it carries the ceiling with it.
+    /// </summary>
+    /// <remarks>
+    /// The thirteenth item on the consumer's list, and a guard rather than a behaviour test because the
+    /// behaviour — markup too deep is refused rather than parsed — is already held by
+    /// <see cref="HostilePageTextTests"/>. What was missing is that anyone outside this assembly could ask for
+    /// it: the bot reads pages this library never fetched, ten of its probes parse them with a parser of their
+    /// own, and every one of those parses pays the quadratic cost this type exists to bound. Extraction was
+    /// public and a document was not, so a consumer with an XPath of its own had nowhere to go.
+    /// </remarks>
+    [Fact]
+    public void Core_DoorToTheParser_IsOpenWithItsCeiling()
+    {
+        var door = Core.GetExportedTypes().SingleOrDefault(type => type.Name == "Markup");
+
+        Assert.NotNull(door);
+        Assert.NotNull(door.GetMethod("Read", BindingFlags.Public | BindingFlags.Static));
+        Assert.NotNull(door.GetField("MostNesting", BindingFlags.Public | BindingFlags.Static));
+    }
+
     /// <summary>Every method that answers later is named for it and can be cancelled.</summary>
     /// <remarks>
     /// A method returning a task without a token is one a caller cannot get out of, and the crawl budget, the

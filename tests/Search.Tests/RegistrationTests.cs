@@ -58,12 +58,13 @@ public class RegistrationTests
     /// Two engines answer a plain request, and both are registered.
     /// </summary>
     /// <remarks>
-    /// Measured on 2026-09-12 from a datacentre address: engines disagree about who they will answer, and one
-    /// of them refused where the other returned results. A set of one makes the search as available as its
-    /// weakest day, which is the whole reason the providers are an enumerable.
+    /// ONE ENGINE, and it was two until 2026-09-20: Bing was removed on the owner's instruction, because over
+    /// plain HTTP it answered with pages about something else rather than with results. The providers stay an
+    /// enumerable — a set of one makes the search as available as its weakest day, and a deployment adds what
+    /// it has addresses for — but this library ships only what it has measured answering.
     /// </remarks>
     [Fact]
-    public void AddSearch_ByDefault_RegistersBothHtmlProviders()
+    public void AddSearch_ByDefault_RegistersTheHtmlProvider()
     {
         using var provider = Built([]);
 
@@ -71,7 +72,7 @@ public class RegistrationTests
             .Select(engine => engine.Name)
             .Order();
 
-        Assert.Equal([Bing.ProviderName, DuckDuckGo.ProviderName], names);
+        Assert.Equal([DuckDuckGo.ProviderName], names);
     }
 
     /// <summary>Providers accumulate rather than replace each other, which is what an enumerable is for.</summary>
@@ -85,7 +86,7 @@ public class RegistrationTests
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
     /// <summary>Registration is idempotent, so a second call cannot ask the same back end twice per query.</summary>
@@ -100,7 +101,7 @@ public class RegistrationTests
 
         using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Single(provider.GetRequiredService<IEnumerable<ISearchProvider>>());
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IWebSearch));
     }
 
@@ -123,7 +124,6 @@ public class RegistrationTests
         var clients = provider.GetRequiredService<IHttpClientFactory>();
 
         Assert.NotNull(clients.CreateClient(DuckDuckGo.ProviderName));
-        Assert.NotNull(clients.CreateClient(Bing.ProviderName));
     }
 
     /// <summary>
@@ -163,7 +163,6 @@ public class RegistrationTests
     /// </remarks>
     [Theory]
     [InlineData(DuckDuckGo.ProviderName)]
-    [InlineData(Bing.ProviderName)]
     public void AddSearch_WithAnExitConfigured_SendsTheProviderThroughIt(string engine)
     {
         using var provider = Built(new Dictionary<string, string?>
@@ -182,7 +181,7 @@ public class RegistrationTests
     {
         using var provider = Built([]);
 
-        Assert.Null(Outgoing.ExitOf(provider, Bing.ProviderName, new Uri("https://www.bing.com/search")));
+        Assert.Null(Outgoing.ExitOf(provider, DuckDuckGo.ProviderName, new Uri("https://duckduckgo.com/html/")));
     }
 
     /// <summary>

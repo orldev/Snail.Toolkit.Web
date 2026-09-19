@@ -4,19 +4,6 @@
 
 20 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
-## Bing
-
-`2026-09-12`
-
-*Reads Bing's results page.*
-
-An HTTP provider rather than a browser one because it answers a plain request: measured on 2026-09-12 from a datacentre address it returned results where Google answered a captcha and Ecosia refused outright. That is the whole reason to keep more than one engine registered — which of them answers a given client from a given address is a fact that changes, and the aggregator is where it stops mattering.
-
-Every result link is wrapped in a redirect whose target sits base64url-encoded in its `u` parameter behind an `a1` marker. Left wrapped, every address would be bing.com and deduplication across providers — the reason the address is a `Link` at all — would collapse the whole answer to one entry.
-
-One thing is measured and unresolved: asked for a bare tax number rather than a brand name, this engine's page mentions the number but named no outside site that the unwrapper could recover, while Brave, the DuckDuckGo endpoint and Yandex all answered with the registries. Whether that is the engine or the reading is not yet known, so an identifier query should not be trusted to this provider alone.
-
-
 ## SearchOptions.RefusalCooldown
 
 `2026-09-12`
@@ -24,17 +11,6 @@ One thing is measured and unresolved: asked for a bare tax number rather than a 
 *Gets or sets how long a provider is left alone after its first refusal.*
 
 A challenge page is not an error in the query but a reaction to how often it was asked: measured on 2026-09-12, one engine answered, challenged, answered, challenged and answered again over one evening, with nothing changing between the requests but their spacing. Each further refusal doubles the rest until it reaches `MaxRefusalCooldown`; any answer, with results or without, ends it.
-
-
-## ServiceCollectionExtensions.AddSearchParts
-
-`2026-09-12` · *internal*
-
-*Registers the providers that answer a plain request, the search that merges them, and the memory it consults first.*
-
-Two engines rather than one, because which of them answers a given client from a given address is a fact that changes: measured on 2026-09-12 from a datacentre address, one returned results while several others answered with a challenge. Each provider is one request per query, so a deployment that wants only one registers it on its own instead of taking the pair.
-
-The memory of refusals is one per process on purpose — a rest recorded by one search has to hold for the next — and the clock it reads is registered beside it, so a host that keeps its own `TimeProvider` wins and a test can move time instead of waiting it out.
 
 
 ## WebSearch
@@ -195,6 +171,17 @@ A PLACE IN THE ROUND GOES TO AN ENGINE THAT CAN USE IT. Measured by a consumer o
 It stands aside, it is not dropped: a fault is still asked for once, because resting an engine over our own defect is how the defect stops being visible, and when there are not enough healthy engines to fill the places the faulted ones take them again. Nothing here is remembered past this batch — a parser is mended by a release, not by a timer, and the next search finds out for itself.
 
 
+## DuckDuckGo.Unwrapped
+
+`2026-09-20` · *internal*
+
+*Unwraps the redirect DuckDuckGo wraps its outbound links in.*
+
+Falls back to the href it was given rather than throwing. Parsing ran outside any guard before, so a single malformed link discarded every result already parsed from the page.
+
+WHAT IT IS GIVEN IS DECODED FIRST, and that was missing until 2026-09-20 while the other engine had it. The parser hands an attribute over exactly as the page wrote it, and this engine writes its separators as `&amp;`: undecoded, a wrapper whose own parameter comes before `uddg` has no pair by that name — it is called `amp;uddg` — so the unwrapping silently fell back to the wrapper, and the result's address became THE ENGINE'S. A finding that names duckduckgo.com as its source is worse than no finding: the caller reads it as a page it can fetch.
+
+
 ## SearchCooldown
 
 `2026-09-20`
@@ -217,6 +204,17 @@ There is no separate probing state. A rest that has run out lets the next reques
 Spent by the resilience pipeline rather than by `Timeout`, and divided into a per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when the host starts rather than surfacing as a pipeline validation error on the first query.
 
 A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes — runs out of it when asked again before the gap is over, which is the setting doing what it says.
+
+
+## ServiceCollectionExtensions.AddSearchParts
+
+`2026-09-20`, `2026-09-15` · *internal*
+
+*Registers the provider that answers a plain request, the search that merges them, and the memory it consults first.*
+
+ONE ENGINE OVER PLAIN HTTP, and it was two until 2026-09-20. Bing was removed on the owner's instruction, because from the addresses this library is used from it does not answer: measured on 2026-09-15, four Russian queries out of five came back as ten confident results about something else entirely — bible sites and Netflix for «"Роснано"», a hotel chain without the quotes. A provider that structurally answers while saying nothing is the worst of the three shapes an engine can take, and the browser reading of the same engine, which does answer, ships in `Snail.Toolkit.Web.Search.Browser`. A deployment that wants more engines than one adds them itself with `AddSearchProvider`; a query goes to `ProvidersPerQuery` of whatever is registered.
+
+The memory of refusals is one per process on purpose — a rest recorded by one search has to hold for the next — and the clock it reads is registered beside it, so a host that keeps its own `TimeProvider` wins and a test can move time instead of waiting it out.
 
 
 ## WebSearch.AffordableAsync

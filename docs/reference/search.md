@@ -2,20 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-The public surface of this package: 16 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
-
-## Bing
-
-Reads Bing's results page.
-
-An HTTP provider rather than a browser one because it answers a plain request: measured on 2026-09-12 from a datacentre address it returned results where Google answered a captcha and Ecosia refused outright. That is the whole reason to keep more than one engine registered — which of them answers a given client from a given address is a fact that changes, and the aggregator is where it stops mattering.
-
-Every result link is wrapped in a redirect whose target sits base64url-encoded in its `u` parameter behind an `a1` marker. Left wrapped, every address would be bing.com and deduplication across providers — the reason the address is a `Link` at all — would collapse the whole answer to one entry.
-
-One thing is measured and unresolved: asked for a bare tax number rather than a brand name, this engine's page mentions the number but named no outside site that the unwrapper could recover, while Brave, the DuckDuckGo endpoint and Yandex all answered with the registries. Whether that is the engine or the reading is not yet known, so an identifier query should not be trusted to this provider alone.
-
-**ProviderName** — The name this provider is registered and its HTTP client is keyed by.
-
+The public surface of this package: 15 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
 
 ## DuckDuckGo
 

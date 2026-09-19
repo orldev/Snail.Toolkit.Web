@@ -27,12 +27,13 @@ public class RegistrationTests
     /// The engine named Bing here is the browser reading of it, and there is only one of it.
     /// </summary>
     /// <remarks>
-    /// The test above cannot tell the two apart — both are called «Bing» — and that is exactly why this one
-    /// exists. Measured on 2026-09-15 from a datacentre address: read over plain HTTP the engine answered
-    /// four Russian queries out of five with ten confident results about something else entirely, while the
-    /// same address read through a browser answered with the company, its encyclopedia article and the news
-    /// about its licence. Two providers under one name would also make a report unable to say which of them
-    /// stayed silent.
+    /// There is no other reading of this engine to confuse it with since 2026-09-20 — the HTTP provider of the
+    /// same name was deleted on the owner's instruction — and the check is kept because the name is what a
+    /// report says: two providers under one name would make it unable to say which of them stayed silent, and
+    /// that is a mistake a later registration can still make. Measured on 2026-09-15 from a datacentre address:
+    /// read over plain HTTP the engine answered four Russian queries out of five with ten confident results
+    /// about something else entirely, while the same address read through a browser answered with the company,
+    /// its encyclopedia article and the news about its licence.
     /// </remarks>
     [Fact]
     public async Task AddBrowserSearch_TheEngineNamedBing_IsTheBrowserReadingAndTheOnlyOne()

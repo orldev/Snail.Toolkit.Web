@@ -1,6 +1,8 @@
 using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Text;
 using System.Net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Search.Providers;
 
@@ -43,6 +45,94 @@ public class DuckDuckGoTests
 
         Assert.Equal("Grain & barley", first.Title);
         Assert.Equal("Wheat prices rose & barley held.", first.Snippet);
+    }
+
+    /// <summary>
+    /// The engine writes its query separators as <c>&amp;amp;</c>, and the parser hands attributes over
+    /// exactly as written. Read undecoded, a wrapper whose own parameter comes before <c>uddg</c> loses it —
+    /// the pair is then called <c>amp;uddg</c> — and the result's address becomes the ENGINE's, so the finding
+    /// says duckduckgo.com instead of the site that holds it.
+    /// </summary>
+    [Fact]
+    public void Parsed_WrapperWhoseParametersAreWrittenAsEntities_IsStillUnwrapped()
+    {
+        const string html = """
+            <div class="web-result">
+              <a class="result__a" href="//duckduckgo.com/l/?rut=abc&amp;uddg=https%3A%2F%2Freal.example%2Fgrain">Grain</a>
+            </div>
+            """;
+
+        Assert.Equal("https://real.example/grain", DuckDuckGo.Parsed(html).Single().Address.Canonical);
+    }
+
+    /// <summary>And a plain link keeps the address the page meant, not one carrying «amp;» in its query.</summary>
+    [Fact]
+    public void Parsed_PlainLinkWithEntitiesInItsQuery_KeepsTheAddressThePageMeant()
+    {
+        const string html = """
+            <div class="web-result">
+              <a class="result__a" href="https://plain.example/grain?a=1&amp;b=2">Grain</a>
+            </div>
+            """;
+
+        Assert.Equal("https://plain.example/grain?a=1&b=2", DuckDuckGo.Parsed(html).Single().Address.Canonical);
+    }
+
+    /// <summary>
+    /// The page this engine really answers with when it will not answer: a challenge, carried by status 202,
+    /// which is a success. It is a refusal about US, and the one thing it must never be read as is «nothing
+    /// found», which is a statement about the query.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20 from this machine: <c>html.duckduckgo.com/html/?q=postgresql+documentation</c>
+    /// answered <c>202</c> with 14 234 bytes reading «Unfortunately, bots use DuckDuckGo too. Please complete
+    /// the following challenge to confirm this search was made by a human. Select all squares containing a
+    /// duck». The markup below is that page's shape, kept short. The consumer's nineteenth item — this engine
+    /// answering NoResults to everything — is this page read as an empty one, and the sentence the detector
+    /// looks for is the engine's own.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_ChallengeCarriedByASuccessfulStatus_IsARefusalRatherThanNothingFound()
+    {
+        const string anomaly = """
+            <html><head><title>DuckDuckGo</title></head><body>
+              <div class="anomaly-modal__mask"></div>
+              <div class="anomaly-modal__modal">
+                <p>Unfortunately, bots use DuckDuckGo too.</p>
+                <p>Please complete the following challenge to confirm this search was made by a human.</p>
+                <p>Select all squares containing a duck:</p>
+              </div>
+            </body></html>
+            """;
+
+        var answer = await Provider(new StubClients(anomaly, HttpStatusCode.Accepted)).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure.Kind);
+        Assert.Contains("human", answer.Failure.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A page that parses to nothing says so in the log, because from here that is what a layout change looks
+    /// like — and the answer a caller gets, «nothing found», cannot tell the two apart.
+    /// </summary>
+    /// <remarks>
+    /// The browser-backed engines have logged this since they were written; the HTTP path had no voice at all,
+    /// so an engine whose markup had moved was indistinguishable from a subject the web is silent about. The
+    /// answer stays NoResults on purpose: this side cannot tell, and inventing a refusal would rest an engine
+    /// that may be answering correctly.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_PageThatYieldedNoResults_SaysSoInTheLog()
+    {
+        var recording = new RecordingLogger();
+
+        var answer = await Provider(new StubClients("<html><body><p>nothing here</p></body></html>"), recording)
+            .FindAsync("grain");
+
+        Assert.True(answer.IsSuccess);
+        Assert.Empty(answer.Value);
+        Assert.Contains(recording.Warnings, line => line.Contains("no results", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -253,11 +343,38 @@ public class DuckDuckGoTests
            + "hello"
            + string.Concat(Enumerable.Repeat("</div>", depth));
 
-    private static DuckDuckGo Provider(IHttpClientFactory clients, int maxResults = 30)
+    private static DuckDuckGo Provider(
+        IHttpClientFactory clients,
+        ILogger<DuckDuckGo>? logger = null,
+        int maxResults = 30)
         => new(
             clients,
             new BlockDetector(),
-            Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }));
+            Options.Create(new SearchOptions { MaxResultsPerProvider = maxResults }),
+            logger ?? NullLogger<DuckDuckGo>.Instance);
+
+    /// <summary>Keeps the warnings, which is the only place a page that parsed to nothing is reported.</summary>
+    private sealed class RecordingLogger : ILogger<DuckDuckGo>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+
+            if (logLevel is LogLevel.Warning)
+                Warnings.Add(formatter(state, exception));
+        }
+    }
 
     private sealed class StubClients(string page, HttpStatusCode status = HttpStatusCode.OK) : IHttpClientFactory
     {

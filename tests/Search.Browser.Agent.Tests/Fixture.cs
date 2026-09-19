@@ -15,6 +15,13 @@ internal static class Fixture
     public static PageOutcome Walked(string html)
         => PageOutcome.Success(
             new PageContent(Link.Of("https://engine.example/"), html, string.Empty, DateTimeOffset.UtcNow));
+
+    /// <summary>The walk that ended on a wall, which is what this engine answers when asked too often.</summary>
+    public static PageOutcome Refused(string signal)
+        => PageOutcome.Failed(new Scraping.PageFailure(Scraping.FailureKind.Blocked, signal)
+        {
+            Address = Link.Of("https://engine.example/")
+        });
 }
 
 /// <summary>

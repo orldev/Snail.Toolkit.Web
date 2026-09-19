@@ -215,6 +215,40 @@ public class RegistrationTests
         Assert.Equal(Engine.Firefox, provider.GetRequiredService<IOptions<ScrapingOptions>>().Value.Engine);
     }
 
+    /// <summary>
+    /// The setting a deployment writes about repeating refusals reaches the sequence that repeats them.
+    /// </summary>
+    /// <remarks>
+    /// The fourteenth item on the consumer's list. Measured on 2026-09-20: a wall costs four requests and four
+    /// turns at the gate against one for a page that answers — two minutes apiece on a host paced at thirty
+    /// seconds. A deployment whose target closes over frequency turns it off; the default is unchanged, and the
+    /// pair of assertions below is what says so.
+    /// </remarks>
+    [Theory]
+    [InlineData("false", 1)]
+    [InlineData("true", 4)]
+    public async Task AddScraping_SettingAboutRepeatingRefusals_ReachesTheAttempts(string written, int expected)
+    {
+        await using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Scraping:RepeatsRefusals"] = written,
+            ["Web:Scraping:RetryDelay"] = "00:00:00",
+            ["Web:Politeness:MinDelayPerHost"] = "00:00:00"
+        });
+
+        var asked = 0;
+
+        await provider.GetRequiredService<IAttempts<PageContent>>()
+            .AtAsync(Link.Of("https://site.example/a"), (_, _, _) =>
+            {
+                asked++;
+
+                return Task.FromResult(PageOutcome.Failed(new PageFailure(FailureKind.Blocked, "wall")));
+            });
+
+        Assert.Equal(expected, asked);
+    }
+
     private static ServiceProvider Built(Dictionary<string, string?> settings)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();

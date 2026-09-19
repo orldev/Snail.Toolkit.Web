@@ -289,6 +289,50 @@ public class AttemptsTests
         Assert.Equal(4, attempted);
     }
 
+    /// <summary>
+    /// A deployment whose target closes over frequency rather than fingerprint says so in its settings, and
+    /// then a wall costs one request instead of four.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20 on the defaults: a page that answers costs one request, one turn at the gate and
+    /// 14 ms; a wall costs four of each and 17.7 seconds of backoff — and on a host paced at thirty seconds,
+    /// four turns at the gate are two minutes for one page. On a site that refuses everything a forty-minute
+    /// crawl buys some sixty-five pages instead of two hundred and sixty. The default stays as it was, because
+    /// a wall is often a fingerprint and the next identity does pass it; what the setting adds is the other
+    /// case, which no default can be right about.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_DeploymentThatDoesNotRepeatRefusals_MakesOneAttemptOnAWall()
+    {
+        var attempted = 0;
+
+        await Configured(new ScrapingOptions { RepeatsRefusals = false, RetryDelay = TimeSpan.Zero })
+            .AtAsync(Address, (_, _, _) =>
+            {
+                attempted++;
+
+                return Task.FromResult(Blocked());
+            });
+
+        Assert.Equal(1, attempted);
+    }
+
+    /// <summary>And the default is what it always was, which is what makes the setting a choice.</summary>
+    [Fact]
+    public async Task AtAsync_DeploymentThatSaidNothing_StillRepeatsAWall()
+    {
+        var attempted = 0;
+
+        await Configured(new ScrapingOptions { RetryDelay = TimeSpan.Zero }).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Blocked());
+        });
+
+        Assert.Equal(4, attempted);
+    }
+
     [Fact]
     public async Task AtAsync_RetriesSwitchedOff_MakesOneAttempt()
     {
@@ -303,6 +347,16 @@ public class AttemptsTests
 
         Assert.Equal(1, attempted);
     }
+
+    /// <summary>The sequence a deployment gets from its settings, through the constructor DI uses.</summary>
+    private static Attempts<string> Configured(ScrapingOptions options)
+        => new(
+            new CountingIdentities(),
+            new CountingPoliteness(),
+            new OpenRules(),
+            Options.Create(options),
+            Options.Create(new PolitenessOptions { LongestRest = TimeSpan.FromSeconds(10) }),
+            NullLogger<Attempts<string>>.Instance);
 
     private static Attempts<string> Subject(
         IIdentityRotation? identities = null,

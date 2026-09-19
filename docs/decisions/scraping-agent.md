@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-12 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+13 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## Effect
 
@@ -122,3 +122,12 @@ The document is inspected for a refusal first, because a step stops producing an
 Everything by default, and the default is the interesting half: a page that is DRIVEN rather than read needs the scripts that build what is driven — Google's query is typed into a field that does not exist without them. The reader's default is the same for the same reason, and both are a choice rather than an economy: measured against Brave on 2026-09-14, one ordinary page load cost 71 to 73 requests and was answered `429` three times out of three, while the document alone cost one and was answered `200` three times out of three.
 
 An errand that only waits for something already in the markup — a registry page whose table is served with it, a site walked to read rather than to use — asks for the document and pays one request. Until 2026-09-15 it had no way to say so: the agent opened every visit at `Everything` whatever the errand was for, so the choice existed for the reader and not here.
+
+
+## SiteCalls.Judge
+
+`2026-09-20` · *internal*
+
+*Reads what the service answered into a body or the reason there is none.*
+
+The gap the service asked for travels with the refusal since 2026-09-20, and it is read from the header of the CALL rather than of the page the call was made from — those are two different answers, and the one that matters here is the service's. Without it a service refusing by frequency in the middle of an errand told this caller and nobody else: `Attempts` writes the gap into the per-host gate, where it holds every later caller, and it had nothing to write.

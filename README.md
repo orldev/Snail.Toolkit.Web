@@ -106,6 +106,28 @@ and it knows about neither Playwright nor `HttpClient`:
 - **URL identity** — one normalisation, so the link search deduplicates by is the link scraping throttles by.
 - **Outcome** — failure as data, never as an empty string.
 
+The same ceiling is available to a caller reading markup this toolkit never fetched — a page saved to disk, a
+body fetched by something else. `Markup.Read` is the door the engines themselves parse through:
+
+```csharp
+try
+{
+    var document = Markup.Read(html);      // HtmlAgilityPack's document, with the ceiling already set
+
+    foreach (var row in document.DocumentNode.SelectNodes("//table[@id='notices']//tr") ?? [])
+        Console.WriteLine(row.InnerText.Trim());
+}
+catch (MarkupTooDeepException refused)
+{
+    Console.WriteLine($"Not read: {refused.MostNesting} tags is as deep as a document goes.");
+}
+```
+
+Parsing is quadratic in nesting depth, so a page of 161 KB nested five thousand deep costs four hundred
+milliseconds of pure CPU — and refusing it costs 1.4. The refusal is an exception rather than an empty string
+because every other answer would be a statement about the page: it has text, it has links, we simply did not
+look.
+
 ## Walking a page
 
 Some pages say nothing until someone fills a form in. `Snail.Toolkit.Web.Scraping.Agent` takes an

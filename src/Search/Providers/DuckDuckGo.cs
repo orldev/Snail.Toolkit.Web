@@ -1,5 +1,6 @@
 using System.Globalization;
 using HtmlAgilityPack;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Search.Http;
@@ -20,7 +21,8 @@ namespace Snail.Toolkit.Web.Search.Providers;
 public sealed class DuckDuckGo(
     IHttpClientFactory clients,
     IBlockDetector blocks,
-    IOptions<SearchOptions> options) : ISearchProvider
+    IOptions<SearchOptions> options,
+    ILogger<DuckDuckGo> logger) : ISearchProvider
 {
     /// <summary>The name this provider is registered and configured under.</summary>
     public const string ProviderName = "DuckDuckGo";
@@ -63,6 +65,7 @@ public sealed class DuckDuckGo(
         List<SearchResult> found = [];
         HashSet<Link> seen = [];
         int? offset = 0;
+        var read = 0;
 
         for (var request = 0; request < MaxRequests && offset is { } start && found.Count < wanted; request++)
         {
@@ -73,6 +76,8 @@ public sealed class DuckDuckGo(
 
             var html = page.Value;
             var added = found.Count;
+
+            read += html.Length;
 
             try
             {
@@ -89,6 +94,13 @@ public sealed class DuckDuckGo(
                 return SearchAnswer.Failed(SearchFailure.Unreadable(ProviderName, tooDeep));
             }
         }
+
+        if (found.Count == 0)
+            logger.LogWarning(
+                "{Provider} answered {Length} characters of markup that yielded no results, which is what a "
+                + "layout change looks like from here; the caller is told nothing was found.",
+                ProviderName,
+                read);
 
         return Relevance.Answers(query, found)
             ? SearchAnswer.Success(found)
@@ -166,7 +178,7 @@ public sealed class DuckDuckGo(
                 continue;
 
             var title = HtmlEntity.DeEntitize(link.InnerText.Trim());
-            var href = link.GetAttributeValue("href", "").Trim();
+            var href = HtmlEntity.DeEntitize(link.GetAttributeValue("href", string.Empty)).Trim();
 
             if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(href))
                 continue;
@@ -187,6 +199,14 @@ public sealed class DuckDuckGo(
     /// <remarks>
     /// Falls back to the href it was given rather than throwing. Parsing ran outside any guard before, so a
     /// single malformed link discarded every result already parsed from the page.
+    /// <para>
+    /// WHAT IT IS GIVEN IS DECODED FIRST, and that was missing until 2026-09-20 while the other engine had it.
+    /// The parser hands an attribute over exactly as the page wrote it, and this engine writes its separators
+    /// as <c>&amp;amp;</c>: undecoded, a wrapper whose own parameter comes before <c>uddg</c> has no pair by
+    /// that name — it is called <c>amp;uddg</c> — so the unwrapping silently fell back to the wrapper, and the
+    /// result's address became THE ENGINE'S. A finding that names duckduckgo.com as its source is worse than
+    /// no finding: the caller reads it as a page it can fetch.
+    /// </para>
     /// </remarks>
     private static string Unwrapped(string href)
     {

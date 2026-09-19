@@ -37,7 +37,11 @@ public sealed class SiteCalls(
             headers: { 'Content-Type': contentType, 'X-Requested-With': 'XMLHttpRequest' },
             body: method === 'GET' || method === 'HEAD' ? undefined : body
           });
-          return JSON.stringify({ status: response.status, body: await response.text() });
+          return JSON.stringify({
+            status: response.status,
+            retryAfter: response.headers.get('retry-after'),
+            body: await response.text()
+          });
         }
         """;
 
@@ -93,7 +97,7 @@ public sealed class SiteCalls(
             var answered = await page.EvaluateAsync<string>(Script,
                 new object?[] { call.Path, call.Method, call.ContentType, call.Body, token?.Value, call.Mint?.Parameter });
 
-            return Judge(call, identity, answered);
+            return Judge(call, identity, answered, DateTimeOffset.UtcNow);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -127,20 +131,35 @@ public sealed class SiteCalls(
         }
     }
 
-    private Outcome<string, PageFailure> Judge(SiteCall call, WebIdentity identity, string answered)
+    /// <summary>Reads what the service answered into a body or the reason there is none.</summary>
+    /// <remarks>
+    /// The gap the service asked for travels with the refusal since 2026-09-20, and it is read from the header
+    /// of the CALL rather than of the page the call was made from — those are two different answers, and the
+    /// one that matters here is the service's. Without it a service refusing by frequency in the middle of an
+    /// errand told this caller and nobody else: <c>Attempts</c> writes the gap into the per-host gate, where it
+    /// holds every later caller, and it had nothing to write.
+    /// </remarks>
+    internal static Outcome<string, PageFailure> Judge(
+        SiteCall call,
+        WebIdentity identity,
+        string answered,
+        DateTimeOffset now)
     {
         using var document = JsonDocument.Parse(answered);
 
         var status = document.RootElement.GetProperty("status").GetInt32();
         var body = document.RootElement.GetProperty("body").GetString() ?? string.Empty;
+        var asked = document.RootElement.TryGetProperty("retryAfter", out var carried)
+            ? Rests.AskedFor(carried.GetString(), now)
+            : null;
 
         if (status >= 400)
             return Refused(call, identity, status is 401 or 403 ? FailureKind.Blocked : FailureKind.Navigation,
-                $"The service answered {status}: {Trimmed(body)}", status);
+                $"The service answered {status}: {Trimmed(body)}", status, asked);
 
         if (string.IsNullOrWhiteSpace(body))
             return Refused(call, identity, FailureKind.Empty,
-                $"The service answered {status} with an empty body.", status);
+                $"The service answered {status} with an empty body.", status, asked);
 
         return Outcome<string, PageFailure>.Success(body);
     }
@@ -150,12 +169,14 @@ public sealed class SiteCalls(
         WebIdentity identity,
         FailureKind kind,
         string message,
-        int? status)
+        int? status,
+        TimeSpan? asked = null)
         => Outcome<string, PageFailure>.Failed(new PageFailure(kind, message)
         {
             Address = call.Page,
             StatusCode = status,
-            UserAgent = identity.UserAgent
+            UserAgent = identity.UserAgent,
+            RetryAfter = asked
         });
 
     private static string Trimmed(string body)

@@ -114,19 +114,19 @@ The default says yes, because most engines either answer or refuse and there is 
 An engine that can be served that page overrides this and says so, and the search then records a refusal rather than results. Left here rather than pushed into every engine because the caller's question — «did I get an answer to what I asked» — is the same for all of them; only the evidence differs, and only an engine that has been measured should claim to have any.
 
 
-## ServiceCollectionExtensions.AddBing
-
-`2026-09-15`
-
-*Adds Bing, read through a browser instead of over plain HTTP.*
-
-TAKES THE PLACE OF THE HTTP PROVIDER OF THE SAME NAME, and that is the point rather than a side effect. Measured on 2026-09-15 from a datacentre address: over HTTP the engine answered four Russian queries out of five with ten confident results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence.
-
-Two providers under one name would be worse than either: a report that says «Bing answered nothing» could no longer say which Bing, and the aggregator would spend two of its slots per query on one engine. So the browser reading replaces the plain one wherever this method is called, and a deployment with no browser keeps the plain one by simply not calling it.
-
-
 ## BrowserSearch.FindAsync
 
 `2026-09-20`
 
 Bounded by `Timeout`, the same setting that bounds an engine asked over HTTP. Until 2026-09-20 it bounded only those: it was wired into the HTTP client's pipeline and nowhere else, so a browser engine lasted as long as its navigation timeouts times its retries — a consumer measured 136 to 392 seconds against a one-minute setting. Running out of it is a fault, as it is over HTTP, and a cancellation by the caller stays a cancellation.
+
+
+## ServiceCollectionExtensions.AddBing
+
+`2026-09-20`, `2026-09-15`
+
+*Adds Bing, which answers a browser and not a plain request.*
+
+THE ONLY READING OF THIS ENGINE THERE IS, since 2026-09-20. It used to take the place of an HTTP provider of the same name, and this method carried the code that removed that one from the registrations; the owner had it deleted instead, so there is nothing left to displace.
+
+Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence. A provider that keeps the shape of an answer while saying nothing is worse than a provider that is absent: absence is visible in the report.

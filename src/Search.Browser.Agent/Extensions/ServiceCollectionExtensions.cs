@@ -45,6 +45,14 @@ public static class ServiceCollectionExtensions
     /// context, were answered with results, and the shortest interval that passed was two minutes. Faster was
     /// never measured to work, so this is a floor written from a measurement rather than a rate known to be
     /// safe — a deployment that asks more often should expect the refusal that frequency buys.
+    /// <para>
+    /// WHAT THIS NUMBER DOES NOT KNOW, named on 2026-09-20 because the consumer asked it as the seventeenth
+    /// item: it describes the interval at which a FIRST request in a fresh context was answered, not a rate the
+    /// engine sustains over an hour, and tolerance is per ADDRESS — the measurement that decides it is the
+    /// deployment's own, which is not a measurement this repository can make. So the number is left where it
+    /// is and the engine now says it out loud: a refusal is logged with the gap in force and with where to
+    /// raise it. A constant nobody can verify is at least a constant an operator can correct.
+    /// </para>
     /// </remarks>
     private static readonly TimeSpan Measured = TimeSpan.FromMinutes(2);
 

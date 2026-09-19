@@ -17,13 +17,13 @@ namespace Snail.Toolkit.Web.Search.Browser.Agent.Tests;
 public class RegistrationTests
 {
     [Fact]
-    public async Task AddGoogle_ProviderSet_HoldsTheHttpProvidersAndGoogle()
+    public async Task AddGoogle_ProviderSet_HoldsTheHttpProviderAndGoogle()
     {
         await using var provider = Built([]);
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal([Bing.ProviderName, DuckDuckGo.ProviderName, Google.ProviderName], names);
+        Assert.Equal([DuckDuckGo.ProviderName, Google.ProviderName], names);
     }
 
     /// <summary>Google is walked through its form, so the agent has to be registered alongside it.</summary>
@@ -74,7 +74,7 @@ public class RegistrationTests
 
         await using var provider = services.BuildServiceProvider();
 
-        Assert.Equal(3, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
+        Assert.Equal(2, provider.GetRequiredService<IEnumerable<ISearchProvider>>().Count());
     }
 
     /// <summary>Registration is idempotent in its settings too, not only in its services.</summary>

@@ -2,6 +2,7 @@ using HtmlAgilityPack;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping;
 using Snail.Toolkit.Web.Scraping.Agent;
 
@@ -30,6 +31,7 @@ public sealed class Google(
     IHttpClientFactory clients,
     IOptions<GoogleOptions> options,
     IOptions<SearchOptions> search,
+    IOptions<PolitenessOptions> pacing,
     ILogger<Google> logger) : BrowserSearch(search, logger)
 {
     private const string Field = "textarea[name=\"q\"]";
@@ -49,14 +51,37 @@ public sealed class Google(
     /// is the only thing that submits this form: measured across five engines on 2026-09-12, two offer no
     /// submitting element at all and a third ignores a click on the one it has.
     /// </remarks>
-    protected override Task<PageOutcome> AnsweredAsync(string query, CancellationToken ct)
-        => agent.PerformAsync(
+    /// <inheritdoc />
+    /// <remarks>
+    /// A REFUSAL NAMES THE GAP IN FORCE, and that line is the whole of what this package can honestly say about
+    /// how often this engine may be asked. The two minutes it writes by default is the shortest interval that
+    /// passed in one measurement of four queries on clean contexts (2026-09-13); the rate the engine SUSTAINS
+    /// has never been measured, and it could not be measured here in any case — tolerance is per address, so
+    /// the only measurement that counts is the deployment's own. Naming the number at the moment it proved too
+    /// small is what turns a constant somebody wrote into something an operator can correct.
+    /// </remarks>
+    protected override async Task<PageOutcome> AnsweredAsync(string query, CancellationToken ct)
+    {
+        var outcome = await agent.PerformAsync(
             new Errand(Link.Of($"https://{Domain}/"),
             [
                 new Step(StepKind.Type, Spot.Css(Field)) { Value = query },
                 new Step(StepKind.Press, Spot.Css(Field))
             ]),
             ct);
+
+        if (!outcome.IsSuccess && outcome.Failure.IsRefusal)
+            logger.LogWarning(
+                "{Provider} refused, and the gap in force for {Host} is {Gap}. That default is the shortest "
+                + "interval one measurement of four queries answered at, not a rate this engine sustains, and "
+                + "what it tolerates depends on the address asking. If refusals persist, raise "
+                + "Web:Politeness:HostDelays for that host.",
+                ProviderName,
+                Domain,
+                pacing.Value.GapFor(Domain) ?? pacing.Value.MinDelayPerHost);
+
+        return outcome;
+    }
 
     /// <inheritdoc />
     /// <remarks>

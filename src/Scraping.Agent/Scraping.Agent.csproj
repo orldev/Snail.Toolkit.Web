@@ -15,6 +15,14 @@
     keystroke and still leave the site none the wiser. Consumers that only ever read a URL should not carry
     the vocabulary for the other.
   -->
+  <!--
+    The judgement of a service's answer is internal because the shape of one site's JSON is not a contract.
+    Its reading is, which is why the test assembly is let in rather than the method being made public.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Agent.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Scraping\Scraping.csproj" />
   </ItemGroup>

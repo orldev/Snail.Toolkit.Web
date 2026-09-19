@@ -120,7 +120,7 @@ What answers it is in `Remembered`, not here: an entry younger than the forgetti
 
 ## Markup
 
-`2026-09-15` · *internal*
+`2026-09-15`, `2026-09-20`
 
 *Parses a page's markup, and refuses markup nested deeper than a page really is.*
 
@@ -139,7 +139,9 @@ The ceiling is the parser's own, checked INSIDE the parse rather than after it, 
 
 WHY 1000 AND NOT A SETTING. Every real page measured sits two orders below it: an article nests twelve deep, a catalogue twenty. The ceiling is not a policy a consumer tunes to taste — nobody wants a page nested a thousand deep read — it is the line past which markup stops being a document, and putting a number like that in configuration invites it to be raised by someone who has met a refusal rather than a page. What a consumer needs instead is to be TOLD, which is why the refusal is named rather than silent. If a real page is ever found above this, the answer to weigh is a setting, and this paragraph is where the argument against one already stands.
 
-THE FOUR SEARCH ENGINES CAME THROUGH HERE ON 2026-09-15, and the question that had kept them out was the one this paragraph named: what a refused results page IS. It is neither of the two answers that were available — not "no results", which is a statement about the query, and not a fault, which is a defect on our side to go and fix — so the search contract grew a third, `SearchFailureKind.Unreadable`, which rests no engine because markup too deep to read says nothing about how often the engine will answer. The two engines that fetch over HTTP parse here and map the refusal themselves; the two driven by a browser parse in `BrowserSearch`, which is why that package is named beside the others in Web.csproj.
+THE FOUR SEARCH ENGINES CAME THROUGH HERE ON 2026-09-15, and the question that had kept them out was the one this paragraph named: what a refused results page IS. It is neither of the two answers that were available — not "no results", which is a statement about the query, and not a fault, which is a defect on our side to go and fix — so the search contract grew a third, `SearchFailureKind.Unreadable`, which rests no engine because markup too deep to read says nothing about how often the engine will answer. The engine that fetches over HTTP parses here and maps the refusal itself; the two driven by a browser parse in `BrowserSearch`, which is why that package is named beside the others in Web.csproj.
+
+OPEN TO A CONSUMER SINCE 2026-09-20, which was the thirteenth item on the consumer's list. A caller that reads pages this library never fetched — a bot with ten probes of its own — was choosing between the extraction this package offers, which answers text and links and nothing else, and its own parser, which pays the cost above on every hostile page. The door is the same one the engines use: the ceiling is not a setting, and the refusal arrives as `MarkupTooDeepException` so that a caller can say WHY it read nothing. What it hands back is HtmlAgilityPack's document, so a consumer of this method takes a dependency on that package's shape — which the two search packages already do, and which is the price of asking for a document rather than for text.
 
 
 ## PolitenessOptions.GapFor

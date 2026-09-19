@@ -75,11 +75,11 @@ The same host the engine is read at, said once more where the search can see it:
 
 Registers the search providers that need a real browser.
 
-**AddBing** — Adds Bing, read through a browser instead of over plain HTTP.
+**AddBing** — Adds Bing, which answers a browser and not a plain request.
 
-TAKES THE PLACE OF THE HTTP PROVIDER OF THE SAME NAME, and that is the point rather than a side effect. Measured on 2026-09-15 from a datacentre address: over HTTP the engine answered four Russian queries out of five with ten confident results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence.
+THE ONLY READING OF THIS ENGINE THERE IS, since 2026-09-20. It used to take the place of an HTTP provider of the same name, and this method carried the code that removed that one from the registrations; the owner had it deleted instead, so there is nothing left to displace.
 
-Two providers under one name would be worse than either: a report that says «Bing answered nothing» could no longer say which Bing, and the aggregator would spend two of its slots per query on one engine. So the browser reading replaces the plain one wherever this method is called, and a deployment with no browser keeps the plain one by simply not calling it.
+Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence. A provider that keeps the shape of an answer while saying nothing is worse than a provider that is absent: absence is visible in the report.
 
 **AddBrave** — Adds Brave, read at its own results address.
 

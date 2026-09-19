@@ -13,6 +13,11 @@ echo "timezone   $(node -p 'Intl.DateTimeFormat().resolvedOptions().timeZone')"
 echo "screen     ${SCREEN}"
 echo "firefox    $(/opt/firefox/firefox --version 2>/dev/null || echo unavailable)"
 echo "patches    $(grep -c SNAIL /opt/firefox/playwright.cfg) in playwright.cfg"
+# Обе половины пары в одной строке: браузер собран под ревизию, а клиент —
+# отдельная версия, и расхождение между ними видно только здесь. Замер
+# 20.09.2026 (PATCHES.md, раздел 7): пара 155.0 + 1.62 валится на тяжёлой
+# странице, тогда как штатная 153.0 + 1.62 её читает.
+echo "client     playwright-core $(node -p "require('/app/node_modules/playwright-core/package.json').version" 2>/dev/null || echo unknown)"
 
 screen_number="${DISPLAY#:}"
 

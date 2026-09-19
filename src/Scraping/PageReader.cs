@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
@@ -72,7 +71,7 @@ public sealed class PageReader(
             var html = await page.ContentAsync();
             var rendered = await page.EvaluateAsync<string?>("() => document.body ? document.body.innerText : ''");
 
-            return Judge(address, identity, html, rendered, page.Url, response?.Status, RestAskedFor(response));
+            return Judge(address, identity, html, rendered, page.Url, response?.Status, Rests.AskedFor(response?.Headers, DateTimeOffset.UtcNow));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -108,27 +107,6 @@ public sealed class PageReader(
         {
             logger.LogDebug("Network never went idle for {Url}; continuing with the loaded DOM", page.Url);
         }
-    }
-
-    /// <summary>Reads the gap the site asked for, in either of the two forms the header is written in.</summary>
-    /// <remarks>
-    /// <c>Retry-After</c> carries either a count of seconds or an HTTP date, and both are common. A date in the
-    /// past is read as no wait rather than a negative one, which is what a clock a few seconds out produces.
-    /// </remarks>
-    private static TimeSpan? RestAskedFor(IResponse? response)
-    {
-        if (response is null || !response.Headers.TryGetValue("retry-after", out var asked))
-            return null;
-
-        if (int.TryParse(asked, out var seconds))
-            return seconds > 0 ? TimeSpan.FromSeconds(seconds) : null;
-
-        if (!DateTimeOffset.TryParse(asked, CultureInfo.InvariantCulture, out var until))
-            return null;
-
-        var gap = until - DateTimeOffset.UtcNow;
-
-        return gap > TimeSpan.Zero ? gap : null;
     }
 
     /// <summary>Decides what the fetched document actually is.</summary>

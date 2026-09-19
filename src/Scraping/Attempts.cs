@@ -42,7 +42,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         IOptions<ScrapingOptions> options,
         IOptions<PolitenessOptions> pacing,
         ILogger<Attempts<TValue>> logger)
-        : this(identities, politeness, rules, options, pacing, logger, repeatsRefusals: true)
+        : this(identities, politeness, rules, options, pacing, logger, Repeats(options))
     {
     }
 
@@ -55,9 +55,10 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
     /// <param name="logger">Where retries are reported.</param>
     /// <param name="repeatsRefusals">
     /// Whether a refusal that names no gap is repeated. A crawl repeats it with a new identity, which is what
-    /// a wall asks of a reader. A search engine does not: the engines measured on 2026-09-12 closed over
-    /// frequency, not fingerprint, and the search rests an engine the moment it hears the refusal — which a
-    /// retry here would delay by half a minute and three more requests.
+    /// a wall asks of a reader, and a deployment that knows better says so in
+    /// <see cref="ScrapingOptions.RepeatsRefusals"/>. A search engine never does: the engines measured on
+    /// 2026-09-12 closed over frequency, not fingerprint, and the search rests an engine the moment it hears
+    /// the refusal — which a retry here would delay by half a minute and three more requests.
     /// </param>
     internal Attempts(
         IIdentityRotation identities,
@@ -76,6 +77,19 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         _rules = rules;
         _logger = logger;
         _pipeline = BuildPipeline(options.Value, pacing.Value.LongestRest, repeatsRefusals, logger);
+    }
+
+    /// <summary>What the settings say about repeating a refusal, read before the fields are set.</summary>
+    /// <remarks>
+    /// A method rather than <c>options.Value.RepeatsRefusals</c> in the initializer, so that a caller handing
+    /// over nothing meets <see cref="ArgumentNullException"/> naming the parameter instead of a dereference
+    /// inside a constructor chain.
+    /// </remarks>
+    private static bool Repeats(IOptions<ScrapingOptions> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return options.Value.RepeatsRefusals;
     }
 
     /// <inheritdoc />

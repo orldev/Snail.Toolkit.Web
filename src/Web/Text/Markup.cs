@@ -40,14 +40,24 @@ namespace Snail.Toolkit.Web.Text;
 /// available — not "no results", which is a statement about the query, and not a fault, which is a defect on
 /// our side to go and fix — so the search contract grew a third, <c>SearchFailureKind.Unreadable</c>, which
 /// rests no engine because markup too deep to read says nothing about how often the engine will answer. The
-/// two engines that fetch over HTTP parse here and map the refusal themselves; the two driven by a browser
+/// engine that fetches over HTTP parses here and maps the refusal itself; the two driven by a browser
 /// parse in <c>BrowserSearch</c>, which is why that package is named beside the others in Web.csproj.
 /// </para>
+/// <para>
+/// OPEN TO A CONSUMER SINCE 2026-09-20, which was the thirteenth item on the consumer's list. A caller that
+/// reads pages this library never fetched — a bot with ten probes of its own — was choosing between the
+/// extraction this package offers, which answers text and links and nothing else, and its own parser, which
+/// pays the cost above on every hostile page. The door is the same one the engines use: the ceiling is not a
+/// setting, and the refusal arrives as <see cref="MarkupTooDeepException"/> so that a caller can say WHY it
+/// read nothing. What it hands back is HtmlAgilityPack's document, so a consumer of this method takes a
+/// dependency on that package's shape — which the two search packages already do, and which is the price of
+/// asking for a document rather than for text.
+/// </para>
 /// </remarks>
-internal static class Markup
+public static class Markup
 {
     /// <summary>How deep a page may nest before it is refused instead of read.</summary>
-    internal const int MostNesting = 1000;
+    public const int MostNesting = 1000;
 
     /// <summary>The parsed document, or a refusal naming the depth it stopped at.</summary>
     /// <remarks>
@@ -59,7 +69,7 @@ internal static class Markup
     /// is a fact about the process rather than about the page, and calling it a nesting depth would send
     /// whoever reads the failure looking at the wrong thing.
     /// </remarks>
-    internal static HtmlDocument Read(string html)
+    public static HtmlDocument Read(string html)
     {
         var document = new HtmlDocument { OptionMaxNestedChildNodes = MostNesting };
 

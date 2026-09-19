@@ -1,5 +1,7 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Snail.Toolkit.Web.Politeness;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping.Agent;
 
@@ -218,16 +220,84 @@ public class GoogleTests
     private static async Task<IReadOnlyList<SearchResult>> Found(string html, IHttpClientFactory? clients = null)
         => (await Provider(new StubAgent(_ => Fixture.Walked(html)), clients: clients).FindAsync("grain")).Value;
 
+    /// <summary>
+    /// A refusal from this engine names the gap in force, because that number is the one a deployment has to
+    /// raise and the only evidence that it is too small.
+    /// </summary>
+    /// <remarks>
+    /// The seventeenth item on the consumer's list: the two minutes this package writes for Google is the
+    /// shortest interval that passed in ONE measurement of four queries on clean contexts (2026-09-13), and
+    /// nothing has ever measured the rate the engine sustains. Worse, tolerance is per ADDRESS — the
+    /// measurement that matters is the deployment's own, not this repository's. So the number cannot be made
+    /// true here; what it can be made is visible, and a refusal is the moment to say it.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_EngineThatRefused_NamesTheGapInForceAndWhereToRaiseIt()
+    {
+        var recording = new RecordingLogger();
+
+        var answer = await Provider(
+            new StubAgent(_ => Fixture.Refused("are you a robot")),
+            logger: recording,
+            gap: TimeSpan.FromMinutes(2)).FindAsync("grain");
+
+        Assert.False(answer.IsSuccess);
+        Assert.Contains(recording.Warnings, line => line.Contains("00:02:00", StringComparison.Ordinal));
+        Assert.Contains(recording.Warnings, line => line.Contains("HostDelays", StringComparison.Ordinal));
+    }
+
+    /// <summary>An engine that answered says nothing of the kind, which is what makes the line above a signal.</summary>
+    [Fact]
+    public async Task FindAsync_EngineThatAnswered_SaysNothingAboutItsPace()
+    {
+        var recording = new RecordingLogger();
+
+        await Provider(new StubAgent(_ => Fixture.Walked(Page)), logger: recording).FindAsync("grain");
+
+        Assert.DoesNotContain(recording.Warnings, line => line.Contains("HostDelays", StringComparison.Ordinal));
+    }
+
+    /// <summary>Keeps the warnings, which is where the gap in force is named.</summary>
+    private sealed class RecordingLogger : ILogger<Google>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            ArgumentNullException.ThrowIfNull(formatter);
+
+            if (logLevel is LogLevel.Warning)
+                Warnings.Add(formatter(state, exception));
+        }
+    }
+
     private static Google Provider(
         IPageAgent agent,
         string domain = "www.google.com",
         IHttpClientFactory? clients = null,
-        TimeSpan? follow = null)
+        TimeSpan? follow = null,
+        ILogger<Google>? logger = null,
+        TimeSpan? gap = null)
         => new(agent,
             clients ?? new StubClients(),
             Options.Create(new GoogleOptions { Domain = domain, FollowDelay = follow ?? TimeSpan.Zero }),
             Options.Create(new SearchOptions()),
-            NullLogger<Google>.Instance);
+            Options.Create(new PolitenessOptions
+            {
+                HostDelays = gap is { } named
+                    ? new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase) { [domain] = named }
+                    : []
+            }),
+            logger ?? NullLogger<Google>.Instance);
 
     /// <summary>Answers a wrapper the way the engine does, and remembers every wrapper it was asked about.</summary>
     private sealed class StubClients(HttpStatusCode status = HttpStatusCode.Found) : IHttpClientFactory
