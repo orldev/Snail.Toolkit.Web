@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Extensions;
 using Snail.Toolkit.Web.Identity;
+using Snail.Toolkit.Web.Politeness;
+using Snail.Toolkit.Web.Robots;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Robots;
@@ -86,6 +89,23 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<PageContents>();
             services.TryAddSingleton<IPageReader, PageReader>();
             services.TryAddSingleton<ICrawler, Crawler>();
+
+            services.TryAddKeyedSingleton<IAttempts<PageContent>>(
+                EngineReading.Key,
+                (provider, _) => new Attempts<PageContent>(
+                    provider.GetRequiredService<IIdentityRotation>(),
+                    provider.GetRequiredService<IPoliteness>(),
+                    provider.GetRequiredService<ISiteRules>(),
+                    provider.GetRequiredService<IOptions<ScrapingOptions>>(),
+                    provider.GetRequiredService<IOptions<PolitenessOptions>>(),
+                    provider.GetRequiredService<ILogger<Attempts<PageContent>>>(),
+                    repeatsRefusals: false));
+
+            services.TryAddKeyedSingleton<IPageReader>(
+                EngineReading.Key,
+                (provider, key) => ActivatorUtilities.CreateInstance<PageReader>(
+                    provider,
+                    provider.GetRequiredKeyedService<IAttempts<PageContent>>(key)));
 
             return services;
         }

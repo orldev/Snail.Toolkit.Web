@@ -1,5 +1,6 @@
 using System.Text;
 using HtmlAgilityPack;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
@@ -32,7 +33,7 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// </para>
 /// </remarks>
 public sealed class Bing(
-    IPageReader pages,
+    [FromKeyedServices(EngineReading.Key)] IPageReader pages,
     IOptions<BingOptions> options,
     IOptions<SearchOptions> search,
     ILogger<Bing> logger) : BrowserSearch(search, logger)

@@ -24,6 +24,11 @@ public sealed class SearchOptions
     /// per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter
     /// than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when
     /// the host starts rather than surfacing as a pipeline validation error on the first query.
+    /// <para>
+    /// A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for
+    /// the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes —
+    /// runs out of it when asked again before the gap is over, which is the setting doing what it says.
+    /// </para>
     /// </remarks>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 

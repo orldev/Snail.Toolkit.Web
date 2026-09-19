@@ -214,6 +214,81 @@ public class AttemptsTests
         Assert.Equal(4, attempted);
     }
 
+    /// <summary>
+    /// For a search engine a wall is not a fingerprint to be changed but a frequency to be respected: asked again
+    /// five seconds later, it answers the same and remembers the second request too.
+    /// </summary>
+    /// <remarks>
+    /// The engines measured on 2026-09-12 closed over frequency, not fingerprint. Read on 2026-09-20: every
+    /// browser engine went through the same retry as a crawl, so a wall cost four requests over half a minute
+    /// before the search could rest the engine — and that is most of the 136 to 392 seconds a consumer measured
+    /// against a one-minute setting.
+    /// </remarks>
+    [Fact]
+    public async Task AtAsync_ForAnEngine_AWallIsNotRepeated()
+    {
+        var attempted = 0;
+
+        await Subject(repeatsRefusals: false).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Blocked());
+        });
+
+        Assert.Equal(1, attempted);
+    }
+
+    [Fact]
+    public async Task AtAsync_ForAnEngine_BusyWithoutAGap_IsNotRepeated()
+    {
+        var attempted = 0;
+
+        await Subject(repeatsRefusals: false).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Status(429));
+        });
+
+        Assert.Equal(1, attempted);
+    }
+
+    /// <summary>A gap the engine named itself is an invitation, and it is taken up as it always was.</summary>
+    [Fact]
+    public async Task AtAsync_ForAnEngine_AGapShortEnoughToWait_IsStillRepeated()
+    {
+        var attempted = 0;
+
+        await Subject(repeatsRefusals: false).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Busy(TimeSpan.FromSeconds(3)));
+        });
+
+        Assert.Equal(4, attempted);
+    }
+
+    /// <summary>
+    /// Only refusals are spared. A browser that went away is our failure, and the engine never saw the request
+    /// — without this pair, switching off every retry would pass the checks above just as well.
+    /// </summary>
+    [Fact]
+    public async Task AtAsync_ForAnEngine_ABrowserThatWentAway_IsStillRepeated()
+    {
+        var attempted = 0;
+
+        await Subject(repeatsRefusals: false).AtAsync(Address, (_, _, _) =>
+        {
+            attempted++;
+
+            return Task.FromResult(Failed(FailureKind.BrowserUnavailable));
+        });
+
+        Assert.Equal(4, attempted);
+    }
+
     [Fact]
     public async Task AtAsync_RetriesSwitchedOff_MakesOneAttempt()
     {
@@ -234,7 +309,8 @@ public class AttemptsTests
         IPoliteness? politeness = null,
         ISiteRules? rules = null,
         int maxRetryAttempts = 3,
-        TimeSpan? longestRest = null)
+        TimeSpan? longestRest = null,
+        bool repeatsRefusals = true)
         => new(
             identities ?? new CountingIdentities(),
             politeness ?? new CountingPoliteness(),
@@ -248,7 +324,8 @@ public class AttemptsTests
             {
                 LongestRest = longestRest ?? TimeSpan.FromSeconds(10)
             }),
-            NullLogger<Attempts<string>>.Instance);
+            NullLogger<Attempts<string>>.Instance,
+            repeatsRefusals);
 
     private static Outcome<string, PageFailure> Answered(string body)
         => Outcome<string, PageFailure>.Success(body);
@@ -262,6 +339,10 @@ public class AttemptsTests
                 StatusCode = 429,
                 RetryAfter = asked
             });
+
+    private static Outcome<string, PageFailure> Status(int status)
+        => Outcome<string, PageFailure>.Failed(
+            new PageFailure(FailureKind.Navigation, $"The site answered with HTTP {status}.") { StatusCode = status });
 
     private static Outcome<string, PageFailure> Failed(FailureKind kind)
         => Outcome<string, PageFailure>.Failed(new PageFailure(kind, "measured") { Address = Address });

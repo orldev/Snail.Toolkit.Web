@@ -1,6 +1,8 @@
 using HtmlAgilityPack;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Snail.Toolkit.Web.Scraping;
 using Snail.Toolkit.Web.Scraping.Agent;
 
 namespace Snail.Toolkit.Web.Search.Browser.Agent;
@@ -24,7 +26,7 @@ namespace Snail.Toolkit.Web.Search.Browser.Agent;
 /// the request that turns a wrapped link into the address it wraps.
 /// </remarks>
 public sealed class Google(
-    IPageAgent agent,
+    [FromKeyedServices(EngineReading.Key)] IPageAgent agent,
     IHttpClientFactory clients,
     IOptions<GoogleOptions> options,
     IOptions<SearchOptions> search,

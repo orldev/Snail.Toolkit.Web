@@ -17,6 +17,17 @@
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Tests" />
   </ItemGroup>
 
+  <!--
+    The search engines are handed readers that do not repeat a refusal, under a key kept internal: which
+    reading an engine gets is this toolkit's decision about its own engines, not a setting for a consumer.
+    The three assemblies below are the ones that build or take those readers.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Agent" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser.Agent" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Playwright" />
     <PackageReference Include="Polly" />

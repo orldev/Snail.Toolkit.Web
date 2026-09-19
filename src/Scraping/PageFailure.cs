@@ -52,6 +52,17 @@ public sealed record PageFailure(FailureKind Kind, string Message)
         _ => false
     };
 
+    /// <summary>Gets whether the site turned the request away, as distinct from failing to answer it.</summary>
+    /// <remarks>
+    /// A wall, a <c>429</c>, a <c>403</c> and a <c>503</c>: the four shapes in which a site says it will not
+    /// answer this caller now. The HTTP side of the toolkit has read the same three statuses as a refusal since
+    /// 2026-09-14; the browser side read only a wall and a <c>429</c> until 2026-09-20, so a browser engine
+    /// answering <c>403</c> was a fault — never rested, asked again at every query. What a refusal calls for is
+    /// asking less, which is the opposite of what a fault calls for, and that is why the two are told apart.
+    /// </remarks>
+    public bool IsRefusal => Kind is FailureKind.Blocked
+                             || (Kind is FailureKind.Navigation && StatusCode is 429 or 403 or 503);
+
     /// <inheritdoc />
     public override string ToString()
         => StatusCode is null

@@ -42,6 +42,31 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         IOptions<ScrapingOptions> options,
         IOptions<PolitenessOptions> pacing,
         ILogger<Attempts<TValue>> logger)
+        : this(identities, politeness, rules, options, pacing, logger, repeatsRefusals: true)
+    {
+    }
+
+    /// <summary>Assembles the sequence for a caller that decides for itself what a refusal costs.</summary>
+    /// <param name="identities">Where each attempt's identity comes from.</param>
+    /// <param name="politeness">The per-host gate.</param>
+    /// <param name="rules">The site's own rules.</param>
+    /// <param name="options">How often to repeat, and how long to wait between.</param>
+    /// <param name="pacing">The longest gap a site may ask for and still be waited out.</param>
+    /// <param name="logger">Where retries are reported.</param>
+    /// <param name="repeatsRefusals">
+    /// Whether a refusal that names no gap is repeated. A crawl repeats it with a new identity, which is what
+    /// a wall asks of a reader. A search engine does not: the engines measured on 2026-09-12 closed over
+    /// frequency, not fingerprint, and the search rests an engine the moment it hears the refusal — which a
+    /// retry here would delay by half a minute and three more requests.
+    /// </param>
+    internal Attempts(
+        IIdentityRotation identities,
+        IPoliteness politeness,
+        ISiteRules rules,
+        IOptions<ScrapingOptions> options,
+        IOptions<PolitenessOptions> pacing,
+        ILogger<Attempts<TValue>> logger,
+        bool repeatsRefusals)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(pacing);
@@ -50,7 +75,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         _politeness = politeness;
         _rules = rules;
         _logger = logger;
-        _pipeline = BuildPipeline(options.Value, pacing.Value.LongestRest, logger);
+        _pipeline = BuildPipeline(options.Value, pacing.Value.LongestRest, repeatsRefusals, logger);
     }
 
     /// <inheritdoc />
@@ -112,12 +137,18 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
     /// first answer had already said both. The gate still holds the host for the full gap; what changes is
     /// that the refusal reaches the caller at once instead of being sat on.
     /// </remarks>
-    private static bool IsWorthRepeating(Outcome<TValue, PageFailure> outcome, TimeSpan longestRest)
+    private static bool IsWorthRepeating(
+        Outcome<TValue, PageFailure> outcome,
+        TimeSpan longestRest,
+        bool repeatsRefusals)
     {
         if (outcome.IsSuccess || !outcome.Failure.IsTransient)
             return false;
 
-        return outcome.Failure.RetryAfter is not { } gap || gap <= longestRest;
+        if (outcome.Failure.RetryAfter is { } gap)
+            return gap <= longestRest;
+
+        return repeatsRefusals || !outcome.Failure.IsRefusal;
     }
 
     /// <summary>Passes on a gap the site asked for, so the next caller waits rather than this one alone.</summary>
@@ -178,6 +209,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
     private static ResiliencePipeline<Outcome<TValue, PageFailure>> BuildPipeline(
         ScrapingOptions options,
         TimeSpan longestRest,
+        bool repeatsRefusals,
         ILogger logger)
     {
         if (options.MaxRetryAttempts <= 0)
@@ -187,7 +219,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
             .AddRetry(new RetryStrategyOptions<Outcome<TValue, PageFailure>>
             {
                 ShouldHandle = new PredicateBuilder<Outcome<TValue, PageFailure>>()
-                    .HandleResult(outcome => IsWorthRepeating(outcome, longestRest)),
+                    .HandleResult(outcome => IsWorthRepeating(outcome, longestRest, repeatsRefusals)),
                 MaxRetryAttempts = options.MaxRetryAttempts,
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,

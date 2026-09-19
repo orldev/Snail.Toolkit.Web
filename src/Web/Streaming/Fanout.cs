@@ -86,16 +86,21 @@ internal static class Fanout
     /// WHOSE CARELESSNESS THIS GUARDS AGAINST CHANGED ON 2026-09-15, and the paragraph is rewritten rather
     /// than left standing because it had become untrue. This bound was added while <see cref="Fanout"/> was
     /// public, and the reason given was that the work would be a stranger's; the type is internal now, so
-    /// there is no stranger. Both callers that exist — the crawler under Playwright's navigation timeout, the
-    /// search under a Polly total-request timeout — are bounded by something else, and neither can produce
-    /// the failure this prevents.
+    /// there is no stranger.
     /// </para>
     /// <para>
-    /// It is kept anyway, and the justification is weaker than the one it replaces: what it now guards
-    /// against is OUR OWN next caller. Nothing about this type makes a third one expensive to add, and
+    /// That paragraph went on to say that neither caller that exists could produce the failure this prevents,
+    /// and on 2026-09-20 it was MEASURED FALSE: the search handed its attempts a token of its own and threw
+    /// away the one given here, so a caller that broke out of the loop waited the full grace while a slow
+    /// engine ran on. The search now listens to this token as well. The bound is what caught it — the caller
+    /// waited five seconds rather than for as long as the engine liked.
+    /// </para>
+    /// <para>
+    /// It is kept, and the reason is no longer a supposition: what it guards against is OUR OWN caller, and
+    /// one of ours has already been that caller. Nothing about this type makes a third one expensive to add, and
     /// nothing about it warns that the work handed over must watch its token — the requirement lives here, in
     /// prose, where an author reaching for bounded parallelism will not look. The cost of keeping it is a
-    /// timer that never elapses. That is a smaller price than the failure, which is silent: a consumer that
+    /// timer that elapses only when a caller has made that mistake. That is a smaller price than the failure, which is silent: a consumer that
     /// has already left the loop, still held.
     /// </para>
     /// </remarks>

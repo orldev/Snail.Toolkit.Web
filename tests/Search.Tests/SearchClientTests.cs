@@ -92,6 +92,40 @@ public class SearchClientTests
         Assert.Null(gate.Rested);
     }
 
+    /// <summary>
+    /// A refusal that names no gap is not repeated either: the engine said no, and asking three more times is
+    /// how a pause becomes a ban — the same rule the browser path follows since 2026-09-20.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task SendAsync_RefusalWithoutAGap_AsksOnce(HttpStatusCode status)
+    {
+        var counting = new Counting(null, status);
+
+        await using var provider = Host(counting, budget: TimeSpan.FromSeconds(20));
+
+        await Client(provider).GetAsync(Address);
+
+        Assert.Equal(1, counting.Sent);
+    }
+
+    /// <summary>
+    /// A server that failed is not a server that refused. Without this one, declining to repeat every refusal
+    /// would pass the check above by switching off retries for everything the pipeline handles.
+    /// </summary>
+    [Fact]
+    public async Task SendAsync_ServerThatFailed_IsStillRepeated()
+    {
+        var counting = new Counting(null, HttpStatusCode.InternalServerError);
+
+        await using var provider = Host(counting, budget: TimeSpan.FromSeconds(20));
+
+        await Client(provider).GetAsync(Address);
+
+        Assert.Equal(4, counting.Sent);
+    }
+
     private static HttpClient Client(ServiceProvider provider)
         => provider.GetRequiredService<IHttpClientFactory>().CreateClient("probe");
 
@@ -112,7 +146,8 @@ public class SearchClientTests
     }
 
     /// <summary>A site that always refuses by frequency, counting what reaches it.</summary>
-    private sealed class Counting(TimeSpan? asked) : HttpMessageHandler
+    private sealed class Counting(TimeSpan? asked, HttpStatusCode status = HttpStatusCode.TooManyRequests)
+        : HttpMessageHandler
     {
         public int Sent { get; private set; }
 
@@ -122,7 +157,7 @@ public class SearchClientTests
         {
             Sent++;
 
-            var answered = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            var answered = new HttpResponseMessage(status);
 
             if (asked is { } gap)
                 answered.Headers.RetryAfter = new RetryConditionHeaderValue(gap);

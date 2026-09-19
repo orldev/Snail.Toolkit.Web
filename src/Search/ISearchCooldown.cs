@@ -22,6 +22,10 @@ public interface ISearchCooldown
     DateTimeOffset? RestingUntil(string provider);
 
     /// <summary>Records that a provider refused, and answers how long it will now be left alone.</summary>
+    /// <remarks>
+    /// A refusal that arrives while the rest still runs is not a further refusal: it is a request that was
+    /// already in flight when the engine closed, and it answers what is left of the running rest.
+    /// </remarks>
     TimeSpan Refused(string provider);
 
     /// <summary>Records that a provider answered, which ends its rest and forgets its earlier refusals.</summary>

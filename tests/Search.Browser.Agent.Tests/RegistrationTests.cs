@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -220,6 +221,25 @@ public class RegistrationTests
 
     private static SocketsHttpHandler Exit(IServiceProvider provider)
         => Assert.IsType<SocketsHttpHandler>(Outgoing.HandlerOf(provider, Google.ProviderName));
+
+    /// <summary>
+    /// Google walks its search box with an agent of its own: the same pages, on attempts that hand a wall back
+    /// instead of repeating it half a minute later.
+    /// </summary>
+    [Fact]
+    public async Task AddGoogle_Engine_WalksWithTheAgentKeptForEngines()
+    {
+        await using var provider = Built([]);
+
+        var key = typeof(Google).GetConstructors().Single().GetParameters()
+            .Where(parameter => parameter.ParameterType == typeof(IPageAgent))
+            .Select(parameter => parameter.GetCustomAttribute<FromKeyedServicesAttribute>()?.Key)
+            .Single();
+
+        Assert.NotNull(key);
+        Assert.NotSame(provider.GetRequiredService<IPageAgent>(), provider.GetRequiredKeyedService<IPageAgent>(key));
+        Assert.Contains(provider.GetRequiredService<IEnumerable<ISearchProvider>>(), engine => engine is Google);
+    }
 
     private static ServiceProvider Built(Dictionary<string, string?> settings, Recording? recording = null)
     {

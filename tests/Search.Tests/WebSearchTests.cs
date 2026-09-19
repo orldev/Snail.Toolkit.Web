@@ -112,6 +112,53 @@ public class WebSearchTests
     }
 
     /// <summary>
+    /// The rest starts the moment the engine refuses, not at the next search: a batch planned before the
+    /// refusal must not carry on asking the engine for every query left in it.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20 before the fix: five queries, one refusing engine — five requests to it, and a
+    /// rest grown to the one-hour ceiling instead of five minutes.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_ProviderRefusesMidBatch_IsNotAskedAgainInThatBatch()
+    {
+        var asked = 0;
+        var refusing = new StubProvider("B", _ =>
+        {
+            asked++;
+
+            return SearchAnswer.Failed(new SearchFailure(SearchFailureKind.Refused, "challenge page"));
+        });
+        var search = Search(new SearchOptions { MaxDegreeOfParallelism = 1 }, refusing);
+
+        var outcome = await search.FindAsync(["q1", "q2", "q3", "q4", "q5"]);
+
+        Assert.Equal(1, asked);
+        Assert.Equal(4, outcome.Attempts.Count(attempt => attempt.Failure?.Kind is SearchFailureKind.Resting));
+    }
+
+    /// <summary>
+    /// A caller that has what it needs stops reading, and the attempts still running are then work nobody
+    /// wants: they must be told so, not left holding a browser and a host's turn.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20 before the fix: the caller was held for the fan-out's five-second grace and the
+    /// slow attempt was never cancelled — the attempts ran under the budget's token and the fan-out's was
+    /// thrown away. The wait below is shorter than that grace, so this cannot pass by outlasting it.
+    /// </remarks>
+    [Fact]
+    public async Task StreamAsync_CallerStopsReading_CancelsTheAttemptsStillRunning()
+    {
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var search = Search(Empty("A"), new Slow("B", cancelled));
+
+        await foreach (var _ in search.StreamAsync(["grain"]))
+            break;
+
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    }
+
+    /// <summary>
     /// A fault is ours — a parser that lost the markup, a socket that died — and resting the engine over it
     /// would hide exactly the thing that needs fixing.
     /// </summary>
@@ -376,18 +423,48 @@ public class WebSearchTests
         Assert.False(slow.Asked);
     }
 
-    /// <summary>Without a budget the same engine is asked, which is what makes the answer above a choice.</summary>
+    /// <summary>
+    /// Without a budget the engine is asked whenever one request of it can finish, which is what makes the
+    /// answer above a choice: the bound is then <see cref="SearchOptions.Timeout"/>, not the caller's.
+    /// </summary>
     [Fact]
-    public async Task FindAsync_NoBudget_AsksTheEngineWhoseGateIsShut()
+    public async Task FindAsync_NoBudget_AsksTheEngineWhoseGateOpensWithinOneRequest()
+    {
+        var gate = Paced(("slow.example", TimeSpan.FromMinutes(5)));
+        await Turned(gate, "https://slow.example/search");
+
+        var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
+        var options = new SearchOptions { Timeout = TimeSpan.FromMinutes(10) };
+
+        await Built(Cooldown(TimeProvider.System), gate, TimeProvider.System, options, [slow]).FindAsync(["grain"]);
+
+        Assert.True(slow.Asked);
+    }
+
+    /// <summary>
+    /// An engine whose host opens later than one request of it may take cannot answer this search, whatever it
+    /// is asked — so it is not asked, and the caller hears when it opens instead of waiting to be timed out.
+    /// </summary>
+    /// <remarks>
+    /// Read on 2026-09-20: the caller was held for the whole <see cref="SearchOptions.Timeout"/> at the gate
+    /// and then told the engine had faulted, while the gate had known the answer before the request began.
+    /// Google, whose host keeps minutes between requests, met this on every second query.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_NoBudget_GateShutLongerThanOneRequestMayTake_DoesNotAskItAndNamesWhenItOpens()
     {
         var gate = Paced(("slow.example", TimeSpan.FromMinutes(5)));
         await Turned(gate, "https://slow.example/search");
 
         var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
 
-        await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"]);
+        var outcome = await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"]);
 
-        Assert.True(slow.Asked);
+        var attempt = Assert.Single(outcome.Attempts);
+
+        Assert.Equal(SearchFailureKind.OutOfTime, attempt.Failure!.Kind);
+        Assert.NotNull(attempt.Failure.OpensAt);
+        Assert.False(slow.Asked);
     }
 
     /// <summary>
@@ -514,6 +591,27 @@ public class WebSearchTests
             Asked = true;
 
             return Task.FromResult(answer(query));
+        }
+    }
+
+    /// <summary>A provider that answers late, and says when it is told to stop.</summary>
+    private sealed class Slow(string name, TaskCompletionSource cancelled) : ISearchProvider
+    {
+        public string Name => name;
+
+        public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled.TrySetResult();
+                throw;
+            }
+
+            return SearchAnswer.Success([]);
         }
     }
 

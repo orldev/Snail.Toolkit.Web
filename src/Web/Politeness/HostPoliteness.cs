@@ -13,6 +13,9 @@ namespace Snail.Toolkit.Web.Politeness;
 /// </remarks>
 public sealed class HostPoliteness : IPoliteness, IDisposable
 {
+    /// <summary>The longest single wait, kept under what a timer accepts.</summary>
+    private static readonly TimeSpan LongestStretch = TimeSpan.FromDays(24);
+
     private readonly PolitenessOptions _options;
     private readonly Remembered<Gate> _gates;
 
@@ -78,7 +81,9 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         if (gap <= TimeSpan.Zero)
             return;
 
-        GateFor(url.Host).RestUntil(DateTimeOffset.UtcNow + gap);
+        var from = DateTimeOffset.UtcNow;
+
+        GateFor(url.Host).RestUntil(gap < DateTimeOffset.MaxValue - from ? from + gap : DateTimeOffset.MaxValue);
     }
 
     /// <summary>This host's gate, made the first time the host is mentioned.</summary>
@@ -118,15 +123,23 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         return free > gate.RestingUntil ? free : gate.RestingUntil;
     }
 
+    /// <summary>Waits until this host opens, however far off that is.</summary>
+    /// <remarks>
+    /// The wait is taken in stretches because <see cref="Task.Delay(TimeSpan, CancellationToken)"/> refuses
+    /// anything past about forty-nine days. MEASURED on 2026-09-20: a site answering <c>Retry-After</c> of a
+    /// hundred days made every later caller to that host meet an
+    /// <see cref="ArgumentOutOfRangeException"/> naming a timer, and the host stayed broken for as long as the
+    /// process ran. A rest that long is a site to be left alone, not a defect to be raised at whoever arrives
+    /// next — and a caller that will not wait it out cancels, which is the answer it already had.
+    /// </remarks>
     private static async Task DelayAsync(Gate gate, TimeSpan? requested, CancellationToken ct)
     {
         var wanted = requested > gate.Floor ? requested.Value : gate.Floor;
         var ready = gate.ReleasedAt + wanted;
         var opens = ready > gate.RestingUntil ? ready : gate.RestingUntil;
-        var remaining = opens - DateTimeOffset.UtcNow;
 
-        if (remaining > TimeSpan.Zero)
-            await Task.Delay(remaining, ct);
+        while (opens - DateTimeOffset.UtcNow is { Ticks: > 0 } remaining)
+            await Task.Delay(remaining < LongestStretch ? remaining : LongestStretch, ct);
     }
 
     /// <inheritdoc />

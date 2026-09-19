@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<IPageAgent, PageAgent>();
             services.TryAddSingleton<ISiteCalls, SiteCalls>();
 
-            return services;
+            return services.AddEngineAgent();
         }
 
         /// <summary>Registers the agent with the scraping stack configured in code rather than from settings.</summary>
@@ -45,8 +45,20 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<IPageAgent, PageAgent>();
             services.TryAddSingleton<ISiteCalls, SiteCalls>();
 
-            return services;
+            return services.AddEngineAgent();
         }
+    }
+
+    /// <summary>The agent a search engine walks its search box with, on attempts that hand a refusal back.</summary>
+    private static IServiceCollection AddEngineAgent(this IServiceCollection services)
+    {
+        services.TryAddKeyedSingleton<IPageAgent>(
+            EngineReading.Key,
+            (provider, key) => ActivatorUtilities.CreateInstance<PageAgent>(
+                provider,
+                provider.GetRequiredKeyedService<IAttempts<PageContent>>(key)));
+
+        return services;
     }
 
     private static void Validated(OptionsBuilder<AgentOptions> builder)

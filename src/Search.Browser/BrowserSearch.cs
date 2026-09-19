@@ -116,11 +116,38 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     protected virtual bool Answers(string query, IReadOnlyList<SearchResult> results) => true;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Bounded by <see cref="SearchOptions.Timeout"/>, the same setting that bounds an engine asked over HTTP.
+    /// Until 2026-09-20 it bounded only those: it was wired into the HTTP client's pipeline and nowhere else,
+    /// so a browser engine lasted as long as its navigation timeouts times its retries — a consumer measured
+    /// 136 to 392 seconds against a one-minute setting. Running out of it is a fault, as it is over HTTP,
+    /// and a cancellation by the caller stays a cancellation.
+    /// </remarks>
     public async Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return SearchAnswer.Success([]);
 
+        var limit = search.Value.Timeout;
+
+        using var limited = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        limited.CancelAfter(limit);
+
+        try
+        {
+            return await ReadAsync(query, limited.Token);
+        }
+        catch (OperationCanceledException) when (limited.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            return SearchAnswer.Failed(new SearchFailure(
+                SearchFailureKind.Faulted,
+                $"{Name} did not answer within {limit}."));
+        }
+    }
+
+    private async Task<SearchAnswer> ReadAsync(string query, CancellationToken ct)
+    {
         var outcome = await AnsweredAsync(query, ct);
 
         if (!outcome.IsSuccess)
@@ -181,11 +208,16 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// DNS failure say nothing about the engine's patience, and the search — which rests an engine over a
     /// refusal — would otherwise leave a working engine out over a hiccup on this side.
     /// </remarks>
+    /// <summary>Reads a page that could not be read as the engine refusing, or as a failure on this side.</summary>
+    /// <remarks>
+    /// Which statuses mean "not you, not now" is <see cref="PageFailure.IsRefusal"/>'s to say, and it was this
+    /// method's own list until 2026-09-20 — a shorter one. It held a wall and a <c>429</c>, so a browser engine
+    /// answering <c>403</c>, the shape a consent wall and a blocked address both arrive in, was recorded as a
+    /// fault: never rested, asked again at the next query. The HTTP side had read the same status as a refusal
+    /// since 2026-09-14, and the two roads disagreeing about one engine is the disagreement worth removing.
+    /// </remarks>
     private SearchFailure Unread(PageFailure failure)
-    {
-        if (failure is { Kind: FailureKind.Blocked } or { Kind: FailureKind.Navigation, StatusCode: 429 })
-            return new SearchFailure(SearchFailureKind.Refused, $"{Name} could not be read. {failure}");
-
-        return new SearchFailure(SearchFailureKind.Faulted, $"{Name} could not be read. {failure}");
-    }
+        => new(
+            failure.IsRefusal ? SearchFailureKind.Refused : SearchFailureKind.Faulted,
+            $"{Name} could not be read. {failure}");
 }

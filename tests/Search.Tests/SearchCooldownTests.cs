@@ -51,12 +51,41 @@ public class SearchCooldownTests
         Assert.Equal(TimeSpan.FromMinutes(20), cooldown.Refused("A"));
     }
 
+    /// <summary>
+    /// Refusals that arrive while the rest still runs are the same refusal: requests already in flight when the
+    /// engine closed. Counting each as a further one grew five minutes to the ceiling inside one batch.
+    /// </summary>
+    [Fact]
+    public void Refused_AgainWhileStillResting_DoesNotLengthenTheRest()
+    {
+        var clock = new Clock(Evening);
+        var cooldown = Cooldown(clock);
+
+        cooldown.Refused("A");
+        clock.Now += TimeSpan.FromMinutes(1);
+
+        Assert.Equal(TimeSpan.FromMinutes(4), cooldown.Refused("A"));
+        Assert.Equal(Evening.AddMinutes(5), cooldown.RestingUntil("A"));
+
+        clock.Now += TimeSpan.FromMinutes(4);
+
+        Assert.Equal(TimeSpan.FromMinutes(10), cooldown.Refused("A"));
+    }
+
     [Fact]
     public void Refused_ManyTimes_NeverRestsLongerThanTheCeiling()
     {
-        var cooldown = Cooldown(new Clock(Evening), ceiling: TimeSpan.FromMinutes(12));
+        var clock = new Clock(Evening);
+        var cooldown = Cooldown(clock, ceiling: TimeSpan.FromMinutes(12));
 
-        var rests = Enumerable.Range(0, 40).Select(_ => cooldown.Refused("A")).ToArray();
+        var rests = Enumerable.Range(0, 40).Select(_ =>
+        {
+            var rest = cooldown.Refused("A");
+
+            clock.Now += rest;
+
+            return rest;
+        }).ToArray();
 
         Assert.Equal(TimeSpan.FromMinutes(12), rests[^1]);
         Assert.All(rests, rest => Assert.True(rest <= TimeSpan.FromMinutes(12)));

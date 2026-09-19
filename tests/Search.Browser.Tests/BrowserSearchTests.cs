@@ -1,8 +1,10 @@
+using System.Globalization;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
+using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;
 
@@ -60,6 +62,25 @@ public class BrowserSearchTests
 
         Assert.Equal(SearchFailureKind.Refused, answer.Failure?.Kind);
         Assert.Contains("429", answer.Failure!.Message!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A status the engine turns callers away with is a refusal whichever road it arrives by. Read on
+    /// 2026-09-20: the HTTP path had read 403 and 503 as refusals since 2026-09-14 while the browser path
+    /// called them faults, so a browser engine answering 403 was never rested and was asked again at every
+    /// query.
+    /// </summary>
+    [Theory]
+    [InlineData(403)]
+    [InlineData(503)]
+    public async Task FindAsync_StatusTheEngineTurnsCallersAwayWith_IsARefusal(int status)
+    {
+        var reader = new StubReader(_ => Fixture.Refused(FailureKind.Navigation, "turned away", status: status));
+
+        var answer = await Engine(reader).FindAsync("grain");
+
+        Assert.Equal(SearchFailureKind.Refused, answer.Failure?.Kind);
+        Assert.Contains(status.ToString(CultureInfo.InvariantCulture), answer.Failure!.Message!, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -175,6 +196,39 @@ public class BrowserSearchTests
         Assert.Contains("Elsewhere", answer.Failure.Message!, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The setting that bounds an engine bounds the browser engines too, not only the ones asked over HTTP.
+    /// </summary>
+    /// <remarks>
+    /// Measured by a consumer before 2026-09-20: 136 to 392 seconds per browser engine against a one-minute
+    /// <see cref="SearchOptions.Timeout"/>. The setting was wired into the HTTP client's pipeline and nowhere
+    /// else, so a browser engine was bounded only by navigation timeouts multiplied by retries.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_EngineThatDoesNotAnswerInTime_IsCutOffAtTheTimeout()
+    {
+        var engine = new Elsewhere(
+            new Silent(),
+            Options.Create(new SearchOptions { Timeout = TimeSpan.FromMilliseconds(200) }),
+            NullLogger.Instance);
+
+        var answer = await engine.FindAsync("grain").WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(SearchFailureKind.Faulted, answer.Failure.Kind);
+        Assert.Contains("00:00:00.2", answer.Failure.Message!, StringComparison.Ordinal);
+    }
+
+    /// <summary>The caller's own cancellation is still the caller's, and travels on as one.</summary>
+    [Fact]
+    public async Task FindAsync_CallerCancelsBeforeTheTimeout_PropagatesTheCancellation()
+    {
+        var engine = new Elsewhere(new Silent(), Options.Create(new SearchOptions()), NullLogger.Instance);
+        using var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => engine.FindAsync("grain", cancelled.Token));
+    }
+
     private static async Task<IReadOnlyList<SearchResult>> Found(string page)
         => (await Engine(new StubReader(_ => Fixture.Read(page))).FindAsync("grain")).Value;
 
@@ -206,6 +260,20 @@ public class BrowserSearchTests
                     Snippet = string.Empty,
                     Provider = Name
                 });
+    }
+
+    /// <summary>A reader that never answers and stops only when told to.</summary>
+    private sealed class Silent : IPageReader
+    {
+        public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+            => ReadAsync(address, Appetite.Everything, ct);
+
+        public async Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
+            return PageOutcome.Failed(new PageFailure(FailureKind.Unexpected, "unreachable"));
+        }
     }
 
     private sealed class RecordingLogger : ILogger

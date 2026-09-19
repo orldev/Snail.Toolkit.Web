@@ -1,4 +1,5 @@
 using HtmlAgilityPack;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
@@ -32,7 +33,7 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// </para>
 /// </remarks>
 public sealed class Brave(
-    IPageReader pages,
+    [FromKeyedServices(EngineReading.Key)] IPageReader pages,
     IOptions<BraveOptions> options,
     IOptions<SearchOptions> search,
     ILogger<Brave> logger) : BrowserSearch(search, logger)

@@ -89,9 +89,13 @@ and it knows about neither Playwright nor `HttpClient`:
 - **Identity** — user agent, platform, brand, locale, languages and proxy decided as one coherent whole,
   so nothing a site can measure contradicts anything else.
 - **Politeness** — a concurrency limit and a minimum gap per host, and the rest a site asks for in
-  `Retry-After`, which binds every later caller rather than the one that was told. A gap longer than
-  `Web:Politeness:LongestRest` is handed back at once instead of waited out: a caller told to come back in
-  thirty seconds is better served by hearing so than by spending its whole budget to be refused again.
+  `Retry-After`, which binds every later caller rather than the one that was told. The caller that was told
+  does not sit it out: a gap longer than `Web:Politeness:LongestRest` is handed back at once instead of
+  retried, because hearing "come back in thirty seconds" is worth more than spending a budget to be refused
+  again. Every later caller waits at the gate, which is what makes the rest a fact about the host and not
+  about one request — a crawl carries on with the sites that are open and comes back to this one when it
+  opens. A search does not wait either: it asks the gate when the engine opens and, when that is later than
+  one request may take, answers with the instant instead of the wait.
   Request rate is the signal a site reads first, and no amount of fingerprinting hides it.
 - **Robots** — parsing and matching; *fetching* `robots.txt` belongs to whichever transport is in use.
 - **Block detection** — challenge, consent and refusal pages recognised in the body and in the final URL.

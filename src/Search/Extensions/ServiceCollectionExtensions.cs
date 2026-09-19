@@ -124,13 +124,20 @@ public static class ServiceCollectionExtensions
         /// The gate still holds the host for the full gap — <see cref="Http.PolitenessHandler"/> writes it there on
         /// the way out — so declining to wait here makes nobody ruder, only better informed.
         /// </para>
+        /// <para>
+        /// A refusal that names no gap is not repeated either, which it was until 2026-09-20: a <c>429</c> or a
+        /// <c>503</c> without the header cost four requests before the search heard about the first one, and the
+        /// search rests an engine the moment it hears. Asking a challenged engine again at once is how a pause
+        /// becomes a ban — the rule this toolkit states everywhere and practised against itself here. A server
+        /// that merely failed is repeated as before: a <c>500</c> is not the site turning anybody away.
+        /// </para>
         /// </remarks>
         private static bool IsWorthRepeating(HttpResponseMessage? answered, TimeSpan longestRest)
         {
-            if (answered?.Headers.RetryAfter?.Delta is not { } gap)
-                return true;
+            if (answered?.Headers.RetryAfter?.Delta is { } gap)
+                return gap <= longestRest;
 
-            return gap <= longestRest;
+            return answered is null || !Refusals.IsRefusal(answered.StatusCode);
         }
 
         /// <summary>Registers the providers that answer a plain request, the search that merges them, and the memory it consults first.</summary>

@@ -29,16 +29,28 @@ public class SearchCooldownCeilingTests
     /// doubling is for: the rest grows, the provider keeps refusing, and the record of the run is kept across
     /// rests on purpose.
     /// </para>
+    /// <para>
+    /// Each refusal arrives once the rest before it is over, because since 2026-09-20 a refusal inside a
+    /// running rest does not count as a further one. The calendar runs out before the doubling does — five
+    /// minutes doubled some thirty times is past the year 9999 — so the clock is held at its end from there
+    /// on, which is the only way the run can reach the arithmetic this guards.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Refused_ManyTimesUnderACeilingNothingCanReach_RestsRatherThanThrows()
     {
-        var cooldown = Cooldown(TimeSpan.FromMinutes(5), TimeSpan.MaxValue);
+        var clock = new Clock(DateTimeOffset.UnixEpoch);
+        var cooldown = Cooldown(TimeSpan.FromMinutes(5), TimeSpan.MaxValue, clock);
 
         for (var refusal = 0; refusal < 60; refusal++)
+        {
             cooldown.Refused("Bing");
+            clock.Now = cooldown.RestingUntil("Bing") ?? clock.Now;
+        }
 
-        Assert.NotNull(cooldown.RestingUntil("Bing"));
+        cooldown.Refused("Bing");
+
+        Assert.Equal(DateTimeOffset.MaxValue, clock.Now);
     }
 
     /// <summary>The rest never exceeds the ceiling, whatever the ceiling is.</summary>
@@ -50,18 +62,21 @@ public class SearchCooldownCeilingTests
     [Fact]
     public void Refused_EachTimeUnderAnUnreachableCeiling_AlwaysNamesALengthThatCanBeWaited()
     {
-        var cooldown = Cooldown(TimeSpan.FromMinutes(5), TimeSpan.MaxValue);
+        var clock = new Clock(DateTimeOffset.UnixEpoch);
+        var cooldown = Cooldown(TimeSpan.FromMinutes(5), TimeSpan.MaxValue, clock);
 
         for (var refusal = 1; refusal <= 60; refusal++)
         {
             var rest = cooldown.Refused("Bing");
 
             Assert.True(rest > TimeSpan.Zero, $"refusal {refusal} rested for {rest}");
+
+            clock.Now = cooldown.RestingUntil("Bing") ?? clock.Now;
         }
     }
 
-    private static SearchCooldown Cooldown(TimeSpan first, TimeSpan ceiling)
+    private static SearchCooldown Cooldown(TimeSpan first, TimeSpan ceiling, TimeProvider clock)
         => new(
             Options.Create(new SearchOptions { RefusalCooldown = first, MaxRefusalCooldown = ceiling }),
-            TimeProvider.System);
+            clock);
 }

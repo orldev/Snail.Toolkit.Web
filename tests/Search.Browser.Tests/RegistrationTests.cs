@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -133,6 +134,49 @@ public class RegistrationTests
         Assert.Contains(
             provider.GetRequiredService<IEnumerable<ISearchProvider>>(),
             engine => engine.Name == Brave.ProviderName);
+    }
+
+    /// <summary>
+    /// The engines read through attempts that hand a wall straight back, while a crawl keeps repeating it.
+    /// </summary>
+    /// <remarks>
+    /// Read on 2026-09-20: both engines took the same reader as a crawl, so a wall cost four requests over half
+    /// a minute before the search could rest the engine. The crawl's side is asserted as well — the point is
+    /// that the two differ, and switching every retry off would pass the first half alone.
+    /// </remarks>
+    [Theory]
+    [InlineData(typeof(Brave))]
+    [InlineData(typeof(Browser.Bing))]
+    public async Task AddBrowserSearch_Engine_ReadsThroughAttemptsThatDoNotRepeatAWall(Type engine)
+    {
+        await using var provider = Built(new Dictionary<string, string?>
+        {
+            ["Web:Scraping:RetryDelay"] = "00:00:00",
+            ["Web:Politeness:MinDelayPerHost"] = "00:00:00"
+        });
+
+        var key = engine.GetConstructors().Single().GetParameters()
+            .Where(parameter => parameter.ParameterType == typeof(IPageReader))
+            .Select(parameter => parameter.GetCustomAttribute<FromKeyedServicesAttribute>()?.Key)
+            .Single();
+
+        Assert.NotNull(key);
+        Assert.Equal(1, await WallsAsync(provider.GetRequiredKeyedService<IAttempts<PageContent>>(key)));
+        Assert.Equal(4, await WallsAsync(provider.GetRequiredService<IAttempts<PageContent>>()));
+    }
+
+    private static async Task<int> WallsAsync(IAttempts<PageContent> attempts)
+    {
+        var asked = 0;
+
+        await attempts.AtAsync(Link.Of("https://engine.test/search"), (_, _, _) =>
+        {
+            asked++;
+
+            return Task.FromResult(PageOutcome.Failed(new PageFailure(FailureKind.Blocked, "wall")));
+        });
+
+        return asked;
     }
 
     private static ServiceProvider Built(Dictionary<string, string?> settings)

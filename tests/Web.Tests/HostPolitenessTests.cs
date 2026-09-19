@@ -170,6 +170,28 @@ public class HostPolitenessTests
         Assert.NotSame(waiting, await Task.WhenAny(waiting, Task.Delay(TimeSpan.FromMilliseconds(200))));
     }
 
+    /// <summary>A rest longer than any timer can wait is waited, not thrown at the caller.</summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20: a site answering <c>Retry-After</c> of a hundred days made every later
+    /// <c>EnterAsync</c> to that host throw <see cref="ArgumentOutOfRangeException"/> out of
+    /// <see cref="Task.Delay(TimeSpan, CancellationToken)"/>, whose ceiling is about forty-nine days. One header
+    /// broke the host until the process restarted, and the exception named a timer rather than the site.
+    /// </remarks>
+    [Fact]
+    public async Task Rest_LongerThanATimerCanWait_KeepsTheCallerWaitingRatherThanThrowing()
+    {
+        using var politeness = Gate(TimeSpan.Zero, 1);
+        var host = new Uri("https://example.com/refused");
+
+        politeness.Rest(host, TimeSpan.FromDays(100));
+        politeness.Rest(host, TimeSpan.MaxValue);
+
+        using var shortly = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => politeness.EnterAsync(host, ct: shortly.Token));
+        Assert.Equal(DateTimeOffset.MaxValue, politeness.OpensAt(host));
+    }
+
     /// <summary>Another host is none of its business.</summary>
     [Fact]
     public async Task Rest_OneHost_LeavesTheOthersAlone()

@@ -41,7 +41,7 @@ internal static class Refusals
     /// both arrive in. A 503 is the server blaming itself, and an engine under load that is asked harder is an
     /// engine that stays under load. Everything else — a 404, a 500 — says nothing about the engine's patience.
     /// </remarks>
-    private static bool IsRefusal(HttpStatusCode status)
+    public static bool IsRefusal(HttpStatusCode status)
         => status is HttpStatusCode.TooManyRequests
             or HttpStatusCode.Forbidden
             or HttpStatusCode.ServiceUnavailable;

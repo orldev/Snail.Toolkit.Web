@@ -111,16 +111,25 @@ public sealed class WebSearch(
             timed.CancelAfter(limit);
 
         var deadline = budget is { } span ? clock.GetUtcNow() + span : (DateTimeOffset?)null;
-        var token = timed?.Token ?? ct;
+        var spent = timed?.Token ?? CancellationToken.None;
 
         // The fan-out itself runs under the CALLER's token and the attempts under the budget's. Handing the
         // budget to the fan-out instead ends the whole enumeration the moment it fires — measured on
         // 2026-09-15, the first budget test died inside the channel read with the attempts it was meant to
         // report still unwritten. What the budget may do is cut an attempt short; ending the search is the
         // caller's alone.
+        //
+        // An attempt ALSO listens to the fan-out's own token, which fires when the caller stops reading. Until
+        // 2026-09-20 that token was discarded, and a caller that broke out of the loop — the documented way to
+        // take the cheap answers and skip the dear one — was held five seconds while the dear one ran on.
         var asked = Fanout.OverAsync(
             work,
-            async (item, _) => await AffordableAsync(item.Provider, item.Query, deadline, ct, token),
+            async (item, fanned) =>
+            {
+                using var both = CancellationTokenSource.CreateLinkedTokenSource(fanned, spent);
+
+                return await AffordableAsync(item.Provider, item.Query, deadline, spent, both.Token);
+            },
             Unexpected,
             _options.MaxDegreeOfParallelism,
             ct);
@@ -129,11 +138,21 @@ public sealed class WebSearch(
             yield return attempt;
     }
 
-    /// <summary>Asks a provider, unless the budget cannot reach it — which the gate knows before the request.</summary>
+    /// <summary>Asks a provider, unless it rests or the budget cannot reach it — both known before the request.</summary>
     /// <remarks>
     /// The check is made as each pair starts rather than when the work is planned, because the gate moves
     /// while a search runs: an engine that was open when the batch began is closed a moment later by the
     /// query ahead of it, and a decision made at planning time would be wrong for every pair but the first.
+    /// <para>
+    /// The same holds for a rest, and until 2026-09-20 this reasoning was applied to the gate and not to it:
+    /// the resting set was read once per batch, so an engine that refused the first query was asked every
+    /// query after it. Measured that day — five queries, five requests to an engine that had already said no.
+    /// </para>
+    /// <para>
+    /// A search without a budget is bounded all the same, by <see cref="SearchOptions.Timeout"/> — the longest
+    /// one request may take. An engine whose host opens after that could only be asked in order to be timed
+    /// out, and hearing when it opens is worth more than spending the time to be told nothing.
+    /// </para>
     /// <para>
     /// A provider that names no host is always asked. It is not a promise that it is quick — it is that this
     /// library knows nothing about its cost, and refusing to ask on a guess would be worse than paying it.
@@ -143,19 +162,27 @@ public sealed class WebSearch(
         ISearchProvider provider,
         string query,
         DateTimeOffset? deadline,
-        CancellationToken caller,
+        CancellationToken spent,
         CancellationToken token)
     {
-        if (deadline is { } end)
-        {
-            if (clock.GetUtcNow() >= end)
-                return Skipped(provider, query, SearchFailure.OutOfTime(provider.Name));
+        if (cooldown.RestingUntil(provider.Name) is { } rest)
+            return Unasked(provider.Name, rest, query);
 
-            if (OpensAt(provider) is { } opens && opens > end)
+        var now = clock.GetUtcNow();
+
+        if (deadline is { } end && now >= end)
+            return Skipped(provider, query, SearchFailure.OutOfTime(provider.Name));
+
+        if (OpensAt(provider) is { } opens)
+        {
+            if (deadline is { } budget && opens > budget)
                 return Skipped(provider, query, SearchFailure.TooLate(provider.Name, opens));
+
+            if (opens > now + _options.Timeout)
+                return Skipped(provider, query, SearchFailure.Shut(provider.Name, opens, _options.Timeout));
         }
 
-        return await AttemptAsync(provider, query, caller, token);
+        return await AttemptAsync(provider, query, spent, token);
     }
 
     /// <summary>When the host this provider talks to next opens, as far as the gate knows.</summary>
@@ -268,9 +295,10 @@ public sealed class WebSearch(
     /// A cancellation has to say WHOSE it was: the budget running out is
     /// <see cref="SearchFailureKind.OutOfTime"/>, and everything else stays
     /// <see cref="SearchFailureKind.Canceled"/>. Told apart nowhere else, a deadline a deployment set would
-    /// read exactly like a user closing a page. The condition is on the token the work runs under, because a
-    /// provider that timed out inside itself — its own client's clock, nothing to do with this search — must
-    /// not be reported as the budget's doing.
+    /// read exactly like a user closing a page. The condition is on the BUDGET's token, not on the one the work
+    /// runs under: that one also fires when the caller stops reading, and a provider that timed out inside
+    /// itself — its own client's clock, nothing to do with this search — must not be reported as the budget's
+    /// doing either. A search without a budget has nothing that can run out.
     /// <para>
     /// A SECOND HALF WAS WRITTEN HERE AND TAKEN OUT, and the reason is recorded because it is the obvious
     /// thing to propose again: <c>&amp;&amp; !caller.IsCancellationRequested</c>, to keep a caller's own
@@ -283,7 +311,7 @@ public sealed class WebSearch(
     private async ValueTask<SearchAttempt> AttemptAsync(
         ISearchProvider provider,
         string query,
-        CancellationToken caller,
+        CancellationToken spent,
         CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
@@ -294,7 +322,7 @@ public sealed class WebSearch(
 
             return Judged(provider, query, Stopwatch.GetElapsedTime(started), answer);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (spent.IsCancellationRequested)
         {
             var duration = Stopwatch.GetElapsedTime(started);
 

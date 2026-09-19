@@ -13,6 +13,11 @@ namespace Snail.Toolkit.Web.Search;
 /// untouched, because resting an engine over a parser that no longer follows its markup would hide the one
 /// thing that needed fixing.
 /// <para>
+/// A refusal inside a running rest leaves it as it is. Until 2026-09-20 each one doubled it, and a search
+/// running four requests at once, or a batch that kept asking, turned one refusal into the one-hour ceiling:
+/// measured that day, five queries to one refusing engine rested it for an hour instead of five minutes.
+/// </para>
+/// <para>
 /// There is no separate probing state. A rest that has run out lets the next request through, and the answer
 /// to that request either clears the record or doubles the rest; that is the whole mechanism.
 /// </para>
@@ -39,10 +44,15 @@ public sealed class SearchCooldown(IOptions<SearchOptions> options, TimeProvider
 
         lock (_gate)
         {
+            var now = clock.GetUtcNow();
+
+            if (_rests.TryGetValue(provider, out var running) && running.Until > now)
+                return running.Until - now;
+
             var refusals = _rests.TryGetValue(provider, out var earlier) ? earlier.Refusals + 1 : 1;
             var length = LengthOf(refusals);
 
-            _rests[provider] = new Rest(refusals, Until(clock.GetUtcNow(), length));
+            _rests[provider] = new Rest(refusals, Until(now, length));
 
             return length;
         }

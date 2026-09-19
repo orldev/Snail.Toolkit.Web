@@ -110,6 +110,20 @@ public sealed record SearchFailure(SearchFailureKind Kind, string? Message = nul
             OpensAt = opens
         };
 
+    /// <summary>The reason a provider whose host stays shut for longer than one request may take was left out.</summary>
+    /// <remarks>
+    /// The same fact as <see cref="TooLate"/> measured against a different promise: there the caller named a
+    /// budget, here the deployment named how long one request may take. Both are the gate answering before the
+    /// request rather than the request waiting at it.
+    /// </remarks>
+    public static SearchFailure Shut(string provider, DateTimeOffset opens, TimeSpan limit)
+        => new(
+            SearchFailureKind.OutOfTime,
+            $"{provider} was not asked: the host it talks to opens at {opens:u}, later than the {limit} one request may take.")
+        {
+            OpensAt = opens
+        };
+
     /// <summary>The reason a provider nobody reached before the budget ran out was left out of a search.</summary>
     /// <remarks>
     /// No instant here on purpose: the budget ran out, and when this provider's host would next open is a

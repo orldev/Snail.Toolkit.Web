@@ -116,7 +116,8 @@ public class RegistrationTests
         services.AddScraping(configuration);
         services.AddScraping(configuration);
 
-        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageReader));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageReader) && !descriptor.IsKeyedService);
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageReader) && descriptor.IsKeyedService);
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(ICrawler));
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(ISiteRules));
     }
@@ -129,7 +130,7 @@ public class RegistrationTests
         services.AddLogging();
         services.AddScraping(new ConfigurationBuilder().Build());
 
-        var reader = services.Single(descriptor => descriptor.ServiceType == typeof(IPageReader));
+        var reader = services.Single(descriptor => descriptor.ServiceType == typeof(IPageReader) && !descriptor.IsKeyedService);
 
         Assert.Equal(ServiceLifetime.Singleton, reader.Lifetime);
     }
