@@ -52,7 +52,7 @@ public sealed class PageReader(
     {
         try
         {
-            await using var visit = await visits.OpenAsync(identity, appetite, ct);
+            await using var visit = await visits.OpenAsync(identity, appetite, target, ct);
 
             var page = visit.Page;
 

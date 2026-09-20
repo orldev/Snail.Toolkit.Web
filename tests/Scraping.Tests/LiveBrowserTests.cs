@@ -194,7 +194,7 @@ public class LiveBrowserTests
         var identity = provider.GetRequiredService<IIdentityRotation>().Next();
 
         await using var visit = await provider.GetRequiredService<IVisits>()
-            .OpenAsync(identity, Appetite.Everything);
+            .OpenAsync(identity, Appetite.Everything, new Uri("https://example.com/"));
 
         return await SeenAsync(visit.Page);
     }

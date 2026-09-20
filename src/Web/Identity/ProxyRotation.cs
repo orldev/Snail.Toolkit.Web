@@ -27,6 +27,23 @@ public sealed class ProxyRotation : IProxyRotation
     }
 
     /// <inheritdoc />
+    /// <inheritdoc />
+    public ProxyEndpoint? For(string host)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        if (_endpoints.Length == 0)
+            return null;
+
+        var hash = 2166136261u;
+
+        foreach (var character in host)
+            hash = (hash ^ char.ToLowerInvariant(character)) * 16777619u;
+
+        return _endpoints[hash % (uint)_endpoints.Length];
+    }
+
+    /// <inheritdoc />
     public ProxyEndpoint? Next()
     {
         if (_endpoints.Length == 0)

@@ -8,7 +8,7 @@ Every public declaration in the six packages, with what its author wrote about i
 | --- | --- |
 | [Snail.Toolkit.Web](web.md) | 35 |
 | [Snail.Toolkit.Web.Search](search.md) | 15 |
-| [Snail.Toolkit.Web.Scraping](scraping.md) | 41 |
+| [Snail.Toolkit.Web.Scraping](scraping.md) | 42 |
 | [Snail.Toolkit.Web.Search.Browser](search-browser.md) | 6 |
 | [Snail.Toolkit.Web.Search.Browser.Agent](search-browser-agent.md) | 3 |
 | [Snail.Toolkit.Web.Scraping.Agent](scraping-agent.md) | 14 |

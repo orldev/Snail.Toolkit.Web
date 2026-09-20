@@ -83,6 +83,8 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<ISiteIndex, SitemapIndex>();
             services.TryAddSingleton<IStealthScript, StealthScript>();
             services.TryAddSingleton<IClientHints, ClientHints>();
+            services.TryAddSingleton(TimeProvider.System);
+            services.TryAddSingleton<IKeepsakes, Keepsakes>();
             services.TryAddSingleton<IVisits, Visits>();
             services.TryAddSingleton(typeof(IAttempts<>), typeof(Attempts<>));
             services.TryAddSingleton<IHumanBehavior, HumanBehavior>();

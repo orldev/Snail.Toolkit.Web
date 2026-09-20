@@ -6,11 +6,17 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// <summary>
 /// Holds a page together with the context and lease that back it, and releases all three in order.
 /// </summary>
+/// <remarks>
+/// What the site left — its cookies and local storage — is kept on the way out, so the next visit to that host
+/// arrives as the visitor it was last time rather than as a stranger.
+/// </remarks>
 internal sealed class Visit(
     IBrowserLease lease,
     IBrowserContext context,
     IPage page,
-    WebIdentity identity) : IVisit
+    WebIdentity identity,
+    IKeepsakes keepsakes,
+    string host) : IVisit
 {
     /// <inheritdoc />
     public IPage Page { get; } = page;
@@ -32,6 +38,8 @@ internal sealed class Visit(
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
+        await KeptAsync();
+
         try
         {
             await context.DisposeAsync();
@@ -39,6 +47,24 @@ internal sealed class Visit(
         finally
         {
             await lease.DisposeAsync();
+        }
+    }
+
+    /// <summary>Keeps what the site left, while there is still a context to read it from.</summary>
+    /// <remarks>
+    /// Here rather than in whoever asked for the visit, because the state can only be read while the context
+    /// is open. A browser that went away in the middle takes it with it, and that is not worth an exception:
+    /// the visit is over either way and the next one simply arrives as a stranger, which is what every visit
+    /// did until 2026-09-20.
+    /// </remarks>
+    private async Task KeptAsync()
+    {
+        try
+        {
+            keepsakes.Keep(host, await context.StorageStateAsync());
+        }
+        catch (Exception refusal) when (BrowserFailure.IsBrowsers(refusal))
+        {
         }
     }
 }

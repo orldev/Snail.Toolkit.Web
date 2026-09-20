@@ -30,7 +30,7 @@ public class BrowserPoolTests(SiteFixture site)
     public async Task DisposeAsync_AContextThatRefusesToClose_StillGivesTheBrowserBack()
     {
         var lease = new Borrowed();
-        var visit = new Visit(lease, Refusing.Context, Nothing.Page, Chrome);
+        var visit = new Visit(lease, Refusing.Context, Nothing.Page, Chrome, new Forgetful(), "example.com");
 
         await Assert.ThrowsAsync<PlaywrightException>(async () => await visit.DisposeAsync());
 
@@ -50,7 +50,7 @@ public class BrowserPoolTests(SiteFixture site)
     {
         await using var pool = Pool();
 
-        var visit = new Visit(await pool.RentAsync(), Refusing.Context, Nothing.Page, Chrome);
+        var visit = new Visit(await pool.RentAsync(), Refusing.Context, Nothing.Page, Chrome, new Forgetful(), "example.com");
 
         await Assert.ThrowsAsync<PlaywrightException>(async () => await visit.DisposeAsync());
 
@@ -204,10 +204,18 @@ public class BrowserPoolTests(SiteFixture site)
     {
         public static IBrowserContext Context => DispatchProxy.Create<IBrowserContext, Refusing>();
 
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-            => targetMethod?.Name is nameof(IAsyncDisposable.DisposeAsync)
-                ? ValueTask.FromException(new PlaywrightException("Target page, context or browser has been closed"))
-                : null;
+        /// <remarks>
+        /// The state is answered rather than refused, because a visit now reads it on the way out and this
+        /// stub is about a context that will not CLOSE. A proxy that answers null to everything else would
+        /// have the check fail on a null reference instead of on the refusal it is written for.
+        /// </remarks>
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
+        {
+            nameof(IAsyncDisposable.DisposeAsync)
+                => ValueTask.FromException(new PlaywrightException("Target page, context or browser has been closed")),
+            nameof(IBrowserContext.StorageStateAsync) => Task.FromResult("{}"),
+            _ => null
+        };
     }
 
     /// <summary>A page that is carried and never asked anything.</summary>
@@ -216,5 +224,15 @@ public class BrowserPoolTests(SiteFixture site)
         public static IPage Page => DispatchProxy.Create<IPage, Nothing>();
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => null;
+    }
+
+    /// <summary>A memory that keeps nothing: what a visit leaves behind is not what these checks are about.</summary>
+    private sealed class Forgetful : IKeepsakes
+    {
+        public string? Of(string host) => null;
+
+        public void Keep(string host, string state)
+        {
+        }
     }
 }

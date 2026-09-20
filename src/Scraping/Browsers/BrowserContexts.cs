@@ -22,13 +22,24 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// </remarks>
 internal static class BrowserContexts
 {
+    /// <param name="identity">The browser this context presents itself as.</param>
+    /// <param name="traits">The screen and pointer that identity implies.</param>
+    /// <param name="engine">The browser being driven, which decides whether client hints are sent at all.</param>
+    /// <param name="ignoresCertificateErrors">Whether a bad certificate stops the visit.</param>
+    /// <param name="state">
+    /// What the host left on an earlier visit — its cookies and local storage — or nothing the first time.
+    /// A cleared challenge lives in exactly those, so giving them back is what makes the second visit cheaper
+    /// than the first.
+    /// </param>
     public static BrowserNewContextOptions For(
         WebIdentity identity,
         BrowserTraits traits,
         Engine engine,
-        bool ignoresCertificateErrors)
+        bool ignoresCertificateErrors,
+        string? state = null)
         => new()
         {
+            StorageState = state,
             UserAgent = identity.UserAgent,
             Locale = identity.Locale,
             TimezoneId = identity.Timezone,

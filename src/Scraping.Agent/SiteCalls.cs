@@ -73,7 +73,7 @@ public sealed class SiteCalls(
     {
         try
         {
-            await using var visit = await visits.OpenAsync(identity, Appetite.Everything, ct);
+            await using var visit = await visits.OpenAsync(identity, Appetite.Everything, target, ct);
 
             var page = visit.Page;
             var response = await page.GotoAsync(target.ToString(), new PageGotoOptions

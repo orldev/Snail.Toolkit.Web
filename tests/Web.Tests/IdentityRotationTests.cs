@@ -81,6 +81,74 @@ public class IdentityRotationTests
         Assert.Equal(["Windows", "macOS", "Windows"], [rotation.Next().Platform, rotation.Next().Platform, rotation.Next().Platform]);
     }
 
+    /// <summary>
+    /// One host always sees the same browser, because a site that let us in remembers whom it let in.
+    /// </summary>
+    /// <remarks>
+    /// A challenge that a site clears hands back a cookie bound to the address AND the user agent that solved
+    /// it — Cloudflare's <c>cf_clearance</c> is the common one. Keeping that cookie while drawing the next
+    /// identity from the round makes it worthless and the visit stranger than one with no cookie at all: a
+    /// returning visitor whose browser changed between requests. So the identity for a host is drawn once and
+    /// stays; <see cref="IIdentityRotation.Next"/> keeps handing them out in turn for everything else.
+    /// </remarks>
+    [Fact]
+    public void For_TheSameHost_IsAlwaysTheSameIdentity()
+    {
+        var rotation = Rotation(
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" },
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0.0.0" },
+            new Fingerprint { UserAgent = "Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0.0.0" });
+
+        var first = rotation.For("registry.example");
+
+        rotation.Next();
+        rotation.Next();
+
+        Assert.Equal(first.UserAgent, rotation.For("registry.example").UserAgent);
+        Assert.Equal(first.UserAgent, rotation.For("REGISTRY.example").UserAgent);
+    }
+
+    /// <summary>And different hosts are told apart, or the whole rotation would collapse into one browser.</summary>
+    [Fact]
+    public void For_DifferentHosts_AreNotAllTheSameIdentity()
+    {
+        var rotation = Rotation(
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" },
+            new Fingerprint { UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0.0.0" },
+            new Fingerprint { UserAgent = "Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0.0.0" });
+
+        var seen = new[] { "a.example", "b.example", "c.example", "d.example", "e.example", "f.example" }
+            .Select(host => rotation.For(host).Platform)
+            .Distinct()
+            .Count();
+
+        Assert.True(seen > 1, "every host was given the same identity");
+    }
+
+    /// <summary>
+    /// The exit is part of the same promise: a clearance cookie is bound to the address that earned it.
+    /// </summary>
+    [Fact]
+    public void For_TheSameHost_LeavesByTheSameExit()
+    {
+        var options = new IdentityOptions
+        {
+            Fingerprints = [new Fingerprint { UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0" }],
+            Proxies = ["http://one.example:8080", "http://two.example:8080", "http://three.example:8080"]
+        };
+
+        var rotation = new IdentityRotation(
+            Options.Create(options),
+            new ProxyRotation(Options.Create(options)),
+            NullLogger<IdentityRotation>.Instance);
+
+        var first = rotation.For("registry.example").Proxy?.Server;
+
+        rotation.Next();
+
+        Assert.Equal(first, rotation.For("registry.example").Proxy?.Server);
+    }
+
     /// <summary>A round-robin, not a random pick: random reuse comes in bursts, and bursts are what get banned.</summary>
     [Fact]
     public void Next_WithProxiesConfigured_HandsThemOutInTurn()

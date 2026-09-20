@@ -85,6 +85,15 @@ public sealed class ScrapingOptions
     /// <summary>Gets or sets how many times a transient failure is retried.</summary>
     public int MaxRetryAttempts { get; set; } = 3;
 
+    /// <summary>Gets or sets how long what a site left with us is kept when nobody goes back to it.</summary>
+    /// <remarks>
+    /// A bound on memory rather than on the cookies themselves: each cookie carries its own expiry inside the
+    /// state, and the browser drops the expired ones when the state is restored. What this decides is how long
+    /// a host nobody has visited keeps taking up room. Zero switches the memory off entirely, and then every
+    /// visit arrives as a stranger — which is what this library did until 2026-09-20.
+    /// </remarks>
+    public TimeSpan RememberSiteFor { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>Gets or sets whether a refusal that names no gap is one of the failures worth repeating.</summary>
     /// <remarks>
     /// On, because a wall is often a fingerprint and the next attempt draws a different one — that is what

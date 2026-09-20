@@ -60,7 +60,7 @@ internal sealed class PageAgent(
     {
         try
         {
-            await using var visit = await visits.OpenAsync(identity, errand.Appetite, ct);
+            await using var visit = await visits.OpenAsync(identity, errand.Appetite, target, ct);
 
             var page = visit.Page;
             var response = await page.GotoAsync(target.ToString(), new PageGotoOptions

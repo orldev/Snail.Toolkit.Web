@@ -90,6 +90,8 @@ public class ProxiedTests
 
     private sealed class StubRotation(ProxyEndpoint? exit) : IProxyRotation
     {
+        public ProxyEndpoint? For(string host) => exit;
+
         public ProxyEndpoint? Next() => exit;
     }
 }

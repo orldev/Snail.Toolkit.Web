@@ -19,5 +19,14 @@ public interface IVisits
     /// The appetite is stated rather than defaulted, so that a caller driving a page through its own scripts
     /// says so where it can be read beside the code that depends on it.
     /// </remarks>
-    Task<IVisit> OpenAsync(WebIdentity identity, Appetite appetite, CancellationToken ct = default);
+    /// <param name="identity">The browser this visit presents itself as.</param>
+    /// <param name="appetite">How much of the page is fetched.</param>
+    /// <param name="target">Where the visit is going; only the host matters, and it is what the site is remembered by.</param>
+    /// <param name="ct">Cancels opening the context.</param>
+    /// <remarks>
+    /// The address is here so that what the site left last time can be given back to it: cookies and local
+    /// storage are kept per host, and a cleared challenge lives in exactly those. Without it every visit
+    /// arrives as a stranger, which is what this library did until 2026-09-20.
+    /// </remarks>
+    Task<IVisit> OpenAsync(WebIdentity identity, Appetite appetite, Uri target, CancellationToken ct = default);
 }

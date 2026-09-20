@@ -662,6 +662,8 @@ public class CrawlerTests
 
     private sealed class StubIdentities : IIdentityRotation
     {
+        public WebIdentity For(string host) => Next();
+
         public WebIdentity Next()
             => new()
             {

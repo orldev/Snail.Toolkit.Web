@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-The public surface of this package: 41 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
+The public surface of this package: 42 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
 
 ## Appetite
 
@@ -448,6 +448,23 @@ Performs the activity a real visitor would produce on a loaded page.
 Never fails the read: simulation is decoration on top of a page that has already loaded, so a closed target or an exhausted budget ends the simulation rather than the request.
 
 
+## IKeepsakes
+
+Keeps what a site left with us, so the next visit to it is not a first visit.
+
+A cleared challenge is a cookie: Cloudflare answers with `cf_clearance`, a consent wall with a preference, a registry with a session. All of them are the site saying «this one may pass», and all of them die with the browser context. A reader that opens a fresh context per page therefore arrives as a stranger every time and is challenged every time — slower for us and noisier for the site.
+
+A persistent profile would be the obvious answer and is not available: `launchServer` takes no user data directory, so a browser reached over `ws://` cannot be given one. What is available is the storage state — cookies and local storage, read out of one context and put into the next — and it carries exactly the part that matters.
+
+The shipped implementation keeps it in memory for `RememberSiteFor` and forgets a host nobody returns to. A deployment that wants it to survive a restart writes its own and registers that instead: the state is a string, and where it is written is a decision about the deployment's own storage, not about this library. Whoever does that should know what they are keeping — it is the site's permission, and it identifies the visitor.
+
+**Keep** — Keeps what this host said, replacing whatever it said before.
+
+The newest answer wins outright rather than being merged: the state is the browser's own summary of the context it came from, and half of one summary beside half of another is not a state any browser held.
+
+**Of** — What this host left with us, or nothing when it left nothing.
+
+
 ## IPageReader
 
 Fetches one page with a real browser and reports what came back.
@@ -629,6 +646,10 @@ Across all hosts is the whole of it. Reading many pages of one site — a crawl,
 
 **NavigationTimeoutMs** — Gets or sets the navigation budget in milliseconds.
 
+**RememberSiteFor** — Gets or sets how long what a site left with us is kept when nobody goes back to it.
+
+A bound on memory rather than on the cookies themselves: each cookie carries its own expiry inside the state, and the browser drops the expired ones when the state is restored. What this decides is how long a host nobody has visited keeps taking up room. Zero switches the memory off entirely, and then every visit arrives as a stranger — which is what this library did until 2026-09-20.
+
 **RepeatsRefusals** — Gets or sets whether a refusal that names no gap is one of the failures worth repeating.
 
 On, because a wall is often a fingerprint and the next attempt draws a different one — that is what makes a retry worth making at all, and a test holds the crawl to it. Off for a deployment whose target closes over FREQUENCY, where every further request only confirms the refusal and spends the budget.
@@ -697,3 +718,7 @@ Three earlier defects made the script worse than injecting nothing. It restored 
 Rents a browser, builds the context an identity implies and returns a page ready to be shown to a site.
 
 Ownership is the delicate part: the lease and the context are acquired one after the other, and anything that throws in between would strand a browser in the pool for the life of the process. Both are released here on any failure, and afterwards they belong to the returned `IVisit`.
+
+**OpenAsync** — *no summary*
+
+The context is new every time — a context is what holds one page's work — but it is no longer EMPTY every time: what the host left on the last visit goes back into it, and what this visit ends with is kept for the next. A challenge cleared once is then cleared for as long as the cookie it gave lives, which is the difference between a returning visitor and a stranger who is challenged again.

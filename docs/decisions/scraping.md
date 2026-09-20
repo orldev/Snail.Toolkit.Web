@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-18 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+20 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -189,6 +189,15 @@ Written once and read by everything that drives a browser. Until 2026-09-20 only
 Headers rather than a response, so that the reading can be checked without a browser, and the instant is given rather than taken from a clock, so that a date in the header can be checked at all.
 
 
+## ScrapingOptions.RememberSiteFor
+
+`2026-09-20`
+
+*Gets or sets how long what a site left with us is kept when nobody goes back to it.*
+
+A bound on memory rather than on the cookies themselves: each cookie carries its own expiry inside the state, and the browser drops the expired ones when the state is restored. What this decides is how long a host nobody has visited keeps taking up room. Zero switches the memory off entirely, and then every visit arrives as a stranger — which is what this library did until 2026-09-20.
+
+
 ## ScrapingOptions.RepeatsRefusals
 
 `2026-09-20`
@@ -198,3 +207,12 @@ Headers rather than a response, so that the reading can be checked without a bro
 On, because a wall is often a fingerprint and the next attempt draws a different one — that is what makes a retry worth making at all, and a test holds the crawl to it. Off for a deployment whose target closes over FREQUENCY, where every further request only confirms the refusal and spends the budget.
 
 MEASURED on 2026-09-20 on these defaults: a page that answers costs one request, one turn at the gate and 14 ms; a wall costs four of each and 17.7 seconds of backoff. On a host paced at thirty seconds those four turns are two minutes for one page, so a site that refuses everything turns a forty-minute crawl of some two hundred and sixty pages into one of sixty-five. That is the fourteenth item on the consumer's list, and it is a setting rather than a new default because which of the two a site is cannot be known from here — the engines of this toolkit, whose refusals are measured to be about frequency, do not repeat them at all.
+
+
+## Visit.KeptAsync
+
+`2026-09-20` · *internal*
+
+*Keeps what the site left, while there is still a context to read it from.*
+
+Here rather than in whoever asked for the visit, because the state can only be read while the context is open. A browser that went away in the middle takes it with it, and that is not worth an exception: the visit is over either way and the next one simply arrives as a stranger, which is what every visit did until 2026-09-20.

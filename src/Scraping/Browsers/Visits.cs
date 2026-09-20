@@ -18,14 +18,26 @@ public sealed class Visits(
     IBrowserPool pool,
     IStealthScript stealth,
     IClientHints hints,
+    IKeepsakes keepsakes,
     IOptions<ScrapingOptions> options) : IVisits
 {
     private readonly ScrapingOptions _options = options.Value;
 
     /// <inheritdoc />
-    public async Task<IVisit> OpenAsync(WebIdentity identity, Appetite appetite, CancellationToken ct = default)
+    /// <remarks>
+    /// The context is new every time — a context is what holds one page's work — but it is no longer EMPTY
+    /// every time: what the host left on the last visit goes back into it, and what this visit ends with is
+    /// kept for the next. A challenge cleared once is then cleared for as long as the cookie it gave lives,
+    /// which is the difference between a returning visitor and a stranger who is challenged again.
+    /// </remarks>
+    public async Task<IVisit> OpenAsync(
+        WebIdentity identity,
+        Appetite appetite,
+        Uri target,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(target);
 
         var traits = BrowserTraits.For(identity);
         var lease = await pool.RentAsync(ct);
@@ -34,7 +46,12 @@ public sealed class Visits(
         try
         {
             context = await lease.Browser.NewContextAsync(
-                BrowserContexts.For(identity, traits, _options.Engine, _options.IgnoreCertificateErrors));
+                BrowserContexts.For(
+                    identity,
+                    traits,
+                    _options.Engine,
+                    _options.IgnoreCertificateErrors,
+                    keepsakes.Of(target.Host)));
 
             context.SetDefaultNavigationTimeout(_options.NavigationTimeoutMs);
             context.SetDefaultTimeout(_options.NavigationTimeoutMs);
@@ -48,7 +65,7 @@ public sealed class Visits(
 
             await hints.AlignAsync(page, identity, traits, ct);
 
-            return new Visit(lease, context, page, identity);
+            return new Visit(lease, context, page, identity, keepsakes, target.Host);
         }
         catch
         {

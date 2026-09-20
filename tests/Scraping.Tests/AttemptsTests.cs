@@ -50,14 +50,22 @@ public class AttemptsTests
         Assert.Equal(1, attempted);
     }
 
-    /// <summary>A fresh identity per attempt is what makes a second attempt worth making.</summary>
+    /// <summary>
+    /// A fresh identity per attempt is what makes a second attempt worth making — where the site is not one we
+    /// remember.
+    /// </summary>
+    /// <remarks>
+    /// The two cannot both be had, and <see cref="ScrapingOptions.RememberSiteFor"/> decides: a kept cookie is
+    /// bound to the browser that earned it, so a host whose visit is remembered keeps one identity. The memory
+    /// is switched off here, which is what makes this a test of the rotation rather than of the setting.
+    /// </remarks>
     [Fact]
     public async Task AtAsync_EveryAttempt_DrawsItsOwnIdentity()
     {
         var rotation = new CountingIdentities();
         var attempted = 0;
 
-        await Subject(identities: rotation).AtAsync(Address, (_, _, _) =>
+        await Subject(identities: rotation, remembers: false).AtAsync(Address, (_, _, _) =>
         {
             attempted++;
 
@@ -65,6 +73,29 @@ public class AttemptsTests
         });
 
         Assert.Equal(3, rotation.Drawn);
+    }
+
+    /// <summary>
+    /// A host whose visit is remembered keeps ONE identity across the attempts, because the cookie it may have
+    /// left is bound to the browser that earned it.
+    /// </summary>
+    [Fact]
+    public async Task AtAsync_SiteThatIsRemembered_KeepsOneIdentityAcrossAttempts()
+    {
+        var rotation = new CountingIdentities();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var attempted = 0;
+
+        await Subject(identities: rotation).AtAsync(Address, (identity, _, _) =>
+        {
+            attempted++;
+            seen.Add(identity.UserAgent);
+
+            return Task.FromResult(attempted < 3 ? Blocked() : Answered("ok"));
+        });
+
+        Assert.Equal(3, attempted);
+        Assert.Single(seen);
     }
 
     /// <summary>The ruling and the gate follow that identity rather than one left over from a failed attempt.</summary>
@@ -364,7 +395,8 @@ public class AttemptsTests
         ISiteRules? rules = null,
         int maxRetryAttempts = 3,
         TimeSpan? longestRest = null,
-        bool repeatsRefusals = true)
+        bool repeatsRefusals = true,
+        bool remembers = true)
         => new(
             identities ?? new CountingIdentities(),
             politeness ?? new CountingPoliteness(),
@@ -372,7 +404,8 @@ public class AttemptsTests
             Options.Create(new ScrapingOptions
             {
                 MaxRetryAttempts = maxRetryAttempts,
-                RetryDelay = TimeSpan.Zero
+                RetryDelay = TimeSpan.Zero,
+                RememberSiteFor = remembers ? TimeSpan.FromHours(1) : TimeSpan.Zero
             }),
             Options.Create(new PolitenessOptions
             {
@@ -405,13 +438,25 @@ public class AttemptsTests
     {
         public int Drawn { get; private set; }
 
+        /// <summary>The same host always sees the same browser, as the real rotation does.</summary>
+        public WebIdentity For(string host)
+        {
+            Drawn++;
+
+            return Identity("Steady");
+        }
+
         public WebIdentity Next()
         {
             Drawn++;
 
-            return new WebIdentity
+            return Identity($"Agent/{Drawn}");
+        }
+
+        private static WebIdentity Identity(string userAgent)
+            => new()
             {
-                UserAgent = $"Agent/{Drawn}",
+                UserAgent = userAgent,
                 Platform = "Windows",
                 NavigatorPlatform = "Win32",
                 Brand = "Google Chrome",
@@ -421,7 +466,6 @@ public class AttemptsTests
                 AcceptLanguage = "en-US,en;q=0.9",
                 Languages = ["en-US", "en"]
             };
-        }
     }
 
     private sealed class CountingPoliteness : IPoliteness

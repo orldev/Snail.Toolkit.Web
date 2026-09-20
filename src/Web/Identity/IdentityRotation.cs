@@ -81,10 +81,44 @@ public sealed partial class IdentityRotation : IIdentityRotation
     }
 
     /// <inheritdoc />
+    /// <inheritdoc />
+    public WebIdentity For(string host)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+
+        var steady = Steadily(host);
+
+        return Built(
+            _fingerprints[steady % (uint)_fingerprints.Length],
+            _proxies.For(host));
+    }
+
+    /// <inheritdoc />
     public WebIdentity Next()
     {
         var next = (uint)Interlocked.Increment(ref _cursor);
-        var fingerprint = _fingerprints[next % (uint)_fingerprints.Length];
+
+        return Built(_fingerprints[next % (uint)_fingerprints.Length], _proxies.Next());
+    }
+
+    /// <summary>A number the same host answers with in any process, on any machine, forever.</summary>
+    /// <remarks>
+    /// <see cref="string.GetHashCode()"/> is randomised per process, so a host would be given one browser today
+    /// and another after a restart — which is the thing this exists to prevent. FNV-1a over the lower-cased
+    /// name is four lines and answers the same everywhere.
+    /// </remarks>
+    private static uint Steadily(string host)
+    {
+        var hash = 2166136261u;
+
+        foreach (var character in host)
+            hash = (hash ^ char.ToLowerInvariant(character)) * 16777619u;
+
+        return hash;
+    }
+
+    private WebIdentity Built(Fingerprint fingerprint, ProxyEndpoint? exit)
+    {
         var userAgent = fingerprint.UserAgent;
 
         return new WebIdentity
@@ -98,7 +132,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
             Timezone = fingerprint.Timezone,
             AcceptLanguage = fingerprint.AcceptLanguage,
             Languages = LanguagesOf(fingerprint.AcceptLanguage),
-            Proxy = _proxies.Next()
+            Proxy = exit
         };
     }
 

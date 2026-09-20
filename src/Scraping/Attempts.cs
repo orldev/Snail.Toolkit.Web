@@ -33,6 +33,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
     private readonly ISiteRules _rules;
     private readonly ILogger<Attempts<TValue>> _logger;
     private readonly ResiliencePipeline<Outcome<TValue, PageFailure>> _pipeline;
+    private readonly bool _remembers;
 
     /// <summary>Assembles the sequence and the retry pipeline it runs under.</summary>
     public Attempts(
@@ -76,6 +77,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         _politeness = politeness;
         _rules = rules;
         _logger = logger;
+        _remembers = options.Value.RememberSiteFor > TimeSpan.Zero;
         _pipeline = BuildPipeline(options.Value, pacing.Value.LongestRest, repeatsRefusals, logger);
     }
 
@@ -109,13 +111,22 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
             async token => await OnceAsync(address, target, work, token), ct);
     }
 
+    /// <summary>One attempt: an identity, the site's ruling, its turn at the gate, and then the work.</summary>
+    /// <remarks>
+    /// WHOSE IDENTITY DEPENDS ON WHETHER THE SITE IS REMEMBERED, and the two cannot both be had. A fresh
+    /// identity per attempt is what makes a second attempt worth making against a wall that judges
+    /// fingerprints. A steady identity per host is what makes a kept cookie worth anything at all: a cleared
+    /// challenge is bound to the browser that cleared it, so a visit that restores the cookie under a new user
+    /// agent is stranger than one with no cookie. <see cref="ScrapingOptions.RememberSiteFor"/> decides which
+    /// game is being played, because it is the same decision.
+    /// </remarks>
     private async ValueTask<Outcome<TValue, PageFailure>> OnceAsync(
         Link address,
         Uri target,
         Func<WebIdentity, Uri, CancellationToken, Task<Outcome<TValue, PageFailure>>> work,
         CancellationToken ct)
     {
-        var identity = _identities.Next();
+        var identity = _remembers ? _identities.For(target.Host) : _identities.Next();
         var started = Stopwatch.GetTimestamp();
 
         using var activity = WebDiagnostics.Activity.StartActivity("web.read", ActivityKind.Client);
