@@ -278,6 +278,16 @@ Registers the providers, their HTTP clients, the memory of refusals and the sear
 
 **AddSearchClient** — Adds the named HTTP client a provider fetches through.
 
+IT ASKS OVER HTTP/2, and that one line decides whether an engine answers at all. MEASURED on 2026-09-20 against `html.duckduckgo.com` — same address, same headers, same second, only the protocol changed:
+
+```csharp
+HTTP/1.1 → 202, 14 222 bytes, a challenge page, no results
+HTTP/2   → 200, 33 096 bytes, ten results
+
+```
+
+`HttpClient` speaks 1.1 unless told otherwise and every browser has spoken 2 for years, so the version was the one thing about our requests that no header could disguise — the live checks of that engine were red for it and went green on this line alone. This is what the consumer's nineteenth item really was: not an engine with nothing to say, and not a wall about the address, but a wall about the protocol. `RequestVersionOrHigher` rather than an exact version, so a server that only speaks 1.1 is still reachable.
+
 The order of the handlers is the point. Resilience is outermost, so every retry re-enters the politeness gate and is made under a freshly drawn identity; the other way round, a retry storm would hold one host's gate for the whole backoff and repeat the same user agent that was just refused.
 
 The deadline is the resilience pipeline's, not the client's: the standard handler sets `Timeout` to infinite so that its own total-request timeout owns the clock. Setting the client timeout beside it is therefore a setting that silently does nothing, which is why `Timeout` is applied here instead — together with the per-attempt timeout and the sampling window, because the pipeline refuses a total shorter than the attempt it contains.

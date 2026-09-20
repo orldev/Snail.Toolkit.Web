@@ -33,21 +33,6 @@ This replaces a hand-rolled throttling handler that kept its own semaphore and i
 A site asking to be left alone is written into that same gate. Until 2026-09-14 only the browser side did this — `Rest` had exactly one caller — so a `429` answered to a search engine slowed nothing, and a browser visit to the same host walked straight into a site that had just said it had had enough.
 
 
-## ServiceCollectionExtensions.AddSearchClient
-
-`2026-09-14`
-
-*Adds the named HTTP client a provider fetches through.*
-
-The order of the handlers is the point. Resilience is outermost, so every retry re-enters the politeness gate and is made under a freshly drawn identity; the other way round, a retry storm would hold one host's gate for the whole backoff and repeat the same user agent that was just refused.
-
-The deadline is the resilience pipeline's, not the client's: the standard handler sets `Timeout` to infinite so that its own total-request timeout owns the clock. Setting the client timeout beside it is therefore a setting that silently does nothing, which is why `Timeout` is applied here instead — together with the per-attempt timeout and the sampling window, because the pipeline refuses a total shorter than the attempt it contains.
-
-The exit is the configured one, which it had not been until 2026-09-14. The browser has always honoured `Web:Identity:Proxies` because its context is built from the identity, while this client set no primary handler at all and went out directly. The consequence worth naming is not the leak but the correlation: a query arrives from the proxy and the request that resolves its links arrives from the real address seconds later, and the party seeing both is the one that handed out the link.
-
-The builder is handed back so a consumer can add a header of their own, or replace the exit where one client has to leave by another route.
-
-
 ## ServiceCollectionExtensions.IsWorthRepeating
 
 `2026-09-14`, `2026-09-20` · *internal*
@@ -204,6 +189,31 @@ There is no separate probing state. A rest that has run out lets the next reques
 Spent by the resilience pipeline rather than by `Timeout`, and divided into a per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when the host starts rather than surfacing as a pipeline validation error on the first query.
 
 A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes — runs out of it when asked again before the gap is over, which is the setting doing what it says.
+
+
+## ServiceCollectionExtensions.AddSearchClient
+
+`2026-09-20`, `2026-09-14`
+
+*Adds the named HTTP client a provider fetches through.*
+
+IT ASKS OVER HTTP/2, and that one line decides whether an engine answers at all. MEASURED on 2026-09-20 against `html.duckduckgo.com` — same address, same headers, same second, only the protocol changed:
+
+```csharp
+HTTP/1.1 → 202, 14 222 bytes, a challenge page, no results
+HTTP/2   → 200, 33 096 bytes, ten results
+
+```
+
+`HttpClient` speaks 1.1 unless told otherwise and every browser has spoken 2 for years, so the version was the one thing about our requests that no header could disguise — the live checks of that engine were red for it and went green on this line alone. This is what the consumer's nineteenth item really was: not an engine with nothing to say, and not a wall about the address, but a wall about the protocol. `RequestVersionOrHigher` rather than an exact version, so a server that only speaks 1.1 is still reachable.
+
+The order of the handlers is the point. Resilience is outermost, so every retry re-enters the politeness gate and is made under a freshly drawn identity; the other way round, a retry storm would hold one host's gate for the whole backoff and repeat the same user agent that was just refused.
+
+The deadline is the resilience pipeline's, not the client's: the standard handler sets `Timeout` to infinite so that its own total-request timeout owns the clock. Setting the client timeout beside it is therefore a setting that silently does nothing, which is why `Timeout` is applied here instead — together with the per-attempt timeout and the sampling window, because the pipeline refuses a total shorter than the attempt it contains.
+
+The exit is the configured one, which it had not been until 2026-09-14. The browser has always honoured `Web:Identity:Proxies` because its context is built from the identity, while this client set no primary handler at all and went out directly. The consequence worth naming is not the leak but the correlation: a query arrives from the proxy and the request that resolves its links arrives from the real address seconds later, and the party seeing both is the one that handed out the link.
+
+The builder is handed back so a consumer can add a header of their own, or replace the exit where one client has to leave by another route.
 
 
 ## ServiceCollectionExtensions.AddSearchParts

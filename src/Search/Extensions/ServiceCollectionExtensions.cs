@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -62,9 +63,24 @@ public static class ServiceCollectionExtensions
 
         /// <summary>Adds the named HTTP client a provider fetches through.</summary>
         /// <remarks>
+        /// IT ASKS OVER HTTP/2, and that one line decides whether an engine answers at all. MEASURED on
+        /// 2026-09-20 against <c>html.duckduckgo.com</c> — same address, same headers, same second, only the
+        /// protocol changed:
+        /// <code>
+        ///   HTTP/1.1 → 202, 14 222 bytes, a challenge page, no results
+        ///   HTTP/2   → 200, 33 096 bytes, ten results
+        /// </code>
+        /// <see cref="HttpClient"/> speaks 1.1 unless told otherwise and every browser has spoken 2 for years,
+        /// so the version was the one thing about our requests that no header could disguise — the live checks
+        /// of that engine were red for it and went green on this line alone. This is what the consumer's
+        /// nineteenth item really was: not an engine with nothing to say, and not a wall about the address, but
+        /// a wall about the protocol. <see cref="HttpVersionPolicy.RequestVersionOrHigher"/> rather than an
+        /// exact version, so a server that only speaks 1.1 is still reachable.
+        /// <para>
         /// The order of the handlers is the point. Resilience is outermost, so every retry re-enters the
         /// politeness gate and is made under a freshly drawn identity; the other way round, a retry storm would
         /// hold one host's gate for the whole backoff and repeat the same user agent that was just refused.
+        /// </para>
         /// <para>
         /// The deadline is the resilience pipeline's, not the client's: the standard handler sets
         /// <see cref="HttpClient.Timeout"/> to infinite so that its own total-request timeout owns the clock.
@@ -72,12 +88,14 @@ public static class ServiceCollectionExtensions
         /// <see cref="SearchOptions.Timeout"/> is applied here instead — together with the per-attempt timeout
         /// and the sampling window, because the pipeline refuses a total shorter than the attempt it contains.
         /// </para>
+        /// <para>
         /// The exit is the configured one, which it had not been until 2026-09-14. The browser has always
         /// honoured <c>Web:Identity:Proxies</c> because its context is built from the identity, while this
         /// client set no primary handler at all and went out directly. The consequence worth naming is not
         /// the leak but the correlation: a query arrives from the proxy and the request that resolves its
         /// links arrives from the real address seconds later, and the party seeing both is the one that
         /// handed out the link.
+        /// </para>
         /// <para>
         /// The builder is handed back so a consumer can add a header of their own, or replace the exit where
         /// one client has to leave by another route.
@@ -88,7 +106,11 @@ public static class ServiceCollectionExtensions
             services.TryAddTransient<PolitenessHandler>();
             services.TryAddTransient<IdentityHandler>();
 
-            var client = services.AddHttpClient(name);
+            var client = services.AddHttpClient(name, asked =>
+            {
+                asked.DefaultRequestVersion = HttpVersion.Version20;
+                asked.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
+            });
 
             client.ConfigurePrimaryHttpMessageHandler(provider => Proxied.Handler(provider));
 

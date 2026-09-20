@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -124,6 +125,27 @@ public class RegistrationTests
         var clients = provider.GetRequiredService<IHttpClientFactory>();
 
         Assert.NotNull(clients.CreateClient(DuckDuckGo.ProviderName));
+    }
+
+    /// <summary>
+    /// The client asks over HTTP/2, because over 1.1 an engine answers a challenge instead of results.
+    /// </summary>
+    /// <remarks>
+    /// MEASURED on 2026-09-20 against <c>html.duckduckgo.com</c>, same address and headers, one second apart:
+    /// HTTP/1.1 came back 202 with 14 222 bytes of «confirm this search was made by a human» and no results,
+    /// HTTP/2 came back 200 with 33 096 bytes and ten. The live checks of that engine were failing for exactly
+    /// this and went green on one line. A guard rather than a behaviour test because the behaviour belongs to
+    /// somebody else's server: what this library must not do is lose the line.
+    /// </remarks>
+    [Fact]
+    public void AddSearch_Client_AsksOverHttp2()
+    {
+        using var provider = Built([]);
+
+        var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(DuckDuckGo.ProviderName);
+
+        Assert.Equal(HttpVersion.Version20, client.DefaultRequestVersion);
+        Assert.Equal(HttpVersionPolicy.RequestVersionOrHigher, client.DefaultVersionPolicy);
     }
 
     /// <summary>
