@@ -9,9 +9,12 @@ ARG BASE=ff-juggler-nowd:latest
 FROM ${BASE}
 
 # Версия Playwright должна совпадать с той, из чьих browser_patches взяты juggler
-# и bootstrap.diff — протокол между ними не согласовывается, расхождение вылезет
-# отсутствующим методом при первом же вызове.
-ARG PLAYWRIGHT=1.63.0
+# и bootstrap.diff. Расхождение не согласовывается ничем: 428 Precondition
+# Required сравнивает клиента с сервером, а не с juggler внутри браузера, поэтому
+# оно молчит до первой тяжёлой страницы и валит браузер целиком — замер
+# 20.09.2026 в PATCHES.md, раздел 7. Здесь 1.62.0, потому что патчи взяты с тега
+# v1.62.0; двигать эту строку только вместе с FIREFOX_REV и patches/.
+ARG PLAYWRIGHT=1.62.0
 ARG NODE=v22.11.0
 
 ENV DEBIAN_FRONTEND=noninteractive

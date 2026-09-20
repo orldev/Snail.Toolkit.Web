@@ -46,7 +46,7 @@ docker build --build-arg JOBS=8 -t ff-juggler-nowd browser
 docker run --rm -v "$PWD/browser/out:/out" ff-juggler-nowd
 ```
 
-Полтора-три часа. На выходе — `browser/out/firefox-155.0.en-US.linux-*.tar.xz`,
+Полтора-три часа. На выходе — `browser/out/firefox-153.0.en-US.linux-*.tar.xz`,
 82 МБ. Двенадцатигигабайтный `ff-juggler-nowd` остаётся на машине и никуда не
 публикуется: это станок, а не изделие.
 
@@ -95,7 +95,7 @@ CCX33 (8 ядер, 32 ГБ, amd64) — около десяти. Обе архи�
 ### Шаг 2. Собрать рантайм — после каждой правки настроек
 
 ```bash
-docker build -f browser/runtime/Dockerfile -t ff-juggler:155.0 browser
+docker build -f browser/runtime/Dockerfile -t ff-juggler:153.0 browser
 ```
 
 Минуты. Архив из шага 1 распаковывается внутрь, туда же кладутся семь наших
@@ -124,7 +124,7 @@ docker run --rm -e WARM=1 -e HEADFUL=1 -e FRESH=1 \
 ### Шаг 4. Запустить
 
 ```bash
-docker run -d --name ff-juggler -p 3000:3000 -e TZ=America/New_York ff-juggler:155.0
+docker run -d --name ff-juggler -p 3000:3000 -e TZ=America/New_York ff-juggler:153.0
 docker logs ff-juggler
 ```
 
@@ -157,8 +157,8 @@ its own`, а старт снимает оставшийся замок и гов
 # токен классический, с правом write:packages
 echo "$CR_PAT" | docker login ghcr.io -u orldev --password-stdin
 
-docker tag  ff-juggler:155.0 ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
-docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
+docker tag  ff-juggler:153.0 ghcr.io/orldev/ff-juggler:153.0-pw1.62-amd64
+docker push ghcr.io/orldev/ff-juggler:153.0-pw1.62-amd64
 ```
 
 В теге три вещи, которые обязаны совпасть: версия браузера, версия Playwright и
@@ -175,16 +175,16 @@ docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
 манифест один:
 
 ```bash
-docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-arm64   # собрано на arm64
-docker push ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64   # собрано на amd64
+docker push ghcr.io/orldev/ff-juggler:153.0-pw1.62-arm64   # собрано на arm64
+docker push ghcr.io/orldev/ff-juggler:153.0-pw1.62-amd64   # собрано на amd64
 
-docker manifest create ghcr.io/orldev/ff-juggler:155.0-pw1.62 \
-  --amend ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64 \
-  --amend ghcr.io/orldev/ff-juggler:155.0-pw1.62-arm64
-docker manifest push ghcr.io/orldev/ff-juggler:155.0-pw1.62
+docker manifest create ghcr.io/orldev/ff-juggler:153.0-pw1.62 \
+  --amend ghcr.io/orldev/ff-juggler:153.0-pw1.62-amd64 \
+  --amend ghcr.io/orldev/ff-juggler:153.0-pw1.62-arm64
+docker manifest push ghcr.io/orldev/ff-juggler:153.0-pw1.62
 ```
 
-Дальше `docker pull ghcr.io/orldev/ff-juggler:155.0-pw1.62` сам возьмёт нужную:
+Дальше `docker pull ghcr.io/orldev/ff-juggler:153.0-pw1.62` сам возьмёт нужную:
 мак получит arm64, сервер — amd64.
 
 Кросс-сборку через QEMU не предлагаю: компиляция Firefox под эмуляцией идёт не
@@ -193,7 +193,7 @@ docker manifest push ghcr.io/orldev/ff-juggler:155.0-pw1.62
 **Реестр можно обойти вовсе.** Если продакшен один и он ваш:
 
 ```bash
-docker save ff-juggler:155.0 | gzip | ssh server 'gunzip | docker load'
+docker save ff-juggler:153.0 | gzip | ssh server 'gunzip | docker load'
 ```
 
 А наименьший объём передачи — это вообще не образ, а архив из шага 1: отдайте
