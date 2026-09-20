@@ -301,11 +301,12 @@ class NetworkRequest {
       const proxy = this._networkObserver._targetRegistry.getProxyInfo(aChannel);
       credentials = proxy ? {username: proxy.username, password: proxy.password} : null;
     } else {
-      const origin = (aChannel.URI.scheme + '://' + aChannel.URI.hostPort).toLowerCase();
-      const httpCredentials = pageNetwork._target.browserContext().httpCredentials || [];
-      credentials = httpCredentials.find(c => !c.origin || c.origin.toLowerCase() === origin) || null;
+      credentials = pageNetwork._target.browserContext().httpCredentials;
     }
     if (!credentials)
+      return false;
+    const origin = aChannel.URI.scheme + '://' + aChannel.URI.hostPort;
+    if (credentials.origin && origin.toLowerCase() !== credentials.origin.toLowerCase())
       return false;
     authInfo.username = credentials.username;
     authInfo.password = credentials.password;
@@ -542,9 +543,6 @@ class NetworkRequest {
     try {
       remoteIPAddress = this.httpChannel.remoteAddress;
       remotePort = this.httpChannel.remotePort;
-      // Gecko reports bare IPv6 addresses, bracket them to match Chromium.
-      if (remoteIPAddress && remoteIPAddress.includes(':'))
-        remoteIPAddress = `[${remoteIPAddress}]`;
     } catch (e) {
       // remoteAddress is not defined for cached requests.
     }
@@ -909,12 +907,7 @@ class ResponseStorage {
     // Note: fulfilled request comes with decoded body right away.
     if ((request.httpChannel instanceof Ci.nsIEncodedChannel) && request.httpChannel.contentEncodings && !request.httpChannel.applyConversion && !request._fulfilled) {
       const encodingHeader = request.httpChannel.getResponseHeader("Content-Encoding");
-      // Firefox itself skips "identity" and empty encodings when applying content
-      // conversions, and there is no stream converter registered for them.
-      encodings = encodingHeader.split(/\s*\t*,\s*\t*/).filter(encoding => {
-        const normalized = encoding.trim().toLowerCase();
-        return normalized && normalized !== 'identity' && normalized !== 'x-identity';
-      });
+      encodings = encodingHeader.split(/\s*\t*,\s*\t*/);
     }
     this._responses.set(request.requestId, {
       body,
