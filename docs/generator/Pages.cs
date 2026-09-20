@@ -192,7 +192,7 @@ internal static class Pages
 
     /// <summary>The line that stops somebody editing a generated file and losing the edit on the next build.</summary>
     private static string Generated()
-        => "*Generated from the compiler's documentation by `dotnet run --project gen -- docs`. "
+        => "*Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. "
            + "Editing this file by hand is lost on the next build; edit the remark in the source instead.*\n\n";
 
     private static string Slug(string package)

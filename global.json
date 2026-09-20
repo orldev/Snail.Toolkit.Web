@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/global.json",
+
+  "//": "WHY THIS FILE EXISTS, given that no other repository in this family has one. Since 2026-09-20 the build's verdict depends on the IDE code style analyzers: .editorconfig turns six of them into errors and the build runs with -warnaserror. Those analyzers ship WITH THE SDK, so a machine holding a different feature band applies different rules to the same sources, and the build that passes here fails there for reasons neither side can see. Pinning the band is what makes 'the build is green' a statement about the code.",
+
+  "//rollForward": "latestPatch keeps 10.0.3xx and takes its fixes; it refuses 10.0.4xx, which is exactly the move that would change the analyzers. Raise the pin deliberately, with a run of the suite, rather than by whoever updates their SDK first.",
+
+  "sdk": {
+    "version": "10.0.302",
+    "rollForward": "latestPatch",
+    "allowPrerelease": false
+  }
+}

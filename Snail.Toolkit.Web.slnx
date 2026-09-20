@@ -10,8 +10,8 @@
   <Folder Name="/probes/">
     <Project Path="probes/Probes.csproj" />
   </Folder>
-  <Folder Name="/gen/">
-    <Project Path="gen/Gen.csproj" />
+  <Folder Name="/docs/">
+    <Project Path="docs/generator/Gen.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Scraping.Agent.Tests/Scraping.Agent.Tests.csproj" />

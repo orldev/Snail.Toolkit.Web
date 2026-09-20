@@ -41,4 +41,72 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
 
+  <!--
+    ONE PLACE FOR EVERYTHING THE BUILD PRODUCES, instead of bin/ and obj/ inside every project. The reason
+    is not disk: the output is the same size wherever it lands, and Playwright's node driver is still copied
+    beside every assembly that references it. The reason is that a source folder should contain sources. Ask
+    this repository what is in src/Scraping and, without this, the answer is four folders of code and forty
+    of Playwright's internals — which is what every find, grep and editor search has to wade through too.
+    <para>
+    ARTIFACTSPATH IS SET EXPLICITLY AND THAT IS NOT DECORATION. Left to itself the SDK puts the folder beside
+    whichever Directory.Build.props was imported for the project, and this repository has four of them — src,
+    tests, gen, probes. The default would therefore produce FOUR artifacts folders, which is the arrangement
+    this change exists to end. <c>MSBuildThisFileDirectory</c> is read from THIS file however deep the
+    importer sits, so it always names the repository root.
+    </para>
+  -->
+  <PropertyGroup>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+  <!--
+    WHAT A CONSUMER GETS BESIDES THE DLL. A package whose symbols and sources cannot be reached is a
+    package that can only be read as a stack trace: the one place a consumer meets this library is a
+    failure inside it, and stepping into that failure is the difference between a report and a guess.
+    Symbols travel in a .snupkg beside the package rather than inside it, which is what a feed expects,
+    and SourceLink is what puts the repository into the pdb so a debugger fetches the exact file rather
+    than a file that merely has the same name — <c>PublishRepositoryUrl</c> above is its half of that.
+    <c>EmbedUntrackedSources</c> covers what git does not track: generated files, mainly the regex
+    sources this toolkit uses.
+    <para>
+    NO PACKAGE REFERENCE FOR SOURCELINK, ON PURPOSE. Since .NET 8 the SDK carries it, and adding
+    Microsoft.SourceLink.GitHub by hand pins Microsoft.Build.Tasks.Git 8.0.0 — a package with a published
+    advisory (GHSA-23fw-v26w-5fgq), which this repository treats as an error. The SDK's own copy is newer.
+    </para>
+    <para>
+    WHAT THE LINKS WAIT FOR. A source link is built from the URL git answers for <c>origin</c>, and this
+    repository has no remote yet, so the build says as much — «Source Link is empty» — and the symbols ship
+    without links. Everything else already works: the nuspec carries the repository URL and the exact commit,
+    because those are properties above rather than a question to git. The day a GitHub remote is added the
+    links appear on the next pack with nothing to change here.
+    </para>
+  -->
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!--
+    A deterministic build is one whose output depends on the sources and nothing else — not on the path
+    it was built in. The flag below makes paths relative and is deliberately set ONLY under a build
+    server: locally it breaks the debugger's ability to find sources on disk, which is a worse trade for
+    a developer than the byte-for-byte reproducibility they are not asking for.
+  -->
+  <PropertyGroup Condition="'$(ContinuousIntegrationBuild)' == '' AND ('$(CI)' == 'true' OR '$(GITHUB_ACTIONS)' == 'true')">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    TWO THINGS DELIBERATELY NOT DONE, named here because both are on every packaging checklist.
+    PACKAGE VALIDATION compares a package against a BASELINE version on a feed and against its other
+    target frameworks; this repository has one framework and has never published, so there is nothing to
+    compare with and the switch would only add a step that always passes. It earns its place with the
+    first published version, together with PackageValidationBaselineVersion.
+    A PACKAGE ICON is a picture nobody has drawn. An icon invented here would be the first piece of this
+    project's identity chosen by its tooling rather than by its owner.
+  -->
+
 </Project>

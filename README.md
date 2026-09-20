@@ -176,13 +176,22 @@ src/Scraping             → Snail.Toolkit.Web.Scraping
 src/Search.Browser       → Snail.Toolkit.Web.Search.Browser
 src/Search.Browser.Agent → Snail.Toolkit.Web.Search.Browser.Agent
 src/Scraping.Agent       → Snail.Toolkit.Web.Scraping.Agent
-tests/…
-probes/…
+tests/…                    one suite per package
+docs/                      the site: content/, theme/, generator/, mkdocs.yml
+browser/                   the patched Firefox and the image it is published as
+probes/…                   measurements, invoked by name
+artifacts/                 everything the build produces, and nothing a person writes
 ```
 
 Project folders are short so the solution reads well in an IDE. The names that reach a consumer —
 `PackageId`, `AssemblyName`, `RootNamespace` — are derived from the folder name in
 `Directory.Build.props` and are always fully qualified.
+
+The four folders after `tests/` are each one subject rather than one kind of file, which is why the
+documentation is not spread over `docs/`, `theme/`, `gen/` and `mkdocs.yml` as it used to be: a site is one
+thing to move, to build and to reason about. `artifacts/` is the other half of that idea — build output
+inside a source folder is the reason a search for a name in `src/Scraping` used to return Playwright's
+internals forty times over.
 
 ## Dependency rules
 
@@ -218,14 +227,15 @@ dotnet test                                    # adds the integration suites
 ## Documentation
 
 The site at [orldev.github.io/Snail.Toolkit.Web](https://orldev.github.io/Snail.Toolkit.Web/) is built from
-`docs/` with the theme in `theme/` — MkDocs with `theme.name` set to null, so the templates in this repository
-are the whole of it and there is no theme package to track.
+`docs/`, which holds all four parts of it: `content/` is the prose, `theme/` the templates, `generator/` the
+tool that writes the generated half, and `mkdocs.yml` the build. MkDocs runs with `theme.name` set to null,
+so the templates in this repository are the whole of it and there is no theme package to track.
 
 ```bash
-dotnet run --project gen -- docs               # regenerate reference/ and decisions/
+dotnet run --project docs/generator -- docs    # regenerate reference/ and decisions/
 pip install mkdocs==1.6.1 pymdown-extensions==10.21.3
-mkdocs serve                                   # http://127.0.0.1:8000
-mkdocs build --strict                          # what CI runs
+mkdocs serve --config-file docs/mkdocs.yml     # http://127.0.0.1:8000
+mkdocs build --strict --config-file docs/mkdocs.yml   # what CI runs
 ```
 
 Two of the sections are **generated from the compiler's own documentation** and are checked in, so the site
@@ -236,7 +246,7 @@ builds without the SDK and so a change to them shows up in a diff:
 - **Decisions** — every remark that names a date, including the internal ones. That is where most of the
   reasoning lives, and a date is what separates a measurement from a paraphrase.
 
-`dotnet run --project gen -- check` fails when what is on disk is not what the code would produce now. CI runs
+`dotnet run --project docs/generator -- check` fails when what is on disk is not what the code would produce now. CI runs
 it before the site is built, because a page that is missing looks exactly like a page that is correct to every
 other check here.
 

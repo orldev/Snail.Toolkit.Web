@@ -1,6 +1,6 @@
 <Project>
 
-  <Import Project="..\Directory.Build.props" />
+  <Import Project="..\..\Directory.Build.props" />
 
   <!--
     The generator is a tool, not a package and not a test. It is in the solution for the reason the probes
@@ -20,12 +20,12 @@
     the prose comes from the xml, and whether a type belongs in the reference comes from the assembly.
   -->
   <ItemGroup>
-    <ProjectReference Include="..\src\Web\Web.csproj" />
-    <ProjectReference Include="..\src\Search\Search.csproj" />
-    <ProjectReference Include="..\src\Scraping\Scraping.csproj" />
-    <ProjectReference Include="..\src\Search.Browser\Search.Browser.csproj" />
-    <ProjectReference Include="..\src\Search.Browser.Agent\Search.Browser.Agent.csproj" />
-    <ProjectReference Include="..\src\Scraping.Agent\Scraping.Agent.csproj" />
+    <ProjectReference Include="..\..\src\Web\Web.csproj" />
+    <ProjectReference Include="..\..\src\Search\Search.csproj" />
+    <ProjectReference Include="..\..\src\Scraping\Scraping.csproj" />
+    <ProjectReference Include="..\..\src\Search.Browser\Search.Browser.csproj" />
+    <ProjectReference Include="..\..\src\Search.Browser.Agent\Search.Browser.Agent.csproj" />
+    <ProjectReference Include="..\..\src\Scraping.Agent\Scraping.Agent.csproj" />
   </ItemGroup>
 
 </Project>

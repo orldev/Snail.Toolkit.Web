@@ -1,6 +1,6 @@
 # Decisions
 
-*Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
+*Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
 A remark in this library carries a measurement rather than a paraphrase, and a measurement carries the day it was taken. These pages are every one of them — 92 entries — gathered out of the source they annotate.
 

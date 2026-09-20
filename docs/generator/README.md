@@ -9,8 +9,8 @@
 справочник потребителя те самые internal-типы, которые здесь специально закрыли.
 
 ```bash
-dotnet run --project gen -- docs     # записать docs/reference и docs/decisions
-dotnet run --project gen -- check    # упасть, если на диске не то, что сгенерировалось бы
+dotnet run --project docs/generator -- docs    # записать docs/content/reference и docs/content/decisions
+dotnet run --project docs/generator -- check   # упасть, если на диске не то, что сгенерировалось бы
 ```
 
 ## Две секции — два читателя

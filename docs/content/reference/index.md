@@ -1,6 +1,6 @@
 # Reference
 
-*Generated from the compiler's documentation by `dotnet run --project gen -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
+*Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
 Every public declaration in the six packages, with what its author wrote about it.
 

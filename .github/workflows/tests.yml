@@ -24,15 +24,26 @@ jobs:
       # The tag names the browser version, the Playwright version and the architecture, and all three have to
       # match what this project references -- a server answers a client of another version with 428 and nothing
       # else. BrowserImage refuses a mismatched tag before anything starts.
-      SNAIL_BROWSER_IMAGE: ghcr.io/orldev/ff-juggler:155.0-pw1.62-amd64
+      #
+      # 155.0 STOOD HERE UNTIL 2026-09-20 AND WOULD HAVE KILLED THIS JOB. That image carried a juggler taken
+      # from Playwright's main -- a 1.63-era protocol -- while the client here is 1.62, and the pair does not
+      # fail at the handshake: it reads simple pages and dies on a heavy one, which is the worst way for a
+      # build to be wrong. The 428 guard never saw it, because 428 compares the CLIENT with the SERVER and
+      # both of those said 1.62. Nothing caught it here because this repository has no remote yet and these
+      # workflows have never run. The tag below is built from the v1.62.0 tag end to end.
+      SNAIL_BROWSER_IMAGE: ghcr.io/orldev/ff-juggler:153.0-pw1.62-amd64
       SNAIL_BROWSER_ENGINE: Firefox
 
     steps:
       - uses: actions/checkout@v4
 
+      # Read from global.json rather than written here: the .editorconfig rules this build fails over are
+      # analyzers that ship with the SDK, so the version is part of what the build MEANS and belongs in one
+      # place. 'dotnet-version: 10.0.x' would install whatever is newest and quietly judge the code by
+      # another band's rules.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       # The image is private. GITHUB_TOKEN reaches it only once the package is linked to this repository in
       # its GitHub settings; without that link a personal access token with read:packages is needed instead.
@@ -55,5 +66,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages
-          path: src/**/bin/Release/*.nupkg
+          path: artifacts/package/release/*.nupkg
           if-no-files-found: error

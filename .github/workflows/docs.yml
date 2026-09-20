@@ -1,4 +1,4 @@
-# The site is built from docs/ and theme/ with our own theme -- mkdocs.yml sets theme.name to null, so nothing
+# The site is built from docs/ with our own theme -- mkdocs.yml sets theme.name to null, so nothing
 # of somebody else's markup is involved and the build has no npm step and no theme package to track.
 #
 # --strict is the point of this job rather than a flourish: it turns a broken internal link, a page missing
@@ -35,17 +35,17 @@ jobs:
       # without a build. A docs job that skipped it would publish yesterday's API.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Build the packages and the generator
-        run: dotnet build gen/Gen.csproj --configuration Release -warnaserror
+        run: dotnet build docs/generator/Gen.csproj --configuration Release -warnaserror
 
       # The drift guard, and the reason it is a separate step with its own name: a public type added without
       # regenerating, or a generated page edited by hand, both end here rather than on the site. Neither is
       # visible to any other check in this repository -- a page that is MISSING looks exactly like a page that
       # is correct.
       - name: Check the generated pages against the code
-        run: dotnet run --project gen --configuration Release --no-build -- check
+        run: dotnet run --project docs/generator --configuration Release --no-build -- check
 
       - uses: actions/setup-python@v5
         with:
@@ -58,11 +58,11 @@ jobs:
         run: pip install mkdocs==1.6.1 pymdown-extensions==10.21.3
 
       - name: Build
-        run: mkdocs build --strict
+        run: mkdocs build --strict --config-file docs/mkdocs.yml
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: docs/site
 
   deploy:
     needs: build
