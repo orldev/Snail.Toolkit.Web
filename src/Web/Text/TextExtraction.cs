@@ -14,21 +14,44 @@ namespace Snail.Toolkit.Web.Text;
 /// document without a script, style, noscript or frame threw <see cref="NullReferenceException"/>. And every
 /// newline was collapsed into a space, which destroys the paragraph boundaries a language model needs to tell
 /// a heading from a sentence.
+/// <para>
+/// THAT SECOND FIX OVERSHOT, and stood until 2026-10-04: every newline of the SOURCE was kept, as though
+/// a line break in markup were a line break on the page. It is whitespace. A sentence written across three
+/// source lines with a link in the middle came back as three lines, a navigation bar as a column of single
+/// words — measured through the MCP server built on this toolkit, on a page of the PostgreSQL manual, where
+/// roughly half the lines of the text were one word long. What ends a line now is what ends one in a
+/// browser: a block element, on both of its sides. Whitespace inside a text node is one space, except in
+/// preformatted text, which is the one place a line break in the source is the author's.
+/// </para>
+/// <para>
+/// Found by the same reading: the page's <c>title</c> was part of its text, and since it is not a block it
+/// ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by
+/// <see cref="Title"/>; here the head is noise like a script is.
+/// </para>
 /// </remarks>
 public sealed partial class TextExtraction : ITextExtraction
 {
-    private const string NoiseQuery = "//script|//style|//noscript|//iframe|//svg|//template";
+    private const string NoiseQuery = "//script|//style|//noscript|//iframe|//svg|//template|//head|//title";
+
+    /// <summary>The text whose line breaks are the author's own.</summary>
+    private const string VerbatimQuery = "//pre//text()";
 
     /// <summary>The page's own title first, and only outside an inline drawing, whose title names the drawing.</summary>
     private const string TitleQuery = "//title[not(ancestor::svg)]";
 
     private const string HeadingQuery = "//h1";
 
-    private static readonly string[] Breaks =
-    [
-        "p", "div", "section", "article", "header", "footer", "li", "tr", "br",
+    /// <summary>The elements a browser starts a new line for, before and after.</summary>
+    private static readonly HashSet<string> Breaks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "p", "div", "section", "article", "header", "footer", "main", "nav", "aside", "address",
+        "li", "ul", "ol", "dl", "dt", "dd", "tr", "table", "caption", "br", "hr", "pre", "blockquote",
+        "figure", "figcaption", "form", "fieldset", "details", "summary", "option",
         "h1", "h2", "h3", "h4", "h5", "h6"
-    ];
+    };
+
+    /// <summary>The elements that stand apart from their neighbours on the same line.</summary>
+    private static readonly HashSet<string> Cells = new(StringComparer.OrdinalIgnoreCase) { "td", "th" };
 
     /// <inheritdoc />
     public string Clean(string html)
@@ -69,7 +92,7 @@ public sealed partial class TextExtraction : ITextExtraction
         return title.Length > 0 ? title : null;
     }
 
-    /// <summary>Writes the document's text, with a line break after every block element.</summary>
+    /// <summary>Writes the document's text, with a line break on both sides of every block element.</summary>
     /// <remarks>
     /// An explicit stack rather than the call stack, and that is not a matter of taste. The walk used to
     /// recurse once per level of nesting, and nothing bounds how deep a document goes: HtmlAgilityPack builds
@@ -86,12 +109,15 @@ public sealed partial class TextExtraction : ITextExtraction
     /// </para>
     /// <para>
     /// A <see langword="null"/> on the stack is the line break owed to a block element whose children have
-    /// all been written. It is pushed before that element's children, so it is popped after them.
+    /// all been written. It is pushed before that element's children, so it is popped after them. The break
+    /// BEFORE the element is written at once: without it, text standing directly ahead of a block —
+    /// <c>&lt;div&gt;Introduction&lt;p&gt;First&lt;/p&gt;&lt;/div&gt;</c> — ran into it as «IntroductionFirst».
     /// </para>
     /// </remarks>
     private static void Append(HtmlNode root, StringBuilder text)
     {
         var pending = new Stack<HtmlNode?>();
+        var verbatim = root.SelectNodes(VerbatimQuery)?.ToHashSet() ?? [];
 
         Push(root, pending);
 
@@ -105,15 +131,22 @@ public sealed partial class TextExtraction : ITextExtraction
 
             if (node.NodeType is HtmlNodeType.Text)
             {
-                text.Append(node.InnerText);
+                text.Append(verbatim.Contains(node) ? node.InnerText : AnySpace().Replace(node.InnerText, " "));
                 continue;
             }
 
             if (node.NodeType is not HtmlNodeType.Element)
                 continue;
 
-            if (Breaks.Contains(node.Name, StringComparer.OrdinalIgnoreCase))
+            if (Breaks.Contains(node.Name))
+            {
+                text.Append('\n');
                 pending.Push(null);
+            }
+            else if (Cells.Contains(node.Name))
+            {
+                text.Append(' ');
+            }
 
             Push(node, pending);
         }

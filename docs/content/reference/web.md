@@ -14,6 +14,8 @@ That rule was written for the markup and broken by the URL beside it, where the 
 
 THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own wall answered `202` — a success status — with 14 228 bytes reading "Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha widget, and the word that appears sixty-seven times on that page — `anomaly` — is exactly the bare word this list refuses to carry, since an article about anomaly detection would match it. What was taken instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
 
+A VENDOR'S NAME IS A BARE WORD TOO, and the list carried one until 2026-10-04. Every page of Wikipedia names the captcha it would show an editor in the settings MediaWiki inlines into the document — `"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha"` — so the substring `hcaptcha` called the whole encyclopedia a wall: an article that had loaded in full with status 200 came back as `Blocked: markup:hcaptcha`, and because a block is transient the reader spent its identities proving it again. Measured through the MCP server built on this toolkit, on the first two articles it was asked for. What matches now is the widget, the same way reCAPTCHA is matched: `h-captcha` as the class of the element a visitor has to solve, and not the hidden `h-captcha-response` field beside it.
+
 
 ## BlockVerdict
 
@@ -548,6 +550,10 @@ Malformed XML reads as an empty document rather than an exception, which matches
 Turns markup into readable text with its paragraph structure intact.
 
 Two defects are fixed here against the version this came from. `SelectNodes` answers `null` when nothing matches, and the result was dereferenced unconditionally, so any document without a script, style, noscript or frame threw `NullReferenceException`. And every newline was collapsed into a space, which destroys the paragraph boundaries a language model needs to tell a heading from a sentence.
+
+THAT SECOND FIX OVERSHOT, and stood until 2026-10-04: every newline of the SOURCE was kept, as though a line break in markup were a line break on the page. It is whitespace. A sentence written across three source lines with a link in the middle came back as three lines, a navigation bar as a column of single words — measured through the MCP server built on this toolkit, on a page of the PostgreSQL manual, where roughly half the lines of the text were one word long. What ends a line now is what ends one in a browser: a block element, on both of its sides. Whitespace inside a text node is one space, except in preformatted text, which is the one place a line break in the source is the author's.
+
+Found by the same reading: the page's `title` was part of its text, and since it is not a block it ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by `Title`; here the head is noise like a script is.
 
 
 ## WebDiagnostics

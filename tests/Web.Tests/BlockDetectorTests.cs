@@ -106,6 +106,50 @@ public class BlockDetectorTests
         Assert.Equal("markup:g-recaptcha", verdict.Signal);
     }
 
+    /// <summary>A site naming the captcha it uses in its own settings is not showing one.</summary>
+    /// <remarks>
+    /// Measured on 2026-10-04 through the MCP server built on this toolkit: every page of Wikipedia carries
+    /// the line below in the settings MediaWiki inlines into the document, and the bare word <c>hcaptcha</c>
+    /// in the signal list called an article that had loaded in full — status 200, 962 074 bytes — a wall.
+    /// The first two articles asked for both came back <c>Blocked: markup:hcaptcha</c>.
+    /// </remarks>
+    [Fact]
+    public void Inspect_APageNamingHcaptchaInItsOwnSettings_ReportsClear()
+    {
+        var verdict = _detector.Inspect(
+            """
+            <html><head><script>RLCONF={"wgNamespaceIds":{"special":-1},"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha","wgConfirmEditForceShowCaptcha":false,"wgConfirmEditHCaptchaSiteKey":"5d0c670e"};</script></head>
+            <body><h1>PostgreSQL</h1><p>PostgreSQL is a free and open-source relational database management system.</p></body></html>
+            """,
+            "https://en.wikipedia.org/wiki/PostgreSQL");
+
+        Assert.False(verdict.IsBlocked);
+        Assert.Null(verdict.Signal);
+    }
+
+    /// <summary>The widget a visitor has to solve is still a challenge.</summary>
+    [Fact]
+    public void Inspect_HcaptchaChallengeWidget_ReportsBlocked()
+    {
+        var verdict = _detector.Inspect(
+            """<html><body><div class="h-captcha" data-sitekey="10000000-ffff-ffff-ffff-000000000001"></div></body></html>""",
+            "https://example.com/login");
+
+        Assert.True(verdict.IsBlocked);
+        Assert.Equal("markup:h-captcha", verdict.Signal);
+    }
+
+    /// <summary>The hidden field hCaptcha injects is named after reCAPTCHA's, and is no more a challenge than that one.</summary>
+    [Fact]
+    public void Inspect_InvisibleHcaptchaTokenField_ReportsClear()
+    {
+        var verdict = _detector.Inspect(
+            """<html><body><form><textarea name="h-captcha-response" style="display:none"></textarea></form></body></html>""",
+            "https://example.com/contact");
+
+        Assert.False(verdict.IsBlocked);
+    }
+
     [Fact]
     public void Inspect_OrdinaryPage_ReportsClear()
         => Assert.False(_detector.Inspect("<html><body><p>Hello</p></body></html>", "https://example.com/").IsBlocked);

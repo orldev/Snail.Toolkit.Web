@@ -89,6 +89,8 @@ public sealed class SiteFixture : IAsyncLifetime
             .WithResourceMapping(Gzipped(Pages.Urlset), "/usr/share/nginx/html/pages.xml.gz")
             .WithResourceMapping(Bytes(Pages.Challenge), "/usr/share/nginx/html/challenge.html")
             .WithResourceMapping(Bytes(Pages.Blank), "/usr/share/nginx/html/blank.html")
+            .WithResourceMapping(Bytes(Pages.Tall), "/usr/share/nginx/html/tall.html")
+            .WithResourceMapping(Bytes(Pages.Endless), "/usr/share/nginx/html/endless.html")
             .WithResourceMapping(Bytes(Pages.Probe), "/usr/share/nginx/html/probe.html")
             .WithResourceMapping(Bytes(Pages.Tracked), "/usr/share/nginx/html/tracked.html")
             .WithResourceMapping(Bytes(Pages.Tracker), "/usr/share/nginx/html/tracker.js")
@@ -182,6 +184,22 @@ public sealed class SiteFixture : IAsyncLifetime
             """;
 
         public const string Blank = "<!doctype html><html><body></body></html>";
+
+        /// <summary>Three thousand pixels of page: more than any screen, less than the ceiling of a picture.</summary>
+        public const string Tall =
+            """
+            <!doctype html>
+            <html><head><title>Tall</title></head>
+            <body style="margin:0"><div style="height:3000px;background:linear-gradient(#fff,#888)">A tall page</div></body></html>
+            """;
+
+        /// <summary>Twelve thousand pixels: taller than a picture of a whole page is allowed to be.</summary>
+        public const string Endless =
+            """
+            <!doctype html>
+            <html><head><title>Endless</title></head>
+            <body style="margin:0"><div style="height:12000px;background:linear-gradient(#fff,#888)">A feed that never ends</div></body></html>
+            """;
 
         /// <summary>Says in its title whether the browser fetched the script beside it.</summary>
         /// <remarks>

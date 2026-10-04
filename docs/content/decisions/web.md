@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-18 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+19 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -15,7 +15,7 @@ One gap for every host is the wrong shape for a client that talks to a search en
 
 ## BlockDetector
 
-`2026-09-13`, `2026-09-15`
+`2026-09-13`, `2026-09-15`, `2026-10-04`
 
 *Matches the markers challenge and consent pages leave in the document or in the final URL.*
 
@@ -24,6 +24,8 @@ The URL is inspected as well as the body because the most common refusals are re
 That rule was written for the markup and broken by the URL beside it, where the bare word stood until 2026-09-13: any address carrying it — `/blog/how-captcha-works` — was called a refusal, and because a refusal is transient the reader then spent three identities proving it again. A signal belongs here only when the words are a refusal wherever they appear, which is why what is left are whole paths and hosts.
 
 THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own wall answered `202` — a success status — with 14 228 bytes reading "Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha widget, and the word that appears sixty-seven times on that page — `anomaly` — is exactly the bare word this list refuses to carry, since an article about anomaly detection would match it. What was taken instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
+
+A VENDOR'S NAME IS A BARE WORD TOO, and the list carried one until 2026-10-04. Every page of Wikipedia names the captcha it would show an editor in the settings MediaWiki inlines into the document — `"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha"` — so the substring `hcaptcha` called the whole encyclopedia a wall: an article that had loaded in full with status 200 came back as `Blocked: markup:hcaptcha`, and because a block is transient the reader spent its identities proving it again. Measured through the MCP server built on this toolkit, on the first two articles it was asked for. What matches now is the widget, the same way reCAPTCHA is matched: `h-captcha` as the class of the element a visitor has to solve, and not the hidden `h-captcha-response` field beside it.
 
 
 ## ContentBudget.Apply
@@ -200,13 +202,13 @@ MEASURED on 2026-09-15: thirty thousand literal rules cost 2.3 s to parse as non
 
 `2026-09-15` · *internal*
 
-*Writes the document's text, with a line break after every block element.*
+*Writes the document's text, with a line break on both sides of every block element.*
 
 An explicit stack rather than the call stack, and that is not a matter of taste. The walk used to recurse once per level of nesting, and nothing bounds how deep a document goes: HtmlAgilityPack builds whatever the bytes describe. MEASURED on 2026-09-15 against HtmlAgilityPack 1.13.0, on a thread carrying the 1 MB stack the thread pool gives its workers — which is where a crawl runs every read, through `ForEachAsync` — six thousand levels returned and eight thousand ended the process with a `StackOverflowException`.
 
 Eight thousand `div` elements is forty kilobytes of body, which any site can serve and some generate by accident. That exception cannot be caught, runs no `finally` and is not a failed page: it takes the process and every other page in flight with it, which is the one failure in this library that no amount of retrying survives.
 
-A `null` on the stack is the line break owed to a block element whose children have all been written. It is pushed before that element's children, so it is popped after them.
+A `null` on the stack is the line break owed to a block element whose children have all been written. It is pushed before that element's children, so it is popped after them. The break BEFORE the element is written at once: without it, text standing directly ahead of a block — `<div>Introduction<p>First</p></div>` — ran into it as «IntroductionFirst».
 
 
 ## HostPoliteness.DelayAsync
@@ -227,3 +229,16 @@ The wait is taken in stretches because `Delay` refuses anything past about forty
 The clock here is the system's, where the rest of the toolkit reads an injected `TimeProvider` since 2026-09-20, and that is deliberate: this decides what to OFFER a worker next, never whether it may go, so being wrong costs a worker queueing at a gate — which is what it did for every item before this existed. Nothing observes the difference, so nothing could test it.
 
 Counting hosts rather than usable hosts is what the first version did, and it reduced the whole thing to nothing in the case it was written for: with three workers and three sites resting at the head of the list, three hosts were in hand and two of them shut, so at most one worker could be given anything. Measured on 2026-09-14 — two pages read in the window where eighteen were waiting.
+
+
+## TextExtraction
+
+`2026-10-04`
+
+*Turns markup into readable text with its paragraph structure intact.*
+
+Two defects are fixed here against the version this came from. `SelectNodes` answers `null` when nothing matches, and the result was dereferenced unconditionally, so any document without a script, style, noscript or frame threw `NullReferenceException`. And every newline was collapsed into a space, which destroys the paragraph boundaries a language model needs to tell a heading from a sentence.
+
+THAT SECOND FIX OVERSHOT, and stood until 2026-10-04: every newline of the SOURCE was kept, as though a line break in markup were a line break on the page. It is whitespace. A sentence written across three source lines with a link in the middle came back as three lines, a navigation bar as a column of single words — measured through the MCP server built on this toolkit, on a page of the PostgreSQL manual, where roughly half the lines of the text were one word long. What ends a line now is what ends one in a browser: a block element, on both of its sides. Whitespace inside a text node is one space, except in preformatted text, which is the one place a line break in the source is the author's.
+
+Found by the same reading: the page's `title` was part of its text, and since it is not a block it ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by `Title`; here the head is noise like a script is.

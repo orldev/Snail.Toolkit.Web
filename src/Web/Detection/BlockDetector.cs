@@ -29,6 +29,16 @@ namespace Snail.Toolkit.Web.Detection;
 /// instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the
 /// asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
 /// </para>
+/// <para>
+/// A VENDOR'S NAME IS A BARE WORD TOO, and the list carried one until 2026-10-04. Every page of Wikipedia
+/// names the captcha it would show an editor in the settings MediaWiki inlines into the document —
+/// <c>"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha"</c> — so the substring <c>hcaptcha</c> called the
+/// whole encyclopedia a wall: an article that had loaded in full with status 200 came back as
+/// <c>Blocked: markup:hcaptcha</c>, and because a block is transient the reader spent its identities proving
+/// it again. Measured through the MCP server built on this toolkit, on the first two articles it was asked
+/// for. What matches now is the widget, the same way reCAPTCHA is matched: <c>h-captcha</c> as the class of
+/// the element a visitor has to solve, and not the hidden <c>h-captcha-response</c> field beside it.
+/// </para>
 /// </remarks>
 public sealed partial class BlockDetector : IBlockDetector
 {
@@ -36,8 +46,6 @@ public sealed partial class BlockDetector : IBlockDetector
     [
         "cf-browser-verification",
         "cf-challenge",
-        "h-captcha",
-        "hcaptcha",
         "checking your browser",
         "ddos protection",
         "access denied",
@@ -76,10 +84,12 @@ public sealed partial class BlockDetector : IBlockDetector
                 return BlockVerdict.Blocked($"markup:{signal}");
         }
 
-        return Challenge().IsMatch(html) ? BlockVerdict.Blocked("markup:g-recaptcha") : BlockVerdict.Clear;
+        return Challenge().Match(html) is { Success: true } widget
+            ? BlockVerdict.Blocked($"markup:{widget.Value.ToLowerInvariant()}")
+            : BlockVerdict.Clear;
     }
 
-    /// <summary>Matches a reCAPTCHA challenge widget without matching the invisible token field.</summary>
+    /// <summary>Matches a reCAPTCHA or hCaptcha challenge widget without matching the invisible token field.</summary>
     /// <remarks>
     /// Measured on a live registry on 2026-09-12: its rendered page carries <c>g-recaptcha</c> three times and
     /// every one of them belongs to the hidden <c>g-recaptcha-response</c> field that reCAPTCHA v3 injects into
@@ -92,7 +102,12 @@ public sealed partial class BlockDetector : IBlockDetector
     /// the word. Whether other invisible challenges inject a field of the same shape has not been measured
     /// here, so their markers are left as they were.
     /// </para>
+    /// <para>
+    /// hCaptcha is held to the same shape since 2026-10-04: its widget is <c>class="h-captcha"</c> and its
+    /// token field is <c>h-captcha-response</c>, named after reCAPTCHA's on purpose so that one replaces the
+    /// other in a form. The vendor's bare name is not matched at all — see the remark on the class.
+    /// </para>
     /// </remarks>
-    [GeneratedRegex("g-recaptcha(?!-response)", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("(?:g-recaptcha|h-captcha)(?!-response)", RegexOptions.IgnoreCase)]
     private static partial Regex Challenge();
 }

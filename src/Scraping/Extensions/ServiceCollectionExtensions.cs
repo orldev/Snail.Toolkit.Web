@@ -90,6 +90,7 @@ public static class ServiceCollectionExtensions
             services.TryAddSingleton<IHumanBehavior, HumanBehavior>();
             services.TryAddSingleton<PageContents>();
             services.TryAddSingleton<IPageReader, PageReader>();
+            services.TryAddSingleton<IPageSnapshots, PageSnapshots>();
             services.TryAddSingleton<ICrawler, Crawler>();
 
             services.TryAddKeyedSingleton<IAttempts<PageContent>>(

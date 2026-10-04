@@ -128,6 +128,23 @@ milliseconds of pure CPU — and refusing it costs 1.4. The refusal is an except
 because every other answer would be a statement about the page: it has text, it has links, we simply did not
 look.
 
+## A picture of a page
+
+The text of a page says what it says; a picture says what it shows — a chart, a map, a page whose content
+is drawn rather than written. `IPageSnapshots` comes with `AddScraping`:
+
+```csharp
+var outcome = await snapshots.TakeAsync(Link.Of("https://example.test/prices"), SnapshotFrame.WholePage);
+
+if (outcome.TryGetValue(out var picture))
+    await File.WriteAllBytesAsync("prices.jpg", picture.Image.ToArray());
+```
+
+It is a visit like any other — the same identity, the same politeness gate, the same judgement of a wall —
+so a site that would refuse the text refuses the picture. A whole page is pictured down to
+`PageSnapshots.TallestPage` pixels and no further, and `IsCut` says when the page ran on below the picture:
+an endless feed is otherwise megabytes nobody can look at.
+
 ## Walking a page
 
 Some pages say nothing until someone fills a form in. `Snail.Toolkit.Web.Scraping.Agent` takes an

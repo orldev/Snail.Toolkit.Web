@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-The public surface of this package: 42 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
+The public surface of this package: 46 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
 
 ## Appetite
 
@@ -478,6 +478,19 @@ Answers with an outcome rather than a string so a caller can tell a blocked requ
 An overload rather than a defaulted parameter, so that reading a page stays one short line for the callers who want the whole of it — which is nearly all of them.
 
 
+## IPageSnapshots
+
+Takes a picture of a page with a real browser.
+
+The text of a page says what it says; a picture says what it shows — a chart, a map, a layout, a page whose content is drawn rather than written. Added on 2026-10-04 for the MCP server built on this toolkit, where the reader is a model that can look.
+
+A picture is a visit like any other: the same identity, the same politeness gate, the same robots rules and the same judgement of a wall, because it goes through the same `IAttempts` and `IVisits` the page reader does. A site that would refuse the text refuses the picture.
+
+**TakeAsync** — Pictures the screen a visitor sees on arriving at `address`.
+
+**TakeAsync** — Pictures as much of `address` as the frame takes in.
+
+
 ## ISiteIndex
 
 The list of its own pages a site publishes, where it publishes one.
@@ -604,6 +617,48 @@ Loads a page in a pooled browser under a freshly generated identity.
 What surrounds the fetch — the identity, the site's ruling on it, its turn at the per-host gate, the retry when the answer was worth asking again for — belongs to `IAttempts` and is not restated here. This class is what happens once all of that has been arranged: open a page, read it, and say what it turned out to be.
 
 
+## PageSnapshot
+
+A picture of a page as the browser drew it.
+
+Deliberately not a part of `PageContent`. A reader that wants the text of five hundred pages must not be handed five hundred pictures with it, and a caller that wants to see one page has no use for its markup; the two are different questions with answers of very different weight.
+
+**Final** — Gets the address the page was finally drawn at, after any redirect.
+
+**Height** — Gets the height of what was pictured, in the page's own pixels.
+
+**Image** — The picture, encoded as `MediaType`.
+
+**IsCut** — Gets whether the page ran on below the picture.
+
+True for a screen with more page under it, and for a whole page taller than the ceiling. A picture that stops without saying so reads as a page that ended.
+
+**MediaType** — The encoding of every picture this library takes.
+
+JPEG rather than PNG because the picture is taken to be looked at, usually by a model, and a page of text and photographs is three to ten times smaller this way with nothing a reader would miss.
+
+**Requested** — The address that was asked for.
+
+**StatusCode** — Gets the HTTP status the site answered with.
+
+**TakenAt** — When it was taken.
+
+**Title** — Gets the page's own name, or `null` when it has none.
+
+**Width** — Gets the width of what was pictured, in the page's own pixels.
+
+
+## PageSnapshots
+
+Pictures a page through the same visit the page reader makes.
+
+**Quality** — The JPEG quality every picture is encoded at.
+
+**TallestPage** — How tall a picture of a whole page may be, in the page's own pixels.
+
+A page is as long as its author likes, and an endless feed is longer than that. A picture of all of it would be tens of megabytes nobody can look at — a model scales a picture down to something near two thousand pixels a side — so the ceiling is a few screens, and `IsCut` says when it was reached.
+
+
 ## ScrapingOptions
 
 How browsers are launched and how hard a page is tried.
@@ -702,6 +757,15 @@ What a site said when it was asked for its own list of pages.
 Builds a site's list of pages from the sitemaps it points at.
 
 The list is read even where `robots.txt` is not obeyed: permission and self-description are different questions, and a site that offers an index is worth taking up on it either way. Where the file names no sitemap, `/sitemap.xml` is tried, because that is where one usually is.
+
+
+## SnapshotFrame
+
+How much of a page a picture takes in.
+
+**Screen** — What a visitor sees on arriving: the screen, and nothing below it.
+
+**WholePage** — The page from top to bottom, as far as `TallestPage` reaches.
 
 
 ## StealthScript

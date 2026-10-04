@@ -47,6 +47,68 @@ public class TextExtractionTests
     public void Clean_RepeatedWhitespace_IsCollapsed()
         => Assert.Equal("a b", _extraction.Clean("<p>a     \t  b</p>"));
 
+    /// <summary>A line break in the source is whitespace, not a paragraph: only a block ends a line.</summary>
+    /// <remarks>
+    /// Measured on 2026-10-04 through the MCP server built on this toolkit, on a page of the PostgreSQL
+    /// manual: «please use / this form / to report a documentation issue» came back as three lines, because
+    /// the sentence is written across three source lines with a link in the middle. Every inline element on
+    /// a line of its own became a line of the text, and a navigation bar became a column of single words.
+    /// </remarks>
+    [Fact]
+    public void Clean_SentenceWrittenAcrossSourceLines_StaysOneLine()
+    {
+        var text = _extraction.Clean(
+            """
+            <p>If you see anything that is not correct, please use
+              <a href="/account/comments/new/">this form</a>
+              to report a documentation issue.</p>
+            """);
+
+        Assert.Equal("If you see anything that is not correct, please use this form to report a documentation issue.", text);
+    }
+
+    /// <summary>The name of a page is returned as its title and is not the first words of its text.</summary>
+    /// <remarks>
+    /// Measured the same day on example.com: the text began «Example DomainThis domain is for use in
+    /// documentation examples» — the title element, which is not a block, run straight into the first
+    /// paragraph of the body.
+    /// </remarks>
+    [Fact]
+    public void Clean_DocumentWithATitle_DoesNotRepeatItInTheText()
+    {
+        var text = _extraction.Clean(
+            "<html><head><title>Example Domain</title></head><body><div><h1>Example Domain</h1><p>This domain is for use in examples.</p></div></body></html>");
+
+        Assert.Equal(["Example Domain", "This domain is for use in examples."], text.Split('\n'));
+    }
+
+    /// <summary>Text standing directly before a block is a line of its own, not the start of that block.</summary>
+    [Fact]
+    public void Clean_TextFollowedByABlock_IsSeparatedFromIt()
+    {
+        var text = _extraction.Clean("<div>Introduction<p>First paragraph</p>and a closing remark</div>");
+
+        Assert.Equal(["Introduction", "First paragraph", "and a closing remark"], text.Split('\n'));
+    }
+
+    /// <summary>Preformatted text is the one place where a line break in the source is the author's.</summary>
+    [Fact]
+    public void Clean_PreformattedText_KeepsItsLines()
+    {
+        var text = _extraction.Clean("<pre>SELECT 1;\nSELECT 2;</pre>");
+
+        Assert.Equal(["SELECT 1;", "SELECT 2;"], text.Split('\n'));
+    }
+
+    /// <summary>The cells of a row are words apart, and the rows are lines apart.</summary>
+    [Fact]
+    public void Clean_Table_KeepsRowsOnLinesAndCellsApart()
+    {
+        var text = _extraction.Clean("<table><tr><th>Name</th><th>Age</th></tr><tr><td>Ann</td><td>30</td></tr></table>");
+
+        Assert.Equal(["Name Age", "Ann 30"], text.Split('\n'));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

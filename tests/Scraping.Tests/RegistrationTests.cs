@@ -119,6 +119,7 @@ public class RegistrationTests
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageReader) && !descriptor.IsKeyedService);
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageReader) && descriptor.IsKeyedService);
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(ICrawler));
+        Assert.Single(services, descriptor => descriptor.ServiceType == typeof(IPageSnapshots));
         Assert.Single(services, descriptor => descriptor.ServiceType == typeof(ISiteRules));
     }
 

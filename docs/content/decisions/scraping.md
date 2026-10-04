@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-20 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+21 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -216,3 +216,14 @@ MEASURED on 2026-09-20 on these defaults: a page that answers costs one request,
 *Keeps what the site left, while there is still a context to read it from.*
 
 Here rather than in whoever asked for the visit, because the state can only be read while the context is open. A browser that went away in the middle takes it with it, and that is not worth an exception: the visit is over either way and the next one simply arrives as a stranger, which is what every visit did until 2026-09-20.
+
+
+## IPageSnapshots
+
+`2026-10-04`
+
+*Takes a picture of a page with a real browser.*
+
+The text of a page says what it says; a picture says what it shows — a chart, a map, a layout, a page whose content is drawn rather than written. Added on 2026-10-04 for the MCP server built on this toolkit, where the reader is a model that can look.
+
+A picture is a visit like any other: the same identity, the same politeness gate, the same robots rules and the same judgement of a wall, because it goes through the same `IAttempts` and `IVisits` the page reader does. A site that would refuse the text refuses the picture.

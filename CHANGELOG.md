@@ -18,6 +18,35 @@ Everything below is the first release taking shape. The dated groups are there b
 was a single round of work — an audit and its treatment — and it is the part most likely to matter to
 someone reading this before the first publication.
 
+### Found by its first MCP consumer, 2026-10-04
+
+Defects that only showed once a model, rather than a program, was reading what the toolkit returned —
+each measured through Snail.MCP.Playwright against live pages before it was touched.
+
+#### Added
+
+- **A picture of a page.** `IPageSnapshots.TakeAsync` answers with a `PageSnapshot` — a JPEG of the screen a
+  visitor sees, or of the whole page down to `PageSnapshots.TallestPage` pixels — and says in `IsCut`
+  whether the page ran on below it. It is registered by `AddScraping` and is a visit like the reader's:
+  the same identity, the same politeness, the same judgement of a wall.
+
+#### Fixed
+
+- **Every page of Wikipedia was reported `Blocked`.** The bare word `hcaptcha` stood among the markup
+  signals, and MediaWiki names the captcha it would show an editor in the settings it inlines into every
+  document. What matches now is the widget — `h-captcha`, and not the hidden `h-captcha-response` field —
+  the same way reCAPTCHA has been matched since 2026-09-12. A caller that branched on the signal text sees
+  `markup:h-captcha` where it used to see `markup:hcaptcha`.
+- **A line break in the source became a line break in the text.** A sentence written across three lines
+  with a link in the middle came back as three lines, and a navigation bar as a column of single words.
+  Whitespace inside a text node is one space now, and what ends a line is a block element — on both of its
+  sides, so text standing directly before a block no longer runs into it. Preformatted text keeps its
+  lines. **The text of a page changes**: fewer and longer lines, and a consumer that stored a hash of the
+  text will see every page as new once.
+- **The title of a page was the first words of its text**, run into the first paragraph because a title is
+  not a block. The head is left out of the text; `Title` is where the name is.
+- **The cells of a table row ran together.** They stand a space apart.
+
 ### Audit round, 2026-09-20
 
 Ten defects found by reading the code, three of them confirmed against live sites, and each fix verified
