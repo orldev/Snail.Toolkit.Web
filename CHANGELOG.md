@@ -40,7 +40,9 @@ Measured before and after with the benchmarks in `benchmarks/`; every answer is 
 - **What every attempt pays first is a third of what it was** (2 437 → 328 bytes): `IdentityRotation` shapes
   each fingerprint's identity once and hands it out again, and `SiteRules` answers at once from rules it has
   already read. Two identities handed out from one fingerprint now share the values they carry, so they
-  compare equal where they used to differ only by the list of languages each held.
+  compare equal where they used to differ only by the list of languages each held. That list is read-only:
+  `WebIdentity.Languages` is still an `IReadOnlyList<string>`, but no longer a `string[]` that a cast could
+  edit for every identity after it.
 
 ### Found by its first MCP consumer, 2026-10-04
 

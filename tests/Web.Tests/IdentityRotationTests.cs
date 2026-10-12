@@ -170,6 +170,20 @@ public class IdentityRotationTests
         Assert.Equal("Firefox", identity.Brand);
     }
 
+    /// <summary>
+    /// Every identity of one fingerprint carries the same list of languages, so the list cannot be edited by
+    /// casting it back to what it was built as.
+    /// </summary>
+    [Fact]
+    public void Next_LanguagesCastBack_CannotBeEdited()
+    {
+        var rotation = Rotation(new Fingerprint { UserAgent = KnownAgent, AcceptLanguage = "en-US,en;q=0.9" });
+
+        Assert.IsNotType<string[]>(rotation.Next().Languages);
+        Assert.Throws<NotSupportedException>(() => ((IList<string>)rotation.Next().Languages)[0] = "xx");
+        Assert.Equal(["en-US", "en"], rotation.Next().Languages);
+    }
+
     /// <summary>The exit travels with the identity it was handed out with, and only with it.</summary>
     [Fact]
     public void Next_WithProxiesConfigured_GivesEachIdentityItsOwnExit()

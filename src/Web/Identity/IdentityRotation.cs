@@ -117,6 +117,11 @@ public sealed partial class IdentityRotation : IIdentityRotation
     /// identity is now shaped once per fingerprint and handed out again, with the exit set when a proxy is in
     /// use. It is shaped anew whenever the fingerprint's values are no longer the ones it was shaped from, since
     /// a fingerprint is a settings object anyone holding it can change.
+    /// <para>
+    /// Since every identity of one fingerprint now carries the same list of languages, the list is handed out
+    /// read-only: as an array, a caller casting it back could have rewritten the languages of every identity
+    /// after its own.
+    /// </para>
     /// </remarks>
     private WebIdentity Built(int index, ProxyEndpoint? exit)
     {
@@ -142,7 +147,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
             Locale = locale,
             Timezone = timezone,
             AcceptLanguage = acceptLanguage,
-            Languages = LanguagesOf(acceptLanguage)
+            Languages = Array.AsReadOnly(LanguagesOf(acceptLanguage))
         };
 
     private static string BrandOf(string userAgent) => userAgent switch
