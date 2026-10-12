@@ -1,0 +1,18 @@
+<Project Sdk="Snail.Sdk">
+
+  <!--
+    The core and the search in a native app: IsAotCompatible sees warnings only, and these packages were clean and
+    still bound none of their settings under Native AOT. The shared CI publishes this probe with Native AOT and runs
+    it; it must exit 0. No network: the settings, the registration and the reading of a page held in memory.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Search\Search.csproj" />
+  </ItemGroup>
+
+</Project>

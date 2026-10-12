@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -27,9 +28,9 @@ public static class ServiceCollectionExtensions
         {
             ArgumentNullException.ThrowIfNull(configuration);
 
-            services.BindOnce<IdentityOptions>(configuration, IdentityOptions.SectionName);
-            services.BindOnce<PolitenessOptions>(configuration, PolitenessOptions.SectionName);
-            services.BindOnce<RobotsOptions>(configuration, RobotsOptions.SectionName);
+            services.BindOnce<IdentityOptions>(configuration, IdentityOptions.SectionName, static (options, section) => options.Bind(section));
+            services.BindOnce<PolitenessOptions>(configuration, PolitenessOptions.SectionName, static (options, section) => options.Bind(section));
+            services.BindOnce<RobotsOptions>(configuration, RobotsOptions.SectionName, static (options, section) => options.Bind(section));
 
             return services.AddWeb();
         }
@@ -56,11 +57,21 @@ public static class ServiceCollectionExtensions
         /// silently do not is harder to reason about than one where none do, and nothing measured so far asks
         /// for the first.
         /// </para>
+        /// <para>
+        /// THE BINDING IS THE CALLER'S, so that it is written where the settings type is known. The configuration
+        /// binding generator replaces a <c>Bind</c> call with code of its own only where the type is concrete;
+        /// inside this generic method it could not (SYSLIB1104), the reflection binder ran, and in a native app
+        /// every setting was silently left at its default. Measured on 2026-10-12 by the audit's native probe.
+        /// </para>
         /// </remarks>
-        public OptionsBuilder<TOptions> BindOnce<TOptions>(IConfiguration configuration, string section)
+        public OptionsBuilder<TOptions> BindOnce<TOptions>(
+            IConfiguration configuration,
+            string section,
+            Func<OptionsBuilder<TOptions>, IConfigurationSection, OptionsBuilder<TOptions>> bind)
             where TOptions : class
         {
             ArgumentNullException.ThrowIfNull(configuration);
+            ArgumentNullException.ThrowIfNull(bind);
 
             var builder = services.AddOptions<TOptions>();
 
@@ -69,7 +80,7 @@ public static class ServiceCollectionExtensions
 
             services.AddSingleton(new Bound<TOptions>());
 
-            return builder.Bind(configuration.GetSection(section));
+            return bind(builder, configuration.GetSection(section));
         }
 
         /// <summary>Registers everything the core provides, leaving the settings at their defaults.</summary>
@@ -140,7 +151,7 @@ public static class ServiceCollectionExtensions
         }
 
         /// <summary>Registers robots rules on top of the transport that can read them.</summary>
-        public IServiceCollection AddSiteRules<TSource>()
+        public IServiceCollection AddSiteRules<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSource>()
             where TSource : class, IRobotsSource
         {
             services.TryAddSingleton<IRobotsSource, TSource>();

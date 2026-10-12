@@ -1,9 +1,9 @@
 using Snail.Toolkit.Web.Probes;
 
-// Пробы вызываются по имени: dotnet run --project probes -- <проба> [адрес сервера]
+// Probes are called by name: dotnet run --project probes -- <probe> [server address]
 //
-// Адрес по умолчанию — ws://127.0.0.1:3000/, то есть туннель к контейнеру с нашей
-// сборкой. Что меряет каждая и как читать её вывод — в probes/README.md.
+// The default address is ws://127.0.0.1:3000/, the tunnel to the container with our own
+// build. What each one measures and how to read its output is in probes/README.md.
 
 var name = args.Length > 0 ? args[0] : string.Empty;
 var endpoint = args.Length > 1 ? args[1] : "ws://127.0.0.1:3000/";

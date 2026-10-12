@@ -19,6 +19,9 @@ public class PermitsTests
     /// The failure this prevents is cumulative and quiet. Each sweep that meets a busy pool would keep one
     /// permit fewer than it found, so a pool of four would be a pool of three, then of two, with nothing in
     /// the log and no failure anywhere — only a crawl that runs slower every hour it stays up.
+    /// <para>
+    /// Three were taken and handed back, so the three that were free still are.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task Emptied_WhileOnePermitIsHeld_GivesBackEverythingItTook()
@@ -27,9 +30,8 @@ public class PermitsTests
 
         await permits.WaitAsync(CancellationToken.None);
 
-        Assert.False(permits.Emptied());
+        Assert.False(permits.TryEmpty());
 
-        // Three were taken and handed back, so the three that were free still are.
         for (var page = 0; page < 3; page++)
             Assert.True(permits.WaitAsync(CancellationToken.None).IsCompleted, $"permit {page} went missing");
     }

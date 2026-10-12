@@ -42,10 +42,10 @@ internal static class Fanout
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(failed);
 
-        return Streamed(source, work, failed, Math.Max(1, maxDegreeOfParallelism), ct);
+        return StreamedAsync(source, work, failed, Math.Max(1, maxDegreeOfParallelism), ct);
     }
 
-    private static async IAsyncEnumerable<TResult> Streamed<TSource, TResult>(
+    private static async IAsyncEnumerable<TResult> StreamedAsync<TSource, TResult>(
         IEnumerable<TSource> source,
         Func<TSource, CancellationToken, ValueTask<TResult>> work,
         Func<TSource, Exception, TResult> failed,
@@ -66,7 +66,7 @@ internal static class Fanout
         {
             await producing.CancelAsync();
 
-            await Ended(producer);
+            await EndedAsync(producer);
         }
     }
 
@@ -104,7 +104,7 @@ internal static class Fanout
     /// has already left the loop, still held.
     /// </para>
     /// </remarks>
-    private static async Task Ended(Task producer)
+    private static async Task EndedAsync(Task producer)
     {
         try
         {

@@ -42,24 +42,30 @@ public class RememberedRaceTests
     /// is missing is that a value handed out a moment ago cannot yet be stale, whatever the predicate says
     /// about the state it has not been given.
     /// </para>
+    /// <para>
+    /// A real forgetting window rather than zero. Zero was the first draft and it asserts the impossible: "forget
+    /// immediately" is what it asks for, so nothing can promise the entry survives. The window has to be short enough
+    /// that the sweep throttle — a quarter of it — lets the second arrival sweep.
+    /// </para>
+    /// <para>
+    /// Another caller arrives with a host nobody has mentioned. That is the only moment anything is swept, and what
+    /// it swept was the gate above: nothing is written to it yet, so it looked disposable.
+    /// </para>
+    /// <para>
+    /// Only now does the first caller write down what it learned — the site asked to be left alone.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task Of_ValueHandedOutAndThenWrittenTo_IsStillTheValueTheMapHolds()
     {
-        // A real forgetting window rather than zero. Zero was the first draft and it asserts the impossible:
-        // "forget immediately" is what it asks for, so nothing can promise the entry survives. The window has
-        // to be short enough that the sweep throttle — a quarter of it — lets the second arrival sweep.
         var remembered = new Remembered<Gate>(Window, (gate, since) => gate.RestingUntil <= since, TimeProvider.System);
 
         var mine = remembered.Of("a.example", _ => new Gate());
 
         await Task.Delay(Window / 2);
 
-        // Another caller arrives with a host nobody has mentioned. That is the only moment anything is swept,
-        // and what it swept was the gate above: nothing is written to it yet, so it looked disposable.
         remembered.Of("b.example", _ => new Gate());
 
-        // Only now does the first caller write down what it learned — the site asked to be left alone.
         mine.RestingUntil = DateTimeOffset.UtcNow + Long;
 
         Assert.Same(mine, remembered.Of("a.example", _ => new Gate()));
@@ -85,6 +91,15 @@ public class RememberedRaceTests
     /// was made. What a per-host window means is "nobody has been to this host lately", and being handed to a
     /// caller is exactly the evidence that somebody has.
     /// </para>
+    /// <para>
+    /// Nobody goes near that host for far longer than the forgetting window, and then somebody does.
+    /// </para>
+    /// <para>
+    /// Another caller arrives with a host nobody has mentioned, which is what sweeps.
+    /// </para>
+    /// <para>
+    /// Only now does the caller write down what it learned — the site asked to be left alone.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Of_AgedValueHandedOutAndThenWrittenTo_IsStillTheValueTheMapHolds()
@@ -94,15 +109,12 @@ public class RememberedRaceTests
 
         remembered.Of("a.example", _ => new Gate());
 
-        // Nobody goes near that host for far longer than the forgetting window, and then somebody does.
         clock.Advance(Window * 4);
 
         var mine = remembered.Of("a.example", _ => new Gate());
 
-        // Another caller arrives with a host nobody has mentioned, which is what sweeps.
         remembered.Of("b.example", _ => new Gate());
 
-        // Only now does the caller write down what it learned — the site asked to be left alone.
         mine.RestingUntil = clock.GetUtcNow() + Long;
 
         Assert.Same(mine, remembered.Of("a.example", _ => new Gate()));
@@ -124,19 +136,26 @@ public class RememberedRaceTests
     /// sane setting, so what this measures is that the ordinary path stays correct under sixty-four callers,
     /// which is the property that would quietly stop being true if the residency rule were ever relaxed.
     /// </para>
+    /// <para>
+    /// A forgetting window that is short enough to keep sweeping throughout and long enough to outlast the scheduler.
+    /// One millisecond was tried first and is not a setting, it is a coin toss: a caller descheduled between finding
+    /// its gate and reaching its slot is away for longer than that under any load, so the run went red about one time
+    /// in three with nothing wrong.
+    /// </para>
+    /// <para>
+    /// One counter PER HOST. A single shared counter measures nothing: callers on different rounds are on different
+    /// hosts and hold turns at the same time entirely correctly, which is the whole point of pacing per host —
+    /// counted together they read as thousands of violations that never happened.
+    /// </para>
+    /// <para>
+    /// Every caller mentions a host of its own first, so that a sweep is always in progress.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task EnterAsync_HostForgottenBetweenLookupAndTurn_StillAdmitsOneCallerAtATime()
     {
-        // A forgetting window that is short enough to keep sweeping throughout and long enough to outlast
-        // the scheduler. One millisecond was tried first and is not a setting, it is a coin toss: a caller
-        // descheduled between finding its gate and reaching its slot is away for longer than that under any
-        // load, so the run went red about one time in three with nothing wrong.
         using var politeness = Forgetful(Window);
 
-        // One counter PER HOST. A single shared counter measures nothing: callers on different rounds are on
-        // different hosts and hold turns at the same time entirely correctly, which is the whole point of
-        // pacing per host — counted together they read as thousands of violations that never happened.
         var inside = new int[Rounds];
         var together = 0;
 
@@ -144,7 +163,6 @@ public class RememberedRaceTests
         {
             for (var round = 0; round < Rounds; round++)
             {
-                // Every caller mentions a host of its own first, so that a sweep is always in progress.
                 await using (await politeness.EnterAsync(Host($"filler-{caller}", round)))
                 {
                 }

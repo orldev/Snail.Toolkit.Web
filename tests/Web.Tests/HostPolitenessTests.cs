@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Politeness;
@@ -31,7 +30,7 @@ public class HostPolitenessTests
 
         var entering = politeness.EnterAsync(new Uri("https://example.com/b"));
 
-        Assert.False(await Opened(entering));
+        Assert.False(await HasOpened(entering));
 
         clock.Advance(TimeSpan.FromSeconds(30));
 
@@ -66,7 +65,7 @@ public class HostPolitenessTests
 
         var entering = politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.FromSeconds(30));
 
-        Assert.False(await Opened(entering));
+        Assert.False(await HasOpened(entering));
 
         clock.Advance(TimeSpan.FromSeconds(30));
 
@@ -86,7 +85,7 @@ public class HostPolitenessTests
 
         var entering = politeness.EnterAsync(new Uri("https://example.com/b"), TimeSpan.Zero);
 
-        Assert.False(await Opened(entering));
+        Assert.False(await HasOpened(entering));
 
         clock.Advance(TimeSpan.FromSeconds(30));
 
@@ -109,7 +108,7 @@ public class HostPolitenessTests
 
         var entering = politeness.EnterAsync(new Uri("https://engine.example/b"));
 
-        Assert.False(await Opened(entering));
+        Assert.False(await HasOpened(entering));
 
         clock.Advance(TimeSpan.FromSeconds(30));
 
@@ -129,7 +128,7 @@ public class HostPolitenessTests
 
         var entering = politeness.EnterAsync(new Uri("https://news.example.com/b"));
 
-        Assert.False(await Opened(entering));
+        Assert.False(await HasOpened(entering));
 
         clock.Advance(TimeSpan.FromSeconds(30));
 
@@ -315,7 +314,7 @@ public class HostPolitenessTests
     /// A gate that is shut cannot open on its own under a clock nothing advances, so the wait here bounds a
     /// mistake rather than a machine: it can only be reached by the gate letting somebody through early.
     /// </remarks>
-    private static async Task<bool> Opened(Task<IAsyncDisposable> entering)
+    private static async Task<bool> HasOpened(Task<IAsyncDisposable> entering)
         => entering == await Task.WhenAny(entering, Task.Delay(TimeSpan.FromMilliseconds(50)));
 
     private static HostPoliteness Gate(

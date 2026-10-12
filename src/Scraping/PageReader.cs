@@ -83,7 +83,7 @@ public sealed class PageReader(
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unclassified failure while reading {Url}", address);
+            Log.ReadFailed(logger, exception, address);
 
             return PageOutcome.Failed(new PageFailure(FailureKind.Unexpected, exception.Message)
             {
@@ -105,7 +105,7 @@ public sealed class PageReader(
         }
         catch (PlaywrightException)
         {
-            logger.LogDebug("Network never went idle for {Url}; continuing with the loaded DOM", page.Url);
+            Log.NeverIdle(logger, page.Url);
         }
     }
 
@@ -167,6 +167,6 @@ public sealed class PageReader(
         if (!logger.IsEnabled(LogLevel.Debug))
             return;
 
-        page.PageError += (_, error) => logger.LogDebug("Page error on {Url}: {Error}", address, error);
+        page.PageError += (_, error) => Log.PageError(logger, address, error);
     }
 }

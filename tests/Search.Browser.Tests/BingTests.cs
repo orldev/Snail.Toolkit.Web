@@ -125,7 +125,7 @@ public class BingTests
     /// </summary>
     /// <remarks>
     /// Measured live on 2026-09-15: asked in Russian from a datacentre address, this engine answered
-    /// «"Роснано"» with bible sites and «отзыв лицензии КИВИ Банк» with car parts — ten results each, in the
+    /// «"Rusnano"» (in Russian) with bible sites and «QIWI Bank licence revoked» (in Russian) with car parts — ten results each, in the
     /// right markup. Handed on as results, those become pages the bot reads, judges and reports on, and the
     /// silence that follows reads as a fact about the company rather than about the engine.
     /// </remarks>

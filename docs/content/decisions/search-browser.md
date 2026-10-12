@@ -76,7 +76,7 @@ This runs before `IsOutbound` and not after, because a wrapper carries no host a
 
 *Asks Bing through a real browser.*
 
-The same engine this library already asks over plain HTTP, read the way that works. Measured on 2026-09-15 from a datacentre address, five queries each: over HTTP the engine answered «"Роснано"» with bible sites, «Роснано» with a hotel chain, «Rosnano» with Zurich tourism and «отзыв лицензии КИВИ Банк» with car parts — ten confident results per query, about something else entirely. Through a browser the same address answered «Роснано» with Группа РОСНАНО, the Wikipedia article and the company's own press centre, three times out of three, and «отзыв лицензии КИВИ Банк» with «Отозвана лицензия на осуществление банковских операций у…» and «Что известно об отзыве лицензии у Киви-банка».
+The same engine this library already asks over plain HTTP, read the way that works. Measured on 2026-09-15 from a datacentre address, five queries each, the queries written in Russian and quoted here in English: over HTTP the engine answered «"Rusnano"» with bible sites, «Rusnano» with a hotel chain, «Rosnano» in Latin letters with Zurich tourism and «QIWI Bank licence revoked» with car parts — ten confident results per query, about something else entirely. Through a browser the same address answered «Rusnano» with the Rusnano Group, the Wikipedia article and the company's own press centre, three times out of three, and «QIWI Bank licence revoked» with «Licence for banking operations revoked from…» and «What is known about the revocation of QIWI Bank's licence».
 
 THE FIRST READ IN A FRESH CONTEXT IS THE UNRELIABLE ONE. Of three queries measured three times each, two failed on their first attempt — one with an empty page, one with a navigation that never settled — and answered properly on the second and third. That is why the page is taken whole rather than as the document alone: `DocumentOnly` was measured too, and it returned the stale or wrong page where the full load returned the right one.
 
@@ -87,7 +87,7 @@ Every result link is wrapped in the engine's own redirect — `/ck/a?…&u=a1<ba
 
 `2026-09-15` · *internal*
 
-The whole page, not the document alone. Measured on 2026-09-15 against the same three queries: the document alone answered «"QIWI Банк"» with the same four links the plain HTTP client gets, while the full load answered with the article about the licence being revoked — the engine finishes the page with script, and the half we would save is the half with the results in it.
+The whole page, not the document alone. Measured on 2026-09-15 against the same three queries: the document alone answered «"QIWI Bank"» (the bank's name half in Cyrillic) with the same four links the plain HTTP client gets, while the full load answered with the article about the licence being revoked — the engine finishes the page with script, and the half we would save is the half with the results in it.
 
 
 ## BrowserSearch.Parsed
@@ -109,7 +109,7 @@ The results are handed over whole and the ceiling is applied by the caller of th
 
 *Whether the page the engine answered with is an answer to the query that was asked.*
 
-The default says yes, because most engines either answer or refuse and there is no third thing to name. Bing is the third thing, measured on 2026-09-15: asked in Russian from a datacentre address it sometimes serves a page of ten confident results about something else entirely — bible sites for «Роснано», Italian pages about e-cigarettes for «отзыв лицензии КИВИ Банк» — and a parser cannot tell that from an answer, because structurally it IS one.
+The default says yes, because most engines either answer or refuse and there is no third thing to name. Bing is the third thing, measured on 2026-09-15: asked in Russian from a datacentre address it sometimes serves a page of ten confident results about something else entirely — bible sites for «Rusnano» (in Russian), Italian pages about e-cigarettes for «QIWI Bank licence revoked» (in Russian) — and a parser cannot tell that from an answer, because structurally it IS one.
 
 An engine that can be served that page overrides this and says so, and the search then records a refusal rather than results. Left here rather than pushed into every engine because the caller's question — «did I get an answer to what I asked» — is the same for all of them; only the evidence differs, and only an engine that has been measured should claim to have any.
 
@@ -129,4 +129,4 @@ Bounded by `Timeout`, the same setting that bounds an engine asked over HTTP. Un
 
 THE ONLY READING OF THIS ENGINE THERE IS, since 2026-09-20. It used to take the place of an HTTP provider of the same name, and this method carried the code that removed that one from the registrations; the owner had it deleted instead, so there is nothing left to displace.
 
-Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence. A provider that keeps the shape of an answer while saying nothing is worse than a provider that is absent: absence is visible in the report.
+Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident results about something else — bible sites for «Rusnano» (in Russian), a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence. A provider that keeps the shape of an answer while saying nothing is worse than a provider that is absent: absence is visible in the report.

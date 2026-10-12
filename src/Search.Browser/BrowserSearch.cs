@@ -104,7 +104,7 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
     /// The default says yes, because most engines either answer or refuse and there is no third thing to
     /// name. Bing is the third thing, measured on 2026-09-15: asked in Russian from a datacentre address it
     /// sometimes serves a page of ten confident results about something else entirely — bible sites for
-    /// «Роснано», Italian pages about e-cigarettes for «отзыв лицензии КИВИ Банк» — and a parser cannot tell
+    /// «Rusnano» (in Russian), Italian pages about e-cigarettes for «QIWI Bank licence revoked» (in Russian) — and a parser cannot tell
     /// that from an answer, because structurally it IS one.
     /// <para>
     /// An engine that can be served that page overrides this and says so, and the search then records a
@@ -177,10 +177,7 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
         ];
 
         if (results.Count == 0)
-            logger.LogWarning(
-                "{Provider} answered with {Length} characters of markup that yielded no results, which is what "
-                + "a layout change looks like from here.",
-                Name, page.Html.Length);
+            Log.NoResults(logger, Name, page.Html.Length);
 
         if (results.Count > 0 && !Answers(query, results))
             return SearchAnswer.Failed(SearchFailure.Unrelated(Name, results.Count));

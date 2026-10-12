@@ -13,12 +13,13 @@ namespace Snail.Toolkit.Web.Search.Browser;
 /// </summary>
 /// <remarks>
 /// The same engine this library already asks over plain HTTP, read the way that works. Measured on
-/// 2026-09-15 from a datacentre address, five queries each: over HTTP the engine answered «"Роснано"» with
-/// bible sites, «Роснано» with a hotel chain, «Rosnano» with Zurich tourism and «отзыв лицензии КИВИ Банк»
-/// with car parts — ten confident results per query, about something else entirely. Through a browser the
-/// same address answered «Роснано» with Группа РОСНАНО, the Wikipedia article and the company's own press
-/// centre, three times out of three, and «отзыв лицензии КИВИ Банк» with «Отозвана лицензия на осуществление
-/// банковских операций у…» and «Что известно об отзыве лицензии у Киви-банка».
+/// 2026-09-15 from a datacentre address, five queries each, the queries written in Russian and quoted here in
+/// English: over HTTP the engine answered «"Rusnano"» with bible sites, «Rusnano» with a hotel chain, «Rosnano»
+/// in Latin letters with Zurich tourism and «QIWI Bank licence revoked» with car parts — ten confident results
+/// per query, about something else entirely. Through a browser the same address answered «Rusnano» with the
+/// Rusnano Group, the Wikipedia article and the company's own press centre, three times out of three, and
+/// «QIWI Bank licence revoked» with «Licence for banking operations revoked from…» and «What is known about the
+/// revocation of QIWI Bank's licence».
 /// <para>
 /// THE FIRST READ IN A FRESH CONTEXT IS THE UNRELIABLE ONE. Of three queries measured three times each, two
 /// failed on their first attempt — one with an empty page, one with a navigation that never settled — and
@@ -53,7 +54,7 @@ public sealed class Bing(
     /// <inheritdoc />
     /// <remarks>
     /// The whole page, not the document alone. Measured on 2026-09-15 against the same three queries: the
-    /// document alone answered «"QIWI Банк"» with the same four links the plain HTTP client gets, while the
+    /// document alone answered «"QIWI Bank"» (the bank's name half in Cyrillic) with the same four links the plain HTTP client gets, while the
     /// full load answered with the article about the licence being revoked — the engine finishes the page
     /// with script, and the half we would save is the half with the results in it.
     /// </remarks>
@@ -68,6 +69,11 @@ public sealed class Bing(
     /// Anchored on <c>li.b_algo</c>, which is what the engine has marked an ordinary web result with for
     /// years, and on the heading inside it. Blocks that carry no heading are the page's own furniture —
     /// deep-link tables, rich cards, related searches — and are skipped rather than guessed at.
+    /// <para>
+    /// De-entitized, and the recorded page is why: the engine writes its wrapper with «&amp;amp;» between the
+    /// parameters, and an address read raw carries «amp;u» where «u» should be — so every link would stay wrapped and
+    /// be dropped as the engine's own.
+    /// </para>
     /// </remarks>
     protected override IEnumerable<SearchResult> Parsed(HtmlDocument document)
     {
@@ -83,9 +89,6 @@ public sealed class Bing(
             if (block.SelectSingleNode(".//h2//a[@href]") is not { } anchor)
                 continue;
 
-            // De-entitized, and the recorded page is why: the engine writes its wrapper with «&amp;» between
-            // the parameters, and an address read raw carries «amp;u» where «u» should be — so every link
-            // would stay wrapped and be dropped as the engine's own.
             var href = HtmlEntity.DeEntitize(anchor.GetAttributeValue("href", string.Empty)).Trim();
             var title = HtmlEntity.DeEntitize(anchor.InnerText).Trim();
 

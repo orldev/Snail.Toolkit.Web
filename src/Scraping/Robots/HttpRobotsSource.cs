@@ -40,8 +40,7 @@ public sealed class HttpRobotsSource(IOptions<RobotsOptions> options, ILogger<Ht
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning("robots.txt for {Origin} answered {Status}; treating the site as open",
-                    origin, (int)response.StatusCode);
+                Log.RobotsAnswered(logger, origin, (int)response.StatusCode);
 
                 return RobotsFile.AllowAll;
             }
@@ -54,8 +53,7 @@ public sealed class HttpRobotsSource(IOptions<RobotsOptions> options, ILogger<Ht
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            logger.LogWarning(exception, "robots.txt for {Origin} could not be read; treating the site as open",
-                origin);
+            Log.RobotsUnreadable(logger, exception, origin);
 
             return RobotsFile.AllowAll;
         }

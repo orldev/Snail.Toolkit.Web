@@ -123,8 +123,7 @@ public sealed class SiteCalls(
         }
         catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
         {
-            logger.LogWarning(
-                "The page would not mint a '{Action}' credential, so its service was never asked", mint.Action);
+            Log.NotMinted(logger, mint.Action);
 
             return Refused(call, identity, FailureKind.Blocked,
                 $"The page never issued a '{mint.Action}' credential: {exception.Message}", null);

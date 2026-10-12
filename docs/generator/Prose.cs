@@ -26,6 +26,12 @@ internal static partial class Prose
         return text.Length > 0 ? Tidied(text) : null;
     }
 
+    /// <remarks>
+    /// A paragraph is a blank line, not a tag: everything downstream is Markdown.
+    /// <para>
+    /// A cref names a declaration; the reader wants the name, not the assembly-qualified id.
+    /// </para>
+    /// </remarks>
     private static string Written(XNode node)
     {
         switch (node)
@@ -42,12 +48,10 @@ internal static partial class Prose
 
         return element.Name.LocalName switch
         {
-            // A paragraph is a blank line, not a tag: everything downstream is Markdown.
             "para" => $"\n\n{inside.Trim()}\n\n",
 
             "c" => $"`{inside.Trim()}`",
 
-            // A cref names a declaration; the reader wants the name, not the assembly-qualified id.
             "see" or "seealso" => Named(element, inside),
             "paramref" or "typeparamref" => $"`{element.Attribute("name")?.Value}`",
 
@@ -103,7 +107,7 @@ internal static partial class Prose
     /// <summary>Removes the indentation the xml file carries, which is the file's shape and not the code's.</summary>
     private static string Dented(string block)
     {
-        var lines = block.Replace("\r\n", "\n").Trim('\n').Split('\n');
+        var lines = block.Replace("\r\n", "\n", StringComparison.Ordinal).Trim('\n').Split('\n');
 
         var common = lines
             .Where(line => line.Trim().Length > 0)
@@ -125,10 +129,13 @@ internal static partial class Prose
     /// Every remark in this repository is wrapped at the source file's width, and those breaks are an artefact
     /// of the file rather than of the sentence. Markdown would render them as spaces anyway; joining them here
     /// keeps the generated files readable by a person, which is the only reason they are checked in.
+    /// <para>
+    /// A fenced block and a list keep their own line breaks; a paragraph does not have any to keep.
+    /// </para>
     /// </remarks>
     private static string Tidied(string text)
     {
-        var blocks = Breaks().Split(text.Replace("\r\n", "\n"));
+        var blocks = Breaks().Split(text.Replace("\r\n", "\n", StringComparison.Ordinal));
         var kept = new List<string>();
 
         foreach (var block in blocks)
@@ -138,7 +145,6 @@ internal static partial class Prose
             if (body.Trim().Length == 0)
                 continue;
 
-            // A fenced block and a list keep their own line breaks; a paragraph does not have any to keep.
             kept.Add(body.Contains("```", StringComparison.Ordinal) || body.TrimStart().StartsWith("- ", StringComparison.Ordinal)
                 ? body.Trim()
                 : Spaces().Replace(body, " ").Trim());

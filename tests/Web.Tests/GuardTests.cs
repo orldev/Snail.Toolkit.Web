@@ -80,16 +80,20 @@ public class GuardTests
     [Fact]
     public void Core_MethodThatAnswersLater_IsNamedForItAndTakesAToken()
     {
-        var offenders = Core.GetExportedTypes()
+        var deferred = Core.GetExportedTypes()
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
-            .Where(IsDeferred)
-            .Where(method => !method.Name.EndsWith("Async", StringComparison.Ordinal)
-                             || method.GetParameters().All(parameter => parameter.ParameterType != typeof(CancellationToken)))
+            .Where(IsDeferred);
+
+        var offenders = deferred
+            .Where(method => !method.Name.EndsWith("Async", StringComparison.Ordinal) || IsWithoutToken(method))
             .Select(method => $"{method.DeclaringType?.Name}.{method.Name}")
             .ToArray();
 
         Assert.Empty(offenders);
     }
+
+    private static bool IsWithoutToken(MethodInfo method)
+        => method.GetParameters().All(parameter => parameter.ParameterType != typeof(CancellationToken));
 
     private static bool IsDeferred(MethodInfo method)
         => method.ReturnType == typeof(Task)

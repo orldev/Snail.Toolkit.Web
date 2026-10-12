@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,7 +27,7 @@ public static class ServiceCollectionExtensions
 
             services.AddWeb(configuration);
 
-            var search = services.BindOnce<SearchOptions>(configuration, SearchOptions.SectionName);
+            var search = services.BindOnce<SearchOptions>(configuration, SearchOptions.SectionName, static (options, section) => options.Bind(section));
 
             if (configure is not null)
                 search.Configure(configure);
@@ -53,7 +54,7 @@ public static class ServiceCollectionExtensions
         /// Registered as an enumerable so providers accumulate instead of replacing each other, and idempotent
         /// per implementation type so a second call cannot ask the same back end twice per query.
         /// </remarks>
-        public IServiceCollection AddSearchProvider<TProvider>()
+        public IServiceCollection AddSearchProvider<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TProvider>()
             where TProvider : class, ISearchProvider
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<ISearchProvider, TProvider>());
@@ -167,7 +168,7 @@ public static class ServiceCollectionExtensions
         /// ONE ENGINE OVER PLAIN HTTP, and it was two until 2026-09-20. Bing was removed on the owner's
         /// instruction, because from the addresses this library is used from it does not answer: measured on
         /// 2026-09-15, four Russian queries out of five came back as ten confident results about something else
-        /// entirely — bible sites and Netflix for «"Роснано"», a hotel chain without the quotes. A provider
+        /// entirely — bible sites and Netflix for «"Rusnano"» (in Russian), a hotel chain without the quotes. A provider
         /// that structurally answers while saying nothing is the worst of the three shapes an engine can take,
         /// and the browser reading of the same engine, which does answer, ships in
         /// <c>Snail.Toolkit.Web.Search.Browser</c>. A deployment that wants more engines than one adds them

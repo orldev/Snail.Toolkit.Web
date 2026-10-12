@@ -1,0 +1,20 @@
+<Project>
+
+  <Import Project="..\Directory.Build.props" />
+
+  <!--
+    A benchmark project carries the full name, because BenchmarkDotNet finds the project by the name of the assembly
+    it is asked to run, so the names are taken from the file here rather than derived as the packages derive theirs.
+    That it is a program, never packed and not documented, Snail.Sdk reads from the name.
+  -->
+  <PropertyGroup>
+    <PackageId>$(MSBuildProjectName)</PackageId>
+    <AssemblyName>$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+</Project>

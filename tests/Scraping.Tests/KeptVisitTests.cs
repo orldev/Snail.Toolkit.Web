@@ -1,13 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using MartinCostello.Logging.XUnit;
+using Microsoft.Playwright;
 using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Behavior;
 using Snail.Toolkit.Web.Scraping.Browsers;
 using Snail.Toolkit.Web.Scraping.Extensions;
-using Microsoft.Playwright;
 using Snail.Toolkit.Web.Tests.Browsers;
 using Xunit.Abstractions;
 

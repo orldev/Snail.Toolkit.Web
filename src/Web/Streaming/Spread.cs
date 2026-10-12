@@ -69,7 +69,7 @@ internal static class Spread
             Emptied(waiting, hosts, ref cursor);
 
             while (held < wanted * HeldBackPerHost
-                   && Wanting(waiting, hosts, opensAt, wanted)
+                   && ShouldReadAhead(waiting, hosts, opensAt, wanted)
                    && arriving.MoveNext())
             {
                 var name = host(arriving.Current);
@@ -107,7 +107,7 @@ internal static class Spread
     /// Measured on 2026-09-14 — two pages read in the window where eighteen were waiting.
     /// </para>
     /// </remarks>
-    private static bool Wanting<T>(
+    private static bool ShouldReadAhead<T>(
         Dictionary<string, Queue<T>> waiting,
         List<string> hosts,
         Func<T, DateTimeOffset>? opensAt,

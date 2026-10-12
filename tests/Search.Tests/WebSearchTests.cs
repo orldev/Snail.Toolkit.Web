@@ -468,7 +468,7 @@ public class WebSearchTests
 
         Assert.Equal(SearchFailureKind.OutOfTime, attempt.Failure!.Kind);
         Assert.NotNull(attempt.Failure.OpensAt);
-        Assert.False(slow.Asked);
+        Assert.False(slow.WasAsked);
     }
 
     /// <summary>
@@ -486,7 +486,7 @@ public class WebSearchTests
 
         await Built(Cooldown(TimeProvider.System), gate, TimeProvider.System, options, [slow]).FindAsync(["grain"]);
 
-        Assert.True(slow.Asked);
+        Assert.True(slow.WasAsked);
     }
 
     /// <summary>
@@ -512,7 +512,7 @@ public class WebSearchTests
 
         Assert.Equal(SearchFailureKind.OutOfTime, attempt.Failure!.Kind);
         Assert.NotNull(attempt.Failure.OpensAt);
-        Assert.False(slow.Asked);
+        Assert.False(slow.WasAsked);
     }
 
     /// <summary>
@@ -529,7 +529,7 @@ public class WebSearchTests
 
         await Timed(gate, TimeProvider.System, local).FindAsync(["grain"], TimeSpan.FromSeconds(1));
 
-        Assert.True(local.Asked);
+        Assert.True(local.WasAsked);
     }
 
     /// <summary>A budget that runs out while an engine is still answering is the budget's doing, not the caller's.</summary>
@@ -632,11 +632,11 @@ public class WebSearchTests
         public string? Host => host;
 
         /// <summary>Whether this provider was asked at all, which is the whole point of a budget.</summary>
-        public bool Asked { get; private set; }
+        public bool WasAsked { get; private set; }
 
         public Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
         {
-            Asked = true;
+            WasAsked = true;
 
             return Task.FromResult(answer(query));
         }

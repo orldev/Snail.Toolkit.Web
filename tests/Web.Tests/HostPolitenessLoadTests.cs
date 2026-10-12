@@ -161,7 +161,8 @@ public class HostPolitenessLoadTests
                     work(round, caller);
                     barrier.SignalAndWait();
                 }
-            }) { IsBackground = true };
+            })
+            { IsBackground = true };
 
             thread.Start();
 

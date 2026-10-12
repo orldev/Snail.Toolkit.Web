@@ -2,12 +2,8 @@
 
   <Import Project="..\Directory.Build.props" />
 
-  <PropertyGroup>
-    <IsPackable>false</IsPackable>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
-  </PropertyGroup>
-
-  <ItemGroup>
+  <!-- The test framework, for the test projects; the native probe beside them is a program of its own. -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <PackageReference Include="coverlet.collector" PrivateAssets="all"
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageReference Include="MartinCostello.Logging.XUnit" />
@@ -26,7 +22,7 @@
                       IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <Using Include="Xunit" />
   </ItemGroup>
 

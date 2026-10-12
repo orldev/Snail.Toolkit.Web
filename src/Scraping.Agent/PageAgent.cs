@@ -56,6 +56,13 @@ internal sealed class PageAgent(
             ct);
     }
 
+    /// <remarks>
+    /// The gap the landing page asked for, carried into whichever refusal is recorded below. NOT OBSERVED BY ANY
+    /// TEST, and named here rather than left to be discovered: the reading itself is held by RestsTests and the
+    /// service call's by SiteCallJudgementTests, but these two assignments need a page answering 429 with the header,
+    /// which means a browser and a server that sets headers — the fixture serves files. What would catch a regression
+    /// here is the consumer's report naming a gap.
+    /// </remarks>
     private async Task<PageOutcome> WalkAsync(Errand errand, Uri target, WebIdentity identity, CancellationToken ct)
     {
         try
@@ -68,11 +75,6 @@ internal sealed class PageAgent(
                 WaitUntil = WaitUntilState.DOMContentLoaded
             });
 
-            // The gap the landing page asked for, carried into whichever refusal is recorded below. NOT OBSERVED
-            // BY ANY TEST, and named here rather than left to be discovered: the reading itself is held by
-            // RestsTests and the service call's by SiteCallJudgementTests, but these two assignments need a page
-            // answering 429 with the header, which means a browser and a server that sets headers — the fixture
-            // serves files. What would catch a regression here is the consumer's report naming a gap.
             var asked = Rests.AskedFor(response?.Headers, DateTimeOffset.UtcNow);
 
             var landing = await RefusedAsync(page, errand, identity, response?.Status, asked);

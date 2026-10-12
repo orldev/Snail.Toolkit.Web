@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Snail.Toolkit.Web.Text;
 
@@ -30,11 +29,13 @@ public class HostilePageTextTests
     /// The announced arithmetic is wrong by the same half character: the marker claims eleven characters were
     /// kept, and eleven code units is ten characters and a fragment.
     /// </para>
+    /// <para>
+    /// Ten plain characters, then one emoji: the ceiling of eleven falls between its two code units.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Apply_CutLandingInsideACharacter_DoesNotKeepHalfOfIt()
     {
-        // Ten plain characters, then one emoji: the ceiling of eleven falls between its two code units.
         var page = new string('a', 10) + "\U0001F600 and more besides";
 
         var budgeted = ContentBudget.Of(11).Apply(page);

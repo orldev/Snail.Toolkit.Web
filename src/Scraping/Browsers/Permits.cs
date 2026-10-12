@@ -55,7 +55,7 @@ internal sealed class Permits(int ceiling)
     /// case it cannot be inside. A partial take would be worse than no take at all — it would block new
     /// callers while the ones already in flight carried on using the browser it was about to close.
     /// </remarks>
-    internal bool Emptied()
+    internal bool TryEmpty()
     {
         var taken = 0;
 
@@ -71,6 +71,6 @@ internal sealed class Permits(int ceiling)
         return false;
     }
 
-    /// <summary>Gives every permit back after an <see cref="Emptied"/> that succeeded.</summary>
+    /// <summary>Gives every permit back after an <see cref="TryEmpty"/> that succeeded.</summary>
     internal void Refilled() => _free.Release(ceiling);
 }

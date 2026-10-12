@@ -53,7 +53,7 @@ internal sealed class Setbacks(IBlockDetector blocks, ILogger<Setbacks> logger)
         var verdict = blocks.Inspect(await page.ContentAsync(), page.Url);
         var scene = await SceneAsync(page, wanted, trail);
 
-        logger.LogWarning("Step {Position} of {Total} produced nothing. {Scene}", position, errand.Steps.Count, scene);
+        Log.ProducedNothing(logger, position, errand.Steps.Count, scene);
 
         if (verdict.IsBlocked)
             return new PageFailure(

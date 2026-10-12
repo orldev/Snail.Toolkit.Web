@@ -1,9 +1,11 @@
-# Tests run against the patched browser here and against the stock one locally.
+# The browser-backed tests, against the patched browser here and against the stock one locally. Everything else —
+# the other tests, the reference, the package — is ci.yml, the shared CI of Snail.Sdk, which has no browser image
+# and leaves these classes out.
 #
 # The runner is amd64, which is the architecture the patched image is built for, so it costs nothing extra --
 # measured on an arm64 laptop the same suite takes 1m43s under emulation against 12s on the stock image. That
 # difference is emulation, not the engine, and it does not exist here.
-name: tests
+name: browser integration
 
 on:
   push:
@@ -58,13 +60,6 @@ jobs:
         run: dotnet build --configuration Release -warnaserror
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
-
-      - name: Pack
-        run: dotnet pack --configuration Release --no-build
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packages
-          path: artifacts/package/release/*.nupkg
-          if-no-files-found: error
+        run: >-
+          dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
+          --filter "FullyQualifiedName~.SiteCallsTests|FullyQualifiedName~.PageAgentTests|FullyQualifiedName~.CrawlIntegrationTests|FullyQualifiedName~.KeptVisitTests|FullyQualifiedName~.BrowserPoolTests|FullyQualifiedName~.PageReaderTests|FullyQualifiedName~.PageSnapshotsTests"

@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Web.Benchmarks/Snail.Toolkit.Web.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Scraping.Agent/Scraping.Agent.csproj" />
     <Project Path="src/Scraping/Scraping.csproj" />
@@ -14,6 +17,7 @@
     <Project Path="docs/generator/Gen.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Search.NativeProbe/Search.NativeProbe.csproj" />
     <Project Path="tests/Scraping.Agent.Tests/Scraping.Agent.Tests.csproj" />
     <Project Path="tests/Scraping.Tests/Scraping.Tests.csproj" />
     <Project Path="tests/Search.Browser.Agent.Tests/Search.Browser.Agent.Tests.csproj" />

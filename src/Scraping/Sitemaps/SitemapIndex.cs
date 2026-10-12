@@ -43,8 +43,7 @@ public sealed class SitemapIndex(
 
         if (found.Pages.Count == 0)
         {
-            logger.LogInformation("{Origin} published no sitemap worth reading; following its links instead",
-                origin);
+            Log.NoSitemap(logger, origin);
 
             return SiteListing.None;
         }

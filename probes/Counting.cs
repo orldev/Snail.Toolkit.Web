@@ -37,11 +37,11 @@ internal static class Counting
 
         for (var round = 1; round <= 3; round++)
         {
-            lean += await AskAsync(browser, $"{round}. только документ  ", documentOnly: true) ? 1 : 0;
+            lean += await IsAnsweredAsync(browser, $"{round}. только документ  ", documentOnly: true) ? 1 : 0;
 
             await Task.Delay(TimeSpan.FromSeconds(45));
 
-            full += await AskAsync(browser, $"{round}. всё целиком      ", documentOnly: false) ? 1 : 0;
+            full += await IsAnsweredAsync(browser, $"{round}. всё целиком      ", documentOnly: false) ? 1 : 0;
 
             if (round < 3)
                 await Task.Delay(TimeSpan.FromSeconds(45));
@@ -51,7 +51,7 @@ internal static class Counting
         Console.WriteLine($"  всё целиком              {full} из 3");
     }
 
-    private static async Task<bool> AskAsync(IBrowser browser, string label, bool documentOnly)
+    private static async Task<bool> IsAnsweredAsync(IBrowser browser, string label, bool documentOnly)
     {
         await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {

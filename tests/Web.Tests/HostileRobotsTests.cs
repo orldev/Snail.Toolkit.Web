@@ -27,7 +27,7 @@ public class HostileRobotsTests
     /// <c>double.TryParse</c> under <c>NumberStyles.Float</c> accepts far more than a count of seconds:
     /// <c>NaN</c> and <c>Infinity</c> parse by name, and any exponent past <c>1e308</c> parses as infinity.
     /// The only guard is <c>seconds &lt; 0</c>, and <c>NaN &lt; 0</c> is false — so all four reach
-    /// <see cref="TimeSpan.FromSeconds"/>, which answers <c>NaN</c> with <see cref="ArgumentException"/> and
+    /// <see cref="TimeSpan.FromSeconds(double)"/>, which answers <c>NaN</c> with <see cref="ArgumentException"/> and
     /// the rest with <see cref="OverflowException"/>.
     /// <para>
     /// It escapes <see cref="RobotsFile.Parse"/>, which nothing above it catches: <c>HttpRobotsSource</c>
@@ -64,11 +64,18 @@ public class HostileRobotsTests
     /// Measured: <c>Task.Delay(TimeSpan.FromDays(60))</c> throws <see cref="ArgumentOutOfRangeException"/>,
     /// and it is thrown out of <c>EnterAsync</c> — past the <c>catch</c> that releases the slot, so the slot
     /// survives, but the caller receives an argument exception naming a parameter it never supplied.
+    /// </para>
+    /// <para>
+    /// 6,000,000 seconds is sixty-nine days. A site writes it in one line.
+    /// </para>
+    /// <para>
+    /// The gap is measured from the end of the previous turn, and a host never spoken to has none — so the first read
+    /// of any site ignores whatever it asked for, and the second pays all of it.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task EnterAsync_SiteAskingForAGapNoTimerCanHold_IsAnsweredRatherThanThrown()
     {
-        // 6,000,000 seconds is sixty-nine days. A site writes it in one line.
         var asked = RobotsFile.Parse("""
             User-agent: *
             Crawl-delay: 6000000
@@ -78,8 +85,6 @@ public class HostileRobotsTests
 
         var url = new Uri("https://patient.example/a");
 
-        // The gap is measured from the end of the previous turn, and a host never spoken to has none — so
-        // the first read of any site ignores whatever it asked for, and the second pays all of it.
         await using (await politeness.EnterAsync(url, asked))
         {
         }
@@ -148,6 +153,10 @@ public class HostileRobotsTests
     /// linear in the path however the pattern is written. The catastrophe is not caught, it cannot be
     /// expressed.
     /// </para>
+    /// <para>
+    /// Answered on a thread of its own so that the check ends when the budget does, rather than when the twenty
+    /// seconds of backtracking do.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task IsAllowed_AFileOfRulesWrittenToBacktrack_StillAnswersInReasonableTime()
@@ -156,8 +165,6 @@ public class HostileRobotsTests
         var file = RobotsFile.Parse($"User-agent: *\n{rules}");
         var path = $"/{new string('a', 200)}c";
 
-        // Answered on a thread of its own so that the check ends when the budget does, rather than when the
-        // twenty seconds of backtracking do.
         var answering = Task.Run(() => file.IsAllowed(path, "*"));
 
         var finished = await Task.WhenAny(answering, Task.Delay(TimeSpan.FromSeconds(2)));
@@ -172,13 +179,12 @@ public class HostileRobotsTests
     /// Rules are compiled in <c>Parse</c>, so the cost is paid by any site that answers <c>robots.txt</c>,
     /// whether or not a single URL of it is ever checked. A megabyte of <c>Disallow</c> lines is an ordinary
     /// response body and an extraordinary amount of work to do before deciding anything.
-    /// </remarks>
-    [Fact]
-    /// <remarks>
+    /// <para>
     /// THE THRESHOLD IS IN SECONDS ON PURPOSE, and an allocation guard was written here on 2026-09-15 and
     /// THROWN AWAY, because the measurement said it would guard nothing. What <c>IsPlainPrefix</c> saves is
-    /// CPU, not memory: a rule without wildcards builds no <see cref="Regex"/>, and a non-backtracking engine
+    /// CPU, not memory: a rule without wildcards builds no <see cref="System.Text.RegularExpressions.Regex"/>, and a non-backtracking engine
     /// is expensive to CONSTRUCT rather than to hold.
+    /// </para>
     /// <para>
     /// MEASURED per thread over these same thirty thousand rules: 8.94 MB with the optimisation and 8.99 MB
     /// without it — six tenths of one percent, where the same removal moves the clock from 40 ms to 2.3 s. A
@@ -191,6 +197,7 @@ public class HostileRobotsTests
     /// which of the two a cure saves is a question for a measurement rather than for taste.
     /// </para>
     /// </remarks>
+    [Fact]
     public void Parse_AMegabyteOfRules_DoesNotCostMoreThanReadingAPage()
     {
         var rules = string.Join('\n', Enumerable.Range(0, 30_000).Select(index => $"Disallow: /section/{index}/"));

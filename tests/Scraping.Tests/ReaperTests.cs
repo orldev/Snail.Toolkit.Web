@@ -85,6 +85,9 @@ public class ReaperTests
     /// so. Every permit is taken before the browser is closed; a close that throws without giving them back
     /// leaves the pool unable to hand out a single page ever again — a permanently dead pool as the price of
     /// one browser that would not shut down, which is the worse of the two outcomes by a wide margin.
+    /// <para>
+    /// Both permits, not one: a partial refill is the same dead pool arriving more slowly.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task ReapAsync_CloseThatThrows_StillGivesThePermitsBack()
@@ -111,8 +114,7 @@ public class ReaperTests
         await shutdown.CancelAsync();
         await reaping;
 
-        // Both permits, not one: a partial refill is the same dead pool arriving more slowly.
-        Assert.True(permits.Emptied(), "the permits were not given back after a close that threw");
+        Assert.True(permits.TryEmpty(), "the permits were not given back after a close that threw");
     }
 
     /// <summary>There is no browser to reap, so nothing is asked of the pool.</summary>
@@ -137,7 +139,7 @@ public class ReaperTests
         await reaping;
 
         Assert.NotSame(closed.Task, looked);
-        Assert.True(permits.Emptied(), "the permits were taken for a browser that does not exist");
+        Assert.True(permits.TryEmpty(), "the permits were taken for a browser that does not exist");
     }
 
     /// <summary>An idle timeout of zero switches the reaper off rather than making it spin.</summary>

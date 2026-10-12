@@ -50,7 +50,7 @@ Credentials survive into `Address` and into nothing else. Every other form of a 
 
 ## ServiceCollectionExtensions.BindOnce
 
-`2026-09-13`
+`2026-09-13`, `2026-10-12`
 
 *Binds a settings section the first time it is asked for, and does nothing after that.*
 
@@ -59,6 +59,8 @@ Credentials survive into `Address` and into nothing else. Every other form of a 
 A marker per settings type is what makes the second call free. `ServiceCollectionDescriptorExtensions` deduplicates only descriptors that name an implementation type, and a bound section is an instance, so it can never be one of those.
 
 WHAT IS BOUND HERE IS READ ONCE. Every consumer of these settings takes `IOptions` and keeps `.Value` from its constructor, so a change on disk reaches a running process only through a restart. That is a decision rather than an omission, and it is worth stating because the alternative is half a decision: several of these numbers are not re-readable at all without inventing a behaviour for the change — a semaphore cannot be resized while callers wait on it, and a Polly pipeline is assembled once per process by design. A library where some settings reload and others silently do not is harder to reason about than one where none do, and nothing measured so far asks for the first.
+
+THE BINDING IS THE CALLER'S, so that it is written where the settings type is known. The configuration binding generator replaces a `Bind` call with code of its own only where the type is concrete; inside this generic method it could not (SYSLIB1104), the reflection binder ran, and in a native app every setting was silently left at its default. Measured on 2026-10-12 by the audit's native probe.
 
 
 ## Gate
@@ -94,7 +96,7 @@ The subtle part is the part worth having once. Forgetting happens on the arrival
 What counts as no longer worth keeping is the caller's to say, because the two maps disagree about it: a pacing gate may only be dropped when nobody is inside it and it is holding nobody back, while a cached file may be dropped the moment no answer could come from it any more.
 
 
-## Fanout.Ended
+## Fanout.EndedAsync
 
 `2026-09-15`, `2026-09-20` · *internal*
 
@@ -220,7 +222,7 @@ A `null` on the stack is the line break owed to a block element whose children h
 The wait is taken in stretches because `Delay` refuses anything past about forty-nine days. MEASURED on 2026-09-20: a site answering `Retry-After` of a hundred days made every later caller to that host meet an `ArgumentOutOfRangeException` naming a timer, and the host stayed broken for as long as the process ran. A rest that long is a site to be left alone, not a defect to be raised at whoever arrives next — and a caller that will not wait it out cancels, which is the answer it already had.
 
 
-## Spread.Wanting
+## Spread.ShouldReadAhead
 
 `2026-09-20`, `2026-09-14` · *internal*
 

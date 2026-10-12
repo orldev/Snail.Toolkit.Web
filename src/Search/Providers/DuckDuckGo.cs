@@ -96,11 +96,7 @@ public sealed class DuckDuckGo(
         }
 
         if (found.Count == 0)
-            logger.LogWarning(
-                "{Provider} answered {Length} characters of markup that yielded no results, which is what a "
-                + "layout change looks like from here; the caller is told nothing was found.",
-                ProviderName,
-                read);
+            Log.NoResults(logger, ProviderName, read);
 
         return Relevance.Answers(query, found)
             ? SearchAnswer.Success(found)

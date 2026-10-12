@@ -2,6 +2,16 @@
 
   <Import Project="..\Directory.Build.props" />
 
+  <!--
+    Settings are bound by the configuration binding generator rather than by reflection, so they bind in a native
+    app too: without it every section was silently left at its defaults there (the audit's native probe,
+    2026-10-12). The generator intercepts only a Bind written where the settings type is concrete, which is why
+    BindOnce takes the binding from its caller.
+  -->
+  <PropertyGroup>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>

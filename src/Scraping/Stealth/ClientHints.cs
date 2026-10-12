@@ -50,11 +50,7 @@ public sealed class ClientHints(IOptions<ScrapingOptions> options, ILogger<Clien
         }
         catch (PlaywrightException exception)
         {
-            logger.LogWarning(
-                exception,
-                "Client hints stay as the browser built them while the headers claim {Brand} {Version}; the two "
-                + "disagree and that disagreement is itself detectable.",
-                identity.Brand, identity.MajorVersion);
+            Log.HintsDisagree(logger, exception, identity.Brand, identity.MajorVersion);
         }
     }
 

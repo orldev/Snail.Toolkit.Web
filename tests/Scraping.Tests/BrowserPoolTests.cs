@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -200,6 +201,7 @@ public class BrowserPoolTests(SiteFixture site)
     /// library — one that answers a single method and nothing else says more plainly what is being measured.
     /// Unsealed because the generated proxy derives from it.
     /// </remarks>
+    [SuppressMessage("Performance", "CA1852", Justification = "DispatchProxy derives the proxy from it at run time.")]
     private class Refusing : DispatchProxy
     {
         public static IBrowserContext Context => DispatchProxy.Create<IBrowserContext, Refusing>();
@@ -219,6 +221,7 @@ public class BrowserPoolTests(SiteFixture site)
     }
 
     /// <summary>A page that is carried and never asked anything.</summary>
+    [SuppressMessage("Performance", "CA1852", Justification = "DispatchProxy derives the proxy from it at run time.")]
     private class Nothing : DispatchProxy
     {
         public static IPage Page => DispatchProxy.Create<IPage, Nothing>();

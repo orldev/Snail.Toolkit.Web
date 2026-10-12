@@ -105,7 +105,8 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
 
         if (address.Address is not { } target)
             return Outcome<TValue, PageFailure>.Failed(new PageFailure(
-                FailureKind.Navigation, "Not an absolute http or https address.") { Address = address });
+                FailureKind.Navigation, "Not an absolute http or https address.")
+            { Address = address });
 
         return await _pipeline.ExecuteAsync(
             async token => await OnceAsync(address, target, work, token), ct);
@@ -136,7 +137,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
 
         if (!await _rules.IsAllowedAsync(target, identity.Proxy, ct))
         {
-            _logger.LogInformation("robots.txt forbids {Url}", address);
+            Log.Forbidden(_logger, address);
 
             return Recorded(Refused(address), target, started, activity);
         }
@@ -188,9 +189,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
         if (outcome.IsSuccess || outcome.Failure.RetryAfter is not { } gap)
             return;
 
-        _logger.LogInformation(
-            "{Host} asked to be left alone for {Gap}; holding it for every caller, not just this one.",
-            target.Host, gap);
+        Log.HeldForEveryone(_logger, target.Host, gap);
 
         _politeness.Rest(target, gap);
     }
@@ -251,8 +250,7 @@ public sealed class Attempts<TValue> : IAttempts<TValue>
                 Delay = options.RetryDelay,
                 OnRetry = arguments =>
                 {
-                    logger.LogWarning("Retry {Attempt} after {Failure}",
-                        arguments.AttemptNumber + 1, arguments.Outcome.Result?.Failure);
+                    Log.Retrying(logger, arguments.AttemptNumber + 1, arguments.Outcome.Result?.Failure);
 
                     return default;
                 }

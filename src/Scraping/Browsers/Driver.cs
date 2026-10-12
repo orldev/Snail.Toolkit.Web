@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Playwright;
 
 namespace Snail.Toolkit.Web.Scraping.Browsers;
@@ -90,6 +91,7 @@ internal sealed class Driver(ScrapingOptions options, Func<Task<IPlaywright>>? s
         _ => driver.Chromium
     };
 
+    [SuppressMessage("Usage", "VSTHRD002", Justification = "Dispose is synchronous by its interface, and the task is read only once it completed successfully, so nothing waits.")]
     public void Dispose()
     {
         if (Volatile.Read(ref _started) is { IsCompletedSuccessfully: true } started)

@@ -1,0 +1,145 @@
+#nullable enable
+const Snail.Toolkit.Web.Search.Providers.DuckDuckGo.ProviderName = "DuckDuckGo" -> string!
+const Snail.Toolkit.Web.Search.SearchOptions.SectionName = "Web:Search" -> string!
+override Snail.Toolkit.Web.Search.SearchAttempt.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Search.SearchAttempt.GetHashCode() -> int
+override Snail.Toolkit.Web.Search.SearchAttempt.ToString() -> string!
+override Snail.Toolkit.Web.Search.SearchFailure.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Search.SearchFailure.GetHashCode() -> int
+override Snail.Toolkit.Web.Search.SearchFailure.ToString() -> string!
+override Snail.Toolkit.Web.Search.SearchOutcome.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Search.SearchOutcome.GetHashCode() -> int
+override Snail.Toolkit.Web.Search.SearchOutcome.ToString() -> string!
+override Snail.Toolkit.Web.Search.SearchResult.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Search.SearchResult.GetHashCode() -> int
+override Snail.Toolkit.Web.Search.SearchResult.ToString() -> string!
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddSearch(Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Snail.Toolkit.Web.Search.SearchOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddSearch(System.Action<Snail.Toolkit.Web.Search.SearchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddSearchClient(string! name) -> Microsoft.Extensions.DependencyInjection.IHttpClientBuilder!
+Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddSearchProvider<TProvider>() -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Search.Http.IdentityHandler
+Snail.Toolkit.Web.Search.Http.IdentityHandler.IdentityHandler(Snail.Toolkit.Web.Identity.IIdentityRotation! identities) -> void
+Snail.Toolkit.Web.Search.Http.PolitenessHandler
+Snail.Toolkit.Web.Search.Http.PolitenessHandler.PolitenessHandler(Snail.Toolkit.Web.Politeness.IPoliteness! politeness) -> void
+Snail.Toolkit.Web.Search.ISearchCooldown
+Snail.Toolkit.Web.Search.ISearchCooldown.Answered(string! provider) -> void
+Snail.Toolkit.Web.Search.ISearchCooldown.Refused(string! provider) -> System.TimeSpan
+Snail.Toolkit.Web.Search.ISearchCooldown.RestingUntil(string! provider) -> System.DateTimeOffset?
+Snail.Toolkit.Web.Search.ISearchProvider
+Snail.Toolkit.Web.Search.ISearchProvider.FindAsync(string! query, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Outcome<System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>!, Snail.Toolkit.Web.Search.SearchFailure!>!>!
+Snail.Toolkit.Web.Search.ISearchProvider.Host.get -> string?
+Snail.Toolkit.Web.Search.ISearchProvider.Name.get -> string!
+Snail.Toolkit.Web.Search.IWebSearch
+Snail.Toolkit.Web.Search.IWebSearch.FindAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Search.SearchOutcome!>!
+Snail.Toolkit.Web.Search.IWebSearch.FindAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.TimeSpan budget, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Search.SearchOutcome!>!
+Snail.Toolkit.Web.Search.IWebSearch.StreamAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Snail.Toolkit.Web.Search.SearchAttempt!>!
+Snail.Toolkit.Web.Search.IWebSearch.StreamAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.TimeSpan budget, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Snail.Toolkit.Web.Search.SearchAttempt!>!
+Snail.Toolkit.Web.Search.Providers.DuckDuckGo
+Snail.Toolkit.Web.Search.Providers.DuckDuckGo.DuckDuckGo(System.Net.Http.IHttpClientFactory! clients, Snail.Toolkit.Web.Detection.IBlockDetector! blocks, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.SearchOptions!>! options, Microsoft.Extensions.Logging.ILogger<Snail.Toolkit.Web.Search.Providers.DuckDuckGo!>! logger) -> void
+Snail.Toolkit.Web.Search.Providers.DuckDuckGo.FindAsync(string! query, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Outcome<System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>!, Snail.Toolkit.Web.Search.SearchFailure!>!>!
+Snail.Toolkit.Web.Search.Providers.DuckDuckGo.Host.get -> string!
+Snail.Toolkit.Web.Search.Providers.DuckDuckGo.Name.get -> string!
+Snail.Toolkit.Web.Search.SearchAttempt
+Snail.Toolkit.Web.Search.SearchAttempt.<Clone>$() -> Snail.Toolkit.Web.Search.SearchAttempt!
+Snail.Toolkit.Web.Search.SearchAttempt.Duration.get -> System.TimeSpan
+Snail.Toolkit.Web.Search.SearchAttempt.Duration.init -> void
+Snail.Toolkit.Web.Search.SearchAttempt.Equals(Snail.Toolkit.Web.Search.SearchAttempt? other) -> bool
+Snail.Toolkit.Web.Search.SearchAttempt.Failure.get -> Snail.Toolkit.Web.Search.SearchFailure?
+Snail.Toolkit.Web.Search.SearchAttempt.Failure.init -> void
+Snail.Toolkit.Web.Search.SearchAttempt.IsAnswered.get -> bool
+Snail.Toolkit.Web.Search.SearchAttempt.Provider.get -> string!
+Snail.Toolkit.Web.Search.SearchAttempt.Provider.init -> void
+Snail.Toolkit.Web.Search.SearchAttempt.Query.get -> string!
+Snail.Toolkit.Web.Search.SearchAttempt.Query.init -> void
+Snail.Toolkit.Web.Search.SearchAttempt.Results.get -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>!
+Snail.Toolkit.Web.Search.SearchAttempt.Results.init -> void
+Snail.Toolkit.Web.Search.SearchAttempt.SearchAttempt() -> void
+Snail.Toolkit.Web.Search.SearchCooldown
+Snail.Toolkit.Web.Search.SearchCooldown.Answered(string! provider) -> void
+Snail.Toolkit.Web.Search.SearchCooldown.Refused(string! provider) -> System.TimeSpan
+Snail.Toolkit.Web.Search.SearchCooldown.RestingUntil(string! provider) -> System.DateTimeOffset?
+Snail.Toolkit.Web.Search.SearchCooldown.SearchCooldown(Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.SearchOptions!>! options, System.TimeProvider! clock) -> void
+Snail.Toolkit.Web.Search.SearchFailure
+Snail.Toolkit.Web.Search.SearchFailure.<Clone>$() -> Snail.Toolkit.Web.Search.SearchFailure!
+Snail.Toolkit.Web.Search.SearchFailure.Deconstruct(out Snail.Toolkit.Web.Search.SearchFailureKind Kind, out string? Message) -> void
+Snail.Toolkit.Web.Search.SearchFailure.Equals(Snail.Toolkit.Web.Search.SearchFailure? other) -> bool
+Snail.Toolkit.Web.Search.SearchFailure.Kind.get -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailure.Kind.init -> void
+Snail.Toolkit.Web.Search.SearchFailure.Message.get -> string?
+Snail.Toolkit.Web.Search.SearchFailure.Message.init -> void
+Snail.Toolkit.Web.Search.SearchFailure.OpensAt.get -> System.DateTimeOffset?
+Snail.Toolkit.Web.Search.SearchFailure.OpensAt.init -> void
+Snail.Toolkit.Web.Search.SearchFailure.SearchFailure(Snail.Toolkit.Web.Search.SearchFailureKind Kind, string? Message = null) -> void
+Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.Canceled = 2 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.Faulted = 1 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.NoResults = 0 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.OutOfTime = 5 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.Refused = 6 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.Resting = 4 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchFailureKind.Unreadable = 3 -> Snail.Toolkit.Web.Search.SearchFailureKind
+Snail.Toolkit.Web.Search.SearchOptions
+Snail.Toolkit.Web.Search.SearchOptions.AlwaysAsked.get -> System.Collections.Generic.List<string!>!
+Snail.Toolkit.Web.Search.SearchOptions.AlwaysAsked.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.MaxDegreeOfParallelism.get -> int
+Snail.Toolkit.Web.Search.SearchOptions.MaxDegreeOfParallelism.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.MaxRefusalCooldown.get -> System.TimeSpan
+Snail.Toolkit.Web.Search.SearchOptions.MaxRefusalCooldown.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.MaxResultsPerProvider.get -> int
+Snail.Toolkit.Web.Search.SearchOptions.MaxResultsPerProvider.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.ProvidersPerQuery.get -> int
+Snail.Toolkit.Web.Search.SearchOptions.ProvidersPerQuery.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.RefusalCooldown.get -> System.TimeSpan
+Snail.Toolkit.Web.Search.SearchOptions.RefusalCooldown.set -> void
+Snail.Toolkit.Web.Search.SearchOptions.SearchOptions() -> void
+Snail.Toolkit.Web.Search.SearchOptions.Timeout.get -> System.TimeSpan
+Snail.Toolkit.Web.Search.SearchOptions.Timeout.set -> void
+Snail.Toolkit.Web.Search.SearchOutcome
+Snail.Toolkit.Web.Search.SearchOutcome.<Clone>$() -> Snail.Toolkit.Web.Search.SearchOutcome!
+Snail.Toolkit.Web.Search.SearchOutcome.Attempts.get -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchAttempt!>!
+Snail.Toolkit.Web.Search.SearchOutcome.Attempts.init -> void
+Snail.Toolkit.Web.Search.SearchOutcome.Deconstruct(out System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>! Results, out System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchAttempt!>! Attempts) -> void
+Snail.Toolkit.Web.Search.SearchOutcome.Equals(Snail.Toolkit.Web.Search.SearchOutcome? other) -> bool
+Snail.Toolkit.Web.Search.SearchOutcome.HasResults.get -> bool
+Snail.Toolkit.Web.Search.SearchOutcome.IsAnswered.get -> bool
+Snail.Toolkit.Web.Search.SearchOutcome.Results.get -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>!
+Snail.Toolkit.Web.Search.SearchOutcome.Results.init -> void
+Snail.Toolkit.Web.Search.SearchOutcome.SearchOutcome(System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchResult!>! Results, System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Search.SearchAttempt!>! Attempts) -> void
+Snail.Toolkit.Web.Search.SearchResult
+Snail.Toolkit.Web.Search.SearchResult.<Clone>$() -> Snail.Toolkit.Web.Search.SearchResult!
+Snail.Toolkit.Web.Search.SearchResult.Address.get -> Snail.Toolkit.Web.Link!
+Snail.Toolkit.Web.Search.SearchResult.Address.init -> void
+Snail.Toolkit.Web.Search.SearchResult.Equals(Snail.Toolkit.Web.Search.SearchResult? other) -> bool
+Snail.Toolkit.Web.Search.SearchResult.Provider.get -> string!
+Snail.Toolkit.Web.Search.SearchResult.Provider.init -> void
+Snail.Toolkit.Web.Search.SearchResult.SearchResult() -> void
+Snail.Toolkit.Web.Search.SearchResult.Snippet.get -> string!
+Snail.Toolkit.Web.Search.SearchResult.Snippet.init -> void
+Snail.Toolkit.Web.Search.SearchResult.Title.get -> string!
+Snail.Toolkit.Web.Search.SearchResult.Title.init -> void
+Snail.Toolkit.Web.Search.WebSearch
+Snail.Toolkit.Web.Search.WebSearch.FindAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Search.SearchOutcome!>!
+Snail.Toolkit.Web.Search.WebSearch.FindAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.TimeSpan budget, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Search.SearchOutcome!>!
+Snail.Toolkit.Web.Search.WebSearch.StreamAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Snail.Toolkit.Web.Search.SearchAttempt!>!
+Snail.Toolkit.Web.Search.WebSearch.StreamAsync(System.Collections.Generic.IEnumerable<string!>! queries, System.TimeSpan budget, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Snail.Toolkit.Web.Search.SearchAttempt!>!
+Snail.Toolkit.Web.Search.WebSearch.WebSearch(System.Collections.Generic.IEnumerable<Snail.Toolkit.Web.Search.ISearchProvider!>! providers, Snail.Toolkit.Web.Search.ISearchCooldown! cooldown, Snail.Toolkit.Web.Politeness.IPoliteness! politeness, System.TimeProvider! clock, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.SearchOptions!>! options, Microsoft.Extensions.Logging.ILogger<Snail.Toolkit.Web.Search.WebSearch!>! logger) -> void
+static Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.AddSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, System.Action<Snail.Toolkit.Web.Search.SearchOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.AddSearch(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Snail.Toolkit.Web.Search.SearchOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.AddSearchClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name) -> Microsoft.Extensions.DependencyInjection.IHttpClientBuilder!
+static Snail.Toolkit.Web.Search.Extensions.ServiceCollectionExtensions.AddSearchProvider<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Snail.Toolkit.Web.Search.SearchAttempt.operator !=(Snail.Toolkit.Web.Search.SearchAttempt? left, Snail.Toolkit.Web.Search.SearchAttempt? right) -> bool
+static Snail.Toolkit.Web.Search.SearchAttempt.operator ==(Snail.Toolkit.Web.Search.SearchAttempt? left, Snail.Toolkit.Web.Search.SearchAttempt? right) -> bool
+static Snail.Toolkit.Web.Search.SearchFailure.operator !=(Snail.Toolkit.Web.Search.SearchFailure? left, Snail.Toolkit.Web.Search.SearchFailure? right) -> bool
+static Snail.Toolkit.Web.Search.SearchFailure.operator ==(Snail.Toolkit.Web.Search.SearchFailure? left, Snail.Toolkit.Web.Search.SearchFailure? right) -> bool
+static Snail.Toolkit.Web.Search.SearchFailure.OutOfTime(string! provider) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchFailure.Resting(string! provider, System.DateTimeOffset until) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchFailure.Shut(string! provider, System.DateTimeOffset opens, System.TimeSpan limit) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchFailure.TooLate(string! provider, System.DateTimeOffset opens) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchFailure.Unreadable(string! provider, Snail.Toolkit.Web.Text.MarkupTooDeepException! cause) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchFailure.Unrelated(string! provider, int results) -> Snail.Toolkit.Web.Search.SearchFailure!
+static Snail.Toolkit.Web.Search.SearchOutcome.operator !=(Snail.Toolkit.Web.Search.SearchOutcome? left, Snail.Toolkit.Web.Search.SearchOutcome? right) -> bool
+static Snail.Toolkit.Web.Search.SearchOutcome.operator ==(Snail.Toolkit.Web.Search.SearchOutcome? left, Snail.Toolkit.Web.Search.SearchOutcome? right) -> bool
+static Snail.Toolkit.Web.Search.SearchResult.operator !=(Snail.Toolkit.Web.Search.SearchResult? left, Snail.Toolkit.Web.Search.SearchResult? right) -> bool
+static Snail.Toolkit.Web.Search.SearchResult.operator ==(Snail.Toolkit.Web.Search.SearchResult? left, Snail.Toolkit.Web.Search.SearchResult? right) -> bool

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Snail.Sdk">
 
   <!--
     The live checks drive a browser server named in the environment rather than started here, so nothing in

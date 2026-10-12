@@ -97,7 +97,7 @@ public sealed class PageSnapshots(
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Unclassified failure while picturing {Url}", address);
+            Log.PictureFailed(logger, exception, address);
 
             return Outcome<PageSnapshot, PageFailure>.Failed(new PageFailure(FailureKind.Unexpected, exception.Message)
             {
@@ -125,7 +125,7 @@ public sealed class PageSnapshots(
         }
         catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
         {
-            logger.LogDebug("{Url} never finished loading; picturing what is drawn", page.Url);
+            Log.NeverLoaded(logger, page.Url);
         }
     }
 

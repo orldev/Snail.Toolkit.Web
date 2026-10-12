@@ -59,7 +59,7 @@ public sealed class Visits(
             await context.AddInitScriptAsync(stealth.For(identity));
 
             if (appetite is Appetite.DocumentOnly)
-                await context.RouteAsync("**/*", TheDocumentAlone);
+                await context.RouteAsync("**/*", TheDocumentAloneAsync);
 
             var page = await context.NewPageAsync();
 
@@ -83,7 +83,7 @@ public sealed class Visits(
     /// Installed on the context rather than the page so that it also covers frames, and before the first
     /// navigation because a route added afterwards would miss the very request it exists for.
     /// </remarks>
-    private static async Task TheDocumentAlone(IRoute route)
+    private static async Task TheDocumentAloneAsync(IRoute route)
     {
         if (route.Request.ResourceType is "document")
         {

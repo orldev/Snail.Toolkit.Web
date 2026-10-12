@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
@@ -61,6 +62,7 @@ public sealed class BrowserPool : IBrowserPool
     private readonly ILogger<BrowserPool> _logger;
     private readonly Driver _driver;
     private readonly Permits _permits;
+    [SuppressMessage("Reliability", "CA2213", Justification = "Left undisposed on purpose, see DisposeAsync: a caller released after shutdown would meet a disposed gate, and disposing it wakes nobody waiting on it.")]
     private readonly SemaphoreSlim _opening = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Task _reaper;
@@ -78,12 +80,7 @@ public sealed class BrowserPool : IBrowserPool
         _permits = new Permits(Math.Max(1, _options.MaxDegreeOfParallelism));
 
         if (_driver.IsRemote && _options.BrowserArguments.Count > 0)
-            _logger.LogWarning(
-                "{Count} browser arguments are configured but a browser server is in use, and a connection "
-                + "carries no command line: the server was started with its own. Measured consequence: with "
-                + "'--disable-blink-features=AutomationControlled' among them, a connected browser still reports "
-                + "navigator.webdriver as true. Pass the arguments to the server's own launch command instead.",
-                _options.BrowserArguments.Count);
+            Log.ArgumentsIgnored(_logger, _options.BrowserArguments.Count);
 
         _reaper = _driver.IsRemote
             ? Task.CompletedTask
@@ -164,6 +161,11 @@ public sealed class BrowserPool : IBrowserPool
     /// <see cref="CancellationTokenSource.Token"/> off a <see cref="CancellationTokenSource"/> that has been
     /// disposed throws as well — so the linked source has to be built inside the guard rather than beside it,
     /// or a caller arriving late is told a <c>CancellationTokenSource</c> was disposed and left to guess whose.
+    /// <para>
+    /// The pool can close while this is still opening, and then CloseAsync has already read the field and written
+    /// null. Storing the browser here would put it somewhere nothing looks again: the process it launched, or the
+    /// connection it holds, outlives the pool that made it.
+    /// </para>
     /// </remarks>
     private async Task<IBrowser> OpeningAsync(CancellationToken ct)
     {
@@ -178,27 +180,22 @@ public sealed class BrowserPool : IBrowserPool
 
             if (_browser is not null)
             {
-                _logger.LogWarning("The browser lost its connection and is being replaced");
+                Log.ConnectionLost(_logger);
                 await CloseAsync();
             }
 
-            var opened = await Opened(opening.Token);
+            var opened = await OpenedAsync(opening.Token);
 
-            // The pool can close while this is still opening, and then CloseAsync has already read the field
-            // and written null. Storing the browser here would put it somewhere nothing looks again: the
-            // process it launched, or the connection it holds, outlives the pool that made it.
             if (Volatile.Read(ref _isDisposed) == 1)
             {
-                await Closed(opened);
+                await ClosedAsync(opened);
 
                 throw new ObjectDisposedException(nameof(BrowserPool));
             }
 
             Volatile.Write(ref _browser, opened);
 
-            _logger.LogInformation(
-                "Browser is ready: {Engine}, {Mode}, up to {Pages} page(s) at once",
-                _options.Engine, _driver.IsRemote ? "connected" : "launched", _permits.Ceiling);
+            Log.BrowserReady(_logger, _options.Engine, _driver.IsRemote ? "connected" : "launched", _permits.Ceiling);
 
             return opened;
         }
@@ -220,7 +217,7 @@ public sealed class BrowserPool : IBrowserPool
     /// is waiting for and a browser process nobody owns.
     /// </para>
     /// </remarks>
-    private async Task<IBrowser> Opened(CancellationToken ct)
+    private async Task<IBrowser> OpenedAsync(CancellationToken ct)
     {
         var opening = _driver.OpenedAsync(ct);
 
@@ -237,20 +234,23 @@ public sealed class BrowserPool : IBrowserPool
     }
 
     /// <summary>Closes a browser that finished opening after everybody stopped waiting for it.</summary>
-    private void Abandon(Task<IBrowser> opening)
-        => _ = opening.ContinueWith(
-            ended =>
-            {
-                if (ended.IsCompletedSuccessfully)
-                    return Closed(ended.Result);
+    private void Abandon(Task<IBrowser> opening) => _ = ClosedOnceOpenAsync(opening);
 
-                _ = ended.Exception;
+    /// <summary>Waits for an abandoned opening to end, and closes the browser when it opened at all.</summary>
+    /// <remarks>An opening that failed is observed and dropped: nobody is left to be told.</remarks>
+    private async Task ClosedOnceOpenAsync(Task<IBrowser> opening)
+    {
+        await ((Task)opening).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-                return Task.CompletedTask;
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        if (!opening.IsCompletedSuccessfully)
+        {
+            _ = opening.Exception;
+
+            return;
+        }
+
+        await ClosedAsync(await opening);
+    }
 
     private async Task CloseAsync()
     {
@@ -259,10 +259,10 @@ public sealed class BrowserPool : IBrowserPool
         Volatile.Write(ref _browser, null);
 
         if (browser is not null)
-            await Closed(browser);
+            await ClosedAsync(browser);
     }
 
-    private async Task Closed(IBrowser browser)
+    private async Task ClosedAsync(IBrowser browser)
     {
         try
         {
@@ -270,7 +270,7 @@ public sealed class BrowserPool : IBrowserPool
         }
         catch (PlaywrightException exception)
         {
-            _logger.LogDebug(exception, "The browser refused to close cleanly");
+            Log.CloseRefused(_logger, exception);
         }
         finally
         {
@@ -317,7 +317,7 @@ public sealed class BrowserPool : IBrowserPool
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "The idle reaper ended badly; the pool is closing anyway");
+            Log.ReaperFailed(_logger, exception);
         }
 
         try

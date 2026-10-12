@@ -23,7 +23,8 @@ public class SiteCallsTests(FormFixture site, ITestOutputHelper output)
         await using var host = Host();
 
         var outcome = await host.Calls.SendAsync(new SiteCall(
-            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/suggest.json", string.Empty) { Method = "GET" });
+            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/suggest.json", string.Empty)
+        { Method = "GET" });
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("Acme Holdings", outcome.Value, StringComparison.Ordinal);
@@ -80,7 +81,8 @@ public class SiteCallsTests(FormFixture site, ITestOutputHelper output)
         await using var host = Host();
 
         var outcome = await host.Calls.SendAsync(new SiteCall(
-            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/nowhere.json", string.Empty) { Method = "GET" });
+            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/nowhere.json", string.Empty)
+        { Method = "GET" });
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Navigation, outcome.Failure.Kind);
@@ -109,7 +111,8 @@ public class SiteCallsTests(FormFixture site, ITestOutputHelper output)
         var started = Stopwatch.GetTimestamp();
 
         var outcome = await host.Calls.SendAsync(new SiteCall(
-            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/flaky", string.Empty) { Method = "GET" });
+            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/flaky", string.Empty)
+        { Method = "GET" });
 
         var spent = Stopwatch.GetElapsedTime(started);
 
@@ -138,7 +141,8 @@ public class SiteCallsTests(FormFixture site, ITestOutputHelper output)
         var started = Stopwatch.GetTimestamp();
 
         var outcome = await host.Calls.SendAsync(new SiteCall(
-            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/nowhere.json", string.Empty) { Method = "GET" });
+            Link.Of($"{FormFixture.BaseUrl}/minting.html"), "/nowhere.json", string.Empty)
+        { Method = "GET" });
 
         var spent = Stopwatch.GetElapsedTime(started);
 

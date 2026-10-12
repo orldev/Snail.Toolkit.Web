@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
@@ -216,6 +217,7 @@ public class LiveBrowserTests
     private sealed record Reading(Sighting Bare, Sighting Dressed);
 
     /// <summary>What one document said about its own navigator.</summary>
+    [SuppressMessage("Naming", "S3L0008", Justification = "Webdriver is the field the page's script answers with, navigator.webdriver.")]
     private sealed record Sighting(
         bool Webdriver,
         bool IsOwnedByNavigator,

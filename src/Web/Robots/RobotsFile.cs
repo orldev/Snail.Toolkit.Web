@@ -48,6 +48,14 @@ public sealed class RobotsFile
     public IReadOnlyList<Link> Sitemaps { get; }
 
     /// <summary>Reads a <c>robots.txt</c> document.</summary>
+    /// <remarks>
+    /// A <c>crawl-delay</c> is checked with IsFinite as well as its sign, and the sign alone is not close.
+    /// NumberStyles.Float parses "NaN" and "Infinity" by name and reads any exponent past 1e308 as infinity, and
+    /// NaN &lt; 0 is false — so all three reached
+    /// TimeSpan.FromSeconds, which answers NaN with ArgumentException and the rest with OverflowException, out of a
+    /// method whose whole contract is that a site's own file is input rather than a contract. One line of one
+    /// robots.txt ended every read of that origin.
+    /// </remarks>
     public static RobotsFile Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -99,12 +107,6 @@ public sealed class RobotsFile
             {
                 isCollectingAgents = false;
 
-                // IsFinite as well as the sign, and the sign alone is not close. NumberStyles.Float parses
-                // "NaN" and "Infinity" by name and reads any exponent past 1e308 as infinity, and NaN < 0 is
-                // false — so all three reached TimeSpan.FromSeconds, which answers NaN with ArgumentException
-                // and the rest with OverflowException, out of a method whose whole contract is that a site's
-                // own file is input rather than a contract. One line of one robots.txt ended every read of
-                // that origin.
                 if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
                     || !double.IsFinite(seconds) || seconds < 0 || seconds > MostSecondsAsked)
                     continue;

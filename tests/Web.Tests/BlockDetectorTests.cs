@@ -167,13 +167,15 @@ public class BlockDetectorTests
     /// does appear sixty-seven times, <c>anomaly</c>, is the bare word this class refuses to carry. What is
     /// matched instead is the sentence, because the asset paths beside it belong to the vendor and will be
     /// renamed while the sentence has to keep meaning what it says.
+    /// <para>
+    /// The markup is reproduced as the engine serves it: the whole sentence in one node and on one line, checked
+    /// against the saved answer. A line break inside the phrase would not be found, and that is the known price of a
+    /// substring: the signal survives a change of the layout around it, but not a break inside itself.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Inspect_AnEngineAskingToProveThereIsAHuman_IsBlocked()
     {
-        // Разметка воспроизведена как её отдаёт движок: предложение целиком в одном узле и в одной
-        // строке — проверено по сохранённому ответу. Перенос внутри фразы её бы не нашёл, и это
-        // известная цена подстроки: сигнал переживает смену вёрстки вокруг, но не перенос внутри себя.
         const string wall =
             """
             <!doctype html><html><body>

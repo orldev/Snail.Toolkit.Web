@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
         /// <para>
         /// Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from
         /// a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident
-        /// results about something else — bible sites for «Роснано», a hotel chain, Zurich tourism, car parts —
+        /// results about something else — bible sites for «Rusnano» (in Russian), a hotel chain, Zurich tourism, car parts —
         /// while the same address read through a browser answered with the company, its Wikipedia article and
         /// the news about its licence. A provider that keeps the shape of an answer while saying nothing is
         /// worse than a provider that is absent: absence is visible in the report.
@@ -56,7 +56,7 @@ public static class ServiceCollectionExtensions
             services.AddSearch(configuration);
             services.AddScraping(configuration);
 
-            Validated(services.BindOnce<BingOptions>(configuration, BingOptions.SectionName));
+            Validated(services.BindOnce<BingOptions>(configuration, BingOptions.SectionName, static (options, section) => options.Bind(section)));
 
             return services.AddSearchProvider<Bing>();
         }
@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
             services.AddSearch(configuration);
             services.AddScraping(configuration);
 
-            Validated(services.BindOnce<BraveOptions>(configuration, BraveOptions.SectionName));
+            Validated(services.BindOnce<BraveOptions>(configuration, BraveOptions.SectionName, static (options, section) => options.Bind(section)));
 
             return services.AddSearchProvider<Brave>();
         }

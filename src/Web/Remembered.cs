@@ -69,7 +69,7 @@ internal sealed class Remembered<TValue>(
     }
 
     /// <summary>Forgets this host, unless what is remembered about it has been replaced since it was read.</summary>
-    public bool Forget(string key, TValue known)
+    public bool TryForget(string key, TValue known)
     {
         if (!_kept.TryGetValue(key, out var kept) || !ReferenceEquals(kept.Value, known))
             return false;
@@ -126,7 +126,7 @@ internal sealed class Remembered<TValue>(
         foreach (var (key, kept) in _kept)
         {
             if (kept.AskedAt <= since && isStale(kept.Value, since))
-                Forget(key, kept.Value);
+                TryForget(key, kept.Value);
         }
     }
 

@@ -21,7 +21,7 @@ public static class ServiceCollectionExtensions
 
             services.AddScraping(configuration);
 
-            Validated(services.BindOnce<AgentOptions>(configuration, AgentOptions.SectionName));
+            Validated(services.BindOnce<AgentOptions>(configuration, AgentOptions.SectionName, static (options, section) => options.Bind(section)));
 
             services.TryAddSingleton<Moves>();
             services.TryAddSingleton<Setbacks>();

@@ -71,14 +71,7 @@ public sealed class Google(
             ct);
 
         if (!outcome.IsSuccess && outcome.Failure.IsRefusal)
-            logger.LogWarning(
-                "{Provider} refused, and the gap in force for {Host} is {Gap}. That default is the shortest "
-                + "interval one measurement of four queries answered at, not a rate this engine sustains, and "
-                + "what it tolerates depends on the address asking. If refusals persist, raise "
-                + "Web:Politeness:HostDelays for that host.",
-                ProviderName,
-                Domain,
-                pacing.Value.GapFor(Domain) ?? pacing.Value.MinDelayPerHost);
+            Log.Refused(logger, ProviderName, Domain, pacing.Value.GapFor(Domain) ?? pacing.Value.MinDelayPerHost);
 
         return outcome;
     }

@@ -198,7 +198,7 @@ public class RegistrationTests
             recorded);
 
         Assert.Equal(TimeSpan.FromSeconds(5), Politeness(provider).GapFor("www.google.com"));
-        Assert.Contains(recorded.Warnings, line => line.Contains("00:00:05") && line.Contains("00:02:00"));
+        Assert.Contains(recorded.Warnings, line => line.Contains("00:00:05", StringComparison.Ordinal) && line.Contains("00:02:00", StringComparison.Ordinal));
     }
 
     /// <summary>The line is said only where it is news: a gap at or above the measurement is not.</summary>

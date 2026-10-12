@@ -80,6 +80,10 @@ internal static class Markup
     /// A ceiling is only a cure if refusing is cheaper than accepting. <c>OptionMaxNestedChildNodes</c> is
     /// checked inside the parse, so the question is whether it stops at the limit or pays the whole quadratic
     /// cost and complains afterwards — and those two answers lead to opposite designs.
+    /// <para>
+    /// Interleaved rather than one arm after the other: run back to back, the second arm is measured on a warmer
+    /// process than the first and the difference between them is read as a cost it is not.
+    /// </para>
     /// </remarks>
     private static void Refused()
     {
@@ -93,8 +97,6 @@ internal static class Markup
             var html = Page(shape);
             var ended = "разобралась";
 
-            // Interleaved rather than one arm after the other: run back to back, the second arm is measured on
-            // a warmer process than the first and the difference between them is read as a cost it is not.
             var (open, capped) = Paired(
                 () => Parse(html),
                 () =>
@@ -226,9 +228,9 @@ internal static class Markup
 
         for (var paragraph = 0; paragraph < shape.Paragraphs; paragraph++)
         {
-            html.Append("<p>Абзац номер ").Append(paragraph)
-                .Append(", в котором есть <a href=\"/link-").Append(paragraph)
-                .Append("\">ссылка</a> и немного текста, чтобы страница была похожа на страницу.</p>");
+            html.Append("<p>Абзац номер ").Append(paragraph);
+            html.Append(", в котором есть <a href=\"/link-").Append(paragraph);
+            html.Append("\">ссылка</a> и немного текста, чтобы страница была похожа на страницу.</p>");
         }
 
         for (var level = 0; level < shape.Depth; level++)

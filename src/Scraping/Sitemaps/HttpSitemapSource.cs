@@ -43,7 +43,7 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogDebug("Sitemap {Address} answered {Status}", address, (int)response.StatusCode);
+                Log.SitemapAnswered(logger, address, (int)response.StatusCode);
 
                 return SitemapFile.Empty;
             }
@@ -56,7 +56,7 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
         {
-            logger.LogWarning(exception, "Sitemap {Address} could not be read", address);
+            Log.SitemapUnreadable(logger, exception, address);
 
             return SitemapFile.Empty;
         }
@@ -89,13 +89,10 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
             if (read == 0)
                 return kept.ToArray();
 
-            kept.Write(buffer, 0, (int)Math.Min(read, _options.MaxSitemapBytes - kept.Length));
+            await kept.WriteAsync(buffer.AsMemory(0, (int)Math.Min(read, _options.MaxSitemapBytes - kept.Length)), ct);
         }
 
-        logger.LogWarning(
-            "A sitemap reached the {Limit} byte ceiling and was cut, so it will not parse; "
-            + "raise '{Section}:{Setting}' if the site really publishes one that large",
-            _options.MaxSitemapBytes, CrawlOptions.SectionName, nameof(CrawlOptions.MaxSitemapBytes));
+        Log.SitemapCut(logger, _options.MaxSitemapBytes, CrawlOptions.SectionName, nameof(CrawlOptions.MaxSitemapBytes));
 
         return kept.ToArray();
     }

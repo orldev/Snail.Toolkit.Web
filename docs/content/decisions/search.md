@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-20 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+21 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## SearchOptions.RefusalCooldown
 
@@ -103,7 +103,7 @@ The signal is named in the message because the caller cannot see the page: "refu
 
 *Tells an answer to the query from a page of confident results about something else.*
 
-The worst of the three shapes an engine can answer in. An empty page is read as "nothing found" and a refusal is read as a refusal, but a page of ten unrelated links is structurally an answer: measured on 2026-09-15 from a datacentre address, one engine answered «"Роснано"» with biblical sites and Netflix, «Роснано» without the quotes with a chain of hotels, and «отзыв лицензии КИВИ Банк» with car parts and Microsoft sign-in pages. A parser cannot tell that from an answer; a reader can, at a glance, and this is that glance written down.
+The worst of the three shapes an engine can answer in. An empty page is read as "nothing found" and a refusal is read as a refusal, but a page of ten unrelated links is structurally an answer: measured on 2026-09-15 from a datacentre address, one engine answered «"Rusnano"» (in Russian) with biblical sites and Netflix, «Rusnano» (in Russian) without the quotes with a chain of hotels, and «QIWI Bank licence revoked» (in Russian) with car parts and Microsoft sign-in pages. A parser cannot tell that from an answer; a reader can, at a glance, and this is that glance written down.
 
 THE RULE AND THE NUMBERS BEHIND IT. What is counted is the share of results whose title or snippet holds at least one word of the query of four letters or more. The same measurement put a real answer at eight to ten out of ten and a stub at zero out of ten — two clusters with nothing in between, and the ceiling here is a third, which is in that gap and closer to the stub. Until 2026-09-20 the engine that had this check asked for ONE result out of however many, so a stub carrying a single accidental match passed as an answer.
 
@@ -121,6 +121,23 @@ Words shorter than four letters are left out because they match everything: an e
 Not a failure of the engine and not an answer from it — it is this library declining to ask, and until 2026-09-15 it was visible only in the log. The caller needs it because the two sentences it tells apart call for opposite reactions: "every engine answered and nothing matched" is a fact about the query, while "the engines that know this kind of question are all resting" is a fact about the search, and both arrived as an outcome with no results in it.
 
 The instant the rest ends travels with it in `OpensAt`, because a caller writing that sentence for a person has to name a time rather than reproduce prose.
+
+
+## WebSearch.AskedAsync
+
+`2026-09-15`, `2026-09-20` · *internal*
+
+*Every attempt this search makes, and every one it declines to make.*
+
+The resting providers are yielded first and cost nothing: they are what the search decided not to do, one entry per provider and query like every other attempt, so a caller folding attempts into a report counts them the same way. They are not recorded in the metrics, which count requests made.
+
+Which engines are worth a place is decided as each query's turn is drawn rather than once for the batch, because the answer changes while the batch runs: the engine that refused the first query cannot answer the second, and the one whose parser is broken cannot answer any of them.
+
+The budget's own source runs on the same clock the deadline below is read from, so a deployment or a test that keeps its own TimeProvider is obeyed by both halves of the same promise. It is deliberately NOT linked to the caller's token: what it means is "the budget ran out", and the caller cancelling is a different sentence that the fan-out already tells.
+
+The fan-out itself runs under the CALLER's token and the attempts under the budget's. Handing the budget to the fan-out instead ends the whole enumeration the moment it fires — measured on 2026-09-15, the first budget test died inside the channel read with the attempts it was meant to report still unwritten. What the budget may do is cut an attempt short; ending the search is the caller's alone.
+
+An attempt ALSO listens to the fan-out's own token, which fires when the caller stops reading. Until 2026-09-20 that token was discarded, and a caller that broke out of the loop — the documented way to take the cheap answers and skip the dear one — was held five seconds while the dear one ran on.
 
 
 ## WebSearch.Awake
@@ -222,7 +239,7 @@ The builder is handed back so a consumer can add a header of their own, or repla
 
 *Registers the provider that answers a plain request, the search that merges them, and the memory it consults first.*
 
-ONE ENGINE OVER PLAIN HTTP, and it was two until 2026-09-20. Bing was removed on the owner's instruction, because from the addresses this library is used from it does not answer: measured on 2026-09-15, four Russian queries out of five came back as ten confident results about something else entirely — bible sites and Netflix for «"Роснано"», a hotel chain without the quotes. A provider that structurally answers while saying nothing is the worst of the three shapes an engine can take, and the browser reading of the same engine, which does answer, ships in `Snail.Toolkit.Web.Search.Browser`. A deployment that wants more engines than one adds them itself with `AddSearchProvider`; a query goes to `ProvidersPerQuery` of whatever is registered.
+ONE ENGINE OVER PLAIN HTTP, and it was two until 2026-09-20. Bing was removed on the owner's instruction, because from the addresses this library is used from it does not answer: measured on 2026-09-15, four Russian queries out of five came back as ten confident results about something else entirely — bible sites and Netflix for «"Rusnano"» (in Russian), a hotel chain without the quotes. A provider that structurally answers while saying nothing is the worst of the three shapes an engine can take, and the browser reading of the same engine, which does answer, ships in `Snail.Toolkit.Web.Search.Browser`. A deployment that wants more engines than one adds them itself with `AddSearchProvider`; a query goes to `ProvidersPerQuery` of whatever is registered.
 
 The memory of refusals is one per process on purpose — a rest recorded by one search has to hold for the next — and the clock it reads is registered beside it, so a host that keeps its own `TimeProvider` wins and a test can move time instead of waiting it out.
 

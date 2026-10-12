@@ -1,4 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Snail.Sdk.Library">
+
+  <!--
+    Not native, by its browser: Microsoft.Playwright 1.62 finds its driver through Assembly.Location, serializes its
+    protocol with reflection and carries trim and AOT warnings of its own (the audit, 2026-10-12). This package's
+    code is annotated and clean; Playwright decides.
+  -->
+  <PropertyGroup>
+    <SnailNotNativeBecause>Microsoft.Playwright 1.62 locates its driver through Assembly.Location and serializes its protocol with reflection</SnailNotNativeBecause>
+  </PropertyGroup>
 
   <PropertyGroup>
     <Description>

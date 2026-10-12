@@ -94,7 +94,7 @@ public sealed class PolitenessOptions
                     return named.Value;
             }
 
-            var dot = candidate.IndexOf('.');
+            var dot = candidate.IndexOf('.', StringComparison.Ordinal);
 
             if (dot < 0)
                 return null;

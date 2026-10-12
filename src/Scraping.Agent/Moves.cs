@@ -21,16 +21,15 @@ internal sealed class Moves(ILogger<Moves> logger)
         ArgumentNullException.ThrowIfNull(wanted);
         ArgumentNullException.ThrowIfNull(step);
 
-        if (!await AppearedAsync(wanted, step))
+        if (!await HasAppearedAsync(wanted, step))
             return Reaction.Missing;
 
         for (var attempt = 1; attempt <= Math.Max(1, step.Attempts); attempt++)
         {
-            if (await AttemptedAsync(wanted, step, ct))
+            if (await TryMoveAsync(wanted, step, ct))
                 return Reaction.Taken;
 
-            logger.LogDebug(
-                "Attempt {Attempt} at {Kind} on {Where} left the site unchanged", attempt, step.Kind, step.Where);
+            Log.LeftUnchanged(logger, attempt, step.Kind, step.Where);
         }
 
         return Reaction.Ignored;
@@ -43,7 +42,7 @@ internal sealed class Moves(ILogger<Moves> logger)
     /// pixel — and that hidden element is still the one the form submits, so for <see cref="StepKind.Choose"/>
     /// it only has to be there.
     /// </remarks>
-    private static async Task<bool> AppearedAsync(ILocator wanted, Step step)
+    private static async Task<bool> HasAppearedAsync(ILocator wanted, Step step)
     {
         try
         {
@@ -69,7 +68,7 @@ internal sealed class Moves(ILogger<Moves> logger)
     /// <see cref="PlaywrightException"/> its navigation failures use — and catching only the latter let a
     /// two-second wait escape as an unhandled exception.
     /// </remarks>
-    private async Task<bool> AttemptedAsync(ILocator wanted, Step step, CancellationToken ct)
+    private async Task<bool> TryMoveAsync(ILocator wanted, Step step, CancellationToken ct)
     {
         try
         {
@@ -81,21 +80,21 @@ internal sealed class Moves(ILogger<Moves> logger)
             }
 
             if (expected.Kind is EffectKind.Request)
-                return await RequestedAsync(wanted, step, expected, ct);
+                return await HasRequestedAsync(wanted, step, expected, ct);
 
             await MoveAsync(wanted, step);
 
-            return await ShowedAsync(wanted.Page, expected);
+            return await HasShownAsync(wanted.Page, expected);
         }
         catch (Exception exception) when (exception is PlaywrightException or System.TimeoutException)
         {
-            logger.LogDebug(exception, "{Kind} on {Where} did not go through", step.Kind, step.Where);
+            Log.NotThrough(logger, exception, step.Kind, step.Where);
 
             return false;
         }
     }
 
-    private static async Task<bool> RequestedAsync(ILocator wanted, Step step, Effect expected, CancellationToken ct)
+    private static async Task<bool> HasRequestedAsync(ILocator wanted, Step step, Effect expected, CancellationToken ct)
     {
         var page = wanted.Page;
         var asked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -128,7 +127,7 @@ internal sealed class Moves(ILogger<Moves> logger)
         }
     }
 
-    private static async Task<bool> ShowedAsync(IPage page, Effect expected)
+    private static async Task<bool> HasShownAsync(IPage page, Effect expected)
     {
         var waiting = new LocatorWaitForOptions
         {

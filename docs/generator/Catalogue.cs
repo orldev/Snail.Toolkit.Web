@@ -134,6 +134,9 @@ internal sealed partial class Catalogue
     /// on a public class is documented in the same xml as the class itself, and taking the type's word for it
     /// would put <c>Attempts.IsWorthRepeating</c> and <c>HostPoliteness.DelayAsync</c> in a consumer's
     /// reference.
+    /// <para>
+    /// An explicit interface implementation is written IFoo#Bar and is public through the interface.
+    /// </para>
     /// </remarks>
     private static bool IsExported(string id, Dictionary<string, Type> exported)
     {
@@ -154,7 +157,6 @@ internal sealed partial class Catalogue
         var owner = withoutArguments[..cut];
         var name = withoutArguments[(cut + 1)..].Split('`')[0];
 
-        // An explicit interface implementation is written IFoo#Bar and is public through the interface.
         name = name.Split('#')[^1];
 
         return exported.TryGetValue(owner, out var type)
@@ -177,6 +179,12 @@ internal sealed partial class Catalogue
     }
 
     /// <summary>The type a member belongs to, or the type itself for a type.</summary>
+    /// <remarks>
+    /// C# 14 lowers an extension block into a generated container, and the compiler writes THAT name into the xml id:
+    /// ServiceCollectionExtensions.&lt;G&gt;$7B30...AddSearchClient. The reader wants the class they can see, so a
+    /// segment that could not have been typed is stepped over. The same artefact makes roslyn's find_unused_symbols
+    /// report every one of these packages' registration classes as unused.
+    /// </remarks>
     private static string Owning(string id)
     {
         var body = id[2..].Split('(')[0];
@@ -189,10 +197,6 @@ internal sealed partial class Catalogue
         if (cut < 0)
             return body;
 
-        // C# 14 lowers an extension block into a generated container, and the compiler writes THAT name into
-        // the xml id: ServiceCollectionExtensions.<G>$7B30...AddSearchClient. The reader wants the class they
-        // can see, so a segment that could not have been typed is stepped over. The same artefact makes
-        // roslyn's find_unused_symbols report every one of these packages' registration classes as unused.
         var segments = body[..cut].Split('.');
         var at = segments.Length - 1;
 
@@ -216,11 +220,13 @@ internal sealed partial class Catalogue
     /// Matched on the prose rather than on the kind, so a constructor that documents something of its own
     /// survives. There are none today; there is no reason to lose one tomorrow.
     /// </para>
+    /// <para>
+    /// Grouped rather than keyed directly: two types may legitimately share a short name in one assembly, and a tool
+    /// that throws on that would be reporting its own dictionary rather than the library.
+    /// </para>
     /// </remarks>
     private static IEnumerable<Entry> Echoes(IReadOnlyList<Entry> entries)
     {
-        // Grouped rather than keyed directly: two types may legitimately share a short name in one assembly,
-        // and a tool that throws on that would be reporting its own dictionary rather than the library.
         var types = entries
             .Where(entry => entry.IsType)
             .GroupBy(entry => entry.Name, StringComparer.Ordinal)

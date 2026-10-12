@@ -151,10 +151,7 @@ public sealed class Crawler(
 
         var elapsed = Stopwatch.GetElapsedTime(started);
 
-        logger.LogInformation(
-            "Crawl of {Start} read {Read} pages and failed on {Failed} in {Elapsed}, ending as {Stop}",
-            scope.Start, visit.Pages.Count(page => page.IsSuccess), visit.Pages.Count(page => !page.IsSuccess),
-            elapsed, visit.Stop);
+        Log.CrawlEnded(logger, scope.Start, visit.Pages.Count(page => page.IsSuccess), visit.Pages.Count(page => !page.IsSuccess), elapsed, visit.Stop);
 
         return new CrawlReport
         {

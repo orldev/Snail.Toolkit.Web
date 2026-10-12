@@ -1,18 +1,7 @@
-; The house style, written down so it stops being a matter of whose editor opened the file last.
-;
-; This repository builds with EnforceCodeStyleInBuild, and the build runs with -warnaserror, so a rule
-; that reports at `warning` stops the build. Which makes it worth knowing exactly which of the lines
-; below can do that — measured here, not assumed:
-;
-;   `some_style_option = value:warning`  is read by the EDITOR only. At build it is silent, however loud
-;                                        the suffix looks. Every preference below is of this kind.
-;   `dotnet_diagnostic.IDExxxx.severity` is what the compiler acts on. The short list under «Enforced»
-;                                        is therefore the whole of what this file can fail a build over.
-;
-; A rule earns a place on that short list only where the codebase already keeps it without exception —
-; each one was switched on and the whole solution rebuilt to see whether it stayed silent. Everything
-; else is a preference: shown in the editor, ignored by the build. Formatting is neither; it is what
-; `dotnet format` applies.
+# The shared .editorconfig of every Snail library and server built on Snail.Sdk: copied byte for byte, checked by the
+# conformance check. Formatting only. The rules — which style is required, which analyzer fails the build, what a test
+# project is spared — ship in the Snail.Sdk package and change with its version, not with a copy of this file. A
+# repository not yet on Snail.Sdk keeps version 1 of this file, which carried the rules. See docs/standard.md.
 
 root = true
 
@@ -20,147 +9,12 @@ root = true
 charset = utf-8
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
-trim_trailing_whitespace = true
 
-[*.{json,yml,yaml,csproj,props,targets,slnx,md}]
+[*.{csproj,props,targets,slnx,xml,yml,yaml,json,toml}]
 indent_size = 2
 
 [*.md]
-; Two trailing spaces are a line break in Markdown, and trimming them silently rewrites the text.
 trim_trailing_whitespace = false
-
-[*.{sh,mjs}]
-indent_size = 2
-
-[*.cs]
-max_line_length = 120
-
-;--- Layout -------------------------------------------------------------------------------------------
-csharp_new_line_before_open_brace = all
-csharp_new_line_before_else = true
-csharp_new_line_before_catch = true
-csharp_new_line_before_finally = true
-csharp_new_line_before_members_in_object_initializers = true
-csharp_new_line_before_members_in_anonymous_types = true
-csharp_new_line_between_query_expression_clauses = true
-csharp_indent_case_contents = true
-csharp_indent_switch_labels = true
-csharp_indent_labels = one_less_than_current
-csharp_indent_case_contents_when_block = false
-csharp_space_after_cast = false
-csharp_space_after_keywords_in_control_flow_statements = true
-csharp_space_between_method_declaration_parameter_list_parentheses = false
-csharp_space_between_method_call_parameter_list_parentheses = false
-csharp_space_between_parentheses = false
-csharp_space_before_colon_in_inheritance_clause = true
-csharp_space_after_colon_in_inheritance_clause = true
-csharp_space_around_binary_operators = before_and_after
-csharp_preserve_single_line_statements = false
-csharp_preserve_single_line_blocks = true
-dotnet_sort_system_directives_first = true
-dotnet_separate_import_directive_groups = false
-
-;--- Rules the codebase already keeps ----------------------------------------------------------------
-; A file-scoped namespace is in every file here; the nested form would be a stray.
-csharp_style_namespace_declarations = file_scoped
-; Usings belong at the top of the file, where a reader looks for them.
-csharp_using_directive_placement = outside_namespace
-; `this.` says nothing a name does not already say.
-dotnet_style_qualification_for_field = false
-dotnet_style_qualification_for_property = false
-dotnet_style_qualification_for_method = false
-dotnet_style_qualification_for_event = false
-; `int`, not `Int32` — including where the type is the receiver of a static call.
-dotnet_style_predefined_type_for_locals_parameters_members = true
-dotnet_style_predefined_type_for_member_access = true
-; A field that is never reassigned says so. This one catches real mistakes, not style.
-dotnet_style_readonly_field = true
-
-; ENFORCED. The rules above become build errors through these five lines and no others.
-dotnet_diagnostic.IDE0003.severity = warning
-dotnet_diagnostic.IDE0044.severity = warning
-dotnet_diagnostic.IDE0049.severity = warning
-dotnet_diagnostic.IDE0065.severity = warning
-dotnet_diagnostic.IDE0161.severity = warning
-dotnet_diagnostic.IDE1006.severity = warning
-
-;--- Preferences, shown in the editor, never fatal ----------------------------------------------------
-; `var` where the right-hand side already names the type, and where it does not, whichever reads better.
-csharp_style_var_for_built_in_types = false:suggestion
-csharp_style_var_when_type_is_apparent = true:suggestion
-csharp_style_var_elsewhere = false:suggestion
-; The modern shapes this codebase is written in.
-csharp_style_expression_bodied_methods = when_on_single_line:suggestion
-csharp_style_expression_bodied_properties = true:suggestion
-csharp_style_expression_bodied_accessors = true:suggestion
-csharp_style_expression_bodied_lambdas = true:suggestion
-csharp_style_pattern_matching_over_is_with_cast_check = true:suggestion
-csharp_style_pattern_matching_over_as_with_null_check = true:suggestion
-csharp_style_prefer_pattern_matching = true:suggestion
-csharp_style_prefer_switch_expression = true:suggestion
-csharp_style_prefer_not_pattern = true:suggestion
-csharp_style_prefer_range_operator = true:suggestion
-csharp_style_prefer_index_operator = true:suggestion
-csharp_style_inlined_variable_declaration = true:suggestion
-csharp_style_deconstructed_variable_declaration = true:suggestion
-csharp_style_prefer_primary_constructors = true:suggestion
-csharp_style_prefer_top_level_statements = false:suggestion
-csharp_prefer_simple_using_statement = true:suggestion
-csharp_prefer_braces = when_multiline:suggestion
-csharp_style_throw_expression = true:suggestion
-csharp_style_conditional_delegate_call = true:suggestion
-dotnet_style_object_initializer = true:suggestion
-dotnet_style_collection_initializer = true:suggestion
-dotnet_style_prefer_collection_expression = when_types_loosely_match:suggestion
-dotnet_style_coalesce_expression = true:suggestion
-dotnet_style_null_propagation = true:suggestion
-dotnet_style_prefer_conditional_expression_over_assignment = true:suggestion
-dotnet_style_prefer_conditional_expression_over_return = true:suggestion
-dotnet_style_prefer_compound_assignment = true:suggestion
-dotnet_style_prefer_simplified_boolean_expressions = true:suggestion
-dotnet_style_namespace_match_folder = true:suggestion
-
-;--- Names --------------------------------------------------------------------------------------------
-; Three that carry meaning in this codebase. An interface is an I. A private field is an underscore —
-; EXCEPT when it is a constant: `const`, or the `static readonly` written where `const` cannot reach (an
-; array of markup signals, a longest stretch of time). Those are named like the constants they are. The
-; two constant rules have to come first: the first rule that matches a symbol decides,
-; and the field rule would otherwise swallow them and demand an underscore on BuiltIn and MarkupSignals.
-; Everything else follows .NET's defaults and needs no restating.
-dotnet_naming_rule.interfaces_are_prefixed.severity = warning
-dotnet_naming_rule.interfaces_are_prefixed.symbols = interfaces
-dotnet_naming_rule.interfaces_are_prefixed.style = i_prefixed
-dotnet_naming_symbols.interfaces.applicable_kinds = interface
-dotnet_naming_style.i_prefixed.required_prefix = I
-dotnet_naming_style.i_prefixed.capitalization = pascal_case
-
-dotnet_naming_rule.private_consts_are_pascal.severity = warning
-dotnet_naming_rule.private_consts_are_pascal.symbols = private_consts
-dotnet_naming_rule.private_consts_are_pascal.style = pascal
-dotnet_naming_symbols.private_consts.applicable_kinds = field
-dotnet_naming_symbols.private_consts.applicable_accessibilities = private
-dotnet_naming_symbols.private_consts.required_modifiers = const
-
-dotnet_naming_rule.private_statics_are_pascal.severity = warning
-dotnet_naming_rule.private_statics_are_pascal.symbols = private_statics
-dotnet_naming_rule.private_statics_are_pascal.style = pascal
-dotnet_naming_symbols.private_statics.applicable_kinds = field
-dotnet_naming_symbols.private_statics.applicable_accessibilities = private
-dotnet_naming_symbols.private_statics.required_modifiers = static,readonly
-dotnet_naming_style.pascal.capitalization = pascal_case
-
-dotnet_naming_rule.private_fields_are_underscored.severity = warning
-dotnet_naming_rule.private_fields_are_underscored.symbols = private_fields
-dotnet_naming_rule.private_fields_are_underscored.style = underscored
-dotnet_naming_symbols.private_fields.applicable_kinds = field
-dotnet_naming_symbols.private_fields.applicable_accessibilities = private
-dotnet_naming_style.underscored.required_prefix = _
-dotnet_naming_style.underscored.capitalization = camel_case
-
-;--- Tests --------------------------------------------------------------------------------------------
-[tests/**/*.cs]
-; A test's name is a sentence about behaviour — Method_Condition_Result — and the underscores in it are
-; the sentence's spaces, not a naming violation. The rule above would object to every one of them.
-dotnet_diagnostic.IDE1006.severity = none

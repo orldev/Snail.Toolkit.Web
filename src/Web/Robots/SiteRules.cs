@@ -90,14 +90,14 @@ public sealed class SiteRules : ISiteRules
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                _cache.Forget(origin.AbsoluteUri, entry);
+                _cache.TryForget(origin.AbsoluteUri, entry);
                 throw;
             }
 
             if (_clock.GetUtcNow() - cached.ReadAt <= _options.CacheLifetime)
                 return cached.Rules;
 
-            _cache.Forget(origin.AbsoluteUri, entry);
+            _cache.TryForget(origin.AbsoluteUri, entry);
         }
     }
 

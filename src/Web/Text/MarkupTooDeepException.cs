@@ -14,16 +14,14 @@ namespace Snail.Toolkit.Web.Text;
 /// calling <see cref="ITextExtraction"/> or <see cref="ILinkExtraction"/> with markup of their own.
 /// </para>
 /// </remarks>
-public sealed class MarkupTooDeepException : Exception
+/// <param name="mostNesting">The depth the parse stopped at.</param>
+/// <param name="cause">What the parser said, when it said anything.</param>
+public sealed class MarkupTooDeepException(int mostNesting, Exception? cause = null)
+    : Exception(
+        $"The page's markup nests more than {mostNesting} tags deep and was not read. Parsing is quadratic "
+        + "in depth, so markup like this costs seconds of CPU for a document no reader could have meant.",
+        cause)
 {
-    /// <summary>Names the depth the parse stopped at, and keeps what the parser said.</summary>
-    public MarkupTooDeepException(int mostNesting, Exception? cause = null)
-        : base(
-            $"The page's markup nests more than {mostNesting} tags deep and was not read. Parsing is quadratic "
-            + "in depth, so markup like this costs seconds of CPU for a document no reader could have meant.",
-            cause)
-        => MostNesting = mostNesting;
-
     /// <summary>Gets the nesting depth at which reading stopped.</summary>
-    public int MostNesting { get; }
+    public int MostNesting { get; } = mostNesting;
 }

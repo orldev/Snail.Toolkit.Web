@@ -24,7 +24,7 @@ public class RegistrationTests
     [Fact]
     public void AddPageAgent_NothingConfigured_ResolvesTheAgent()
     {
-        var provider = Built(new Dictionary<string, string?>());
+        var provider = Built([]);
 
         Assert.NotNull(provider.GetRequiredService<IPageAgent>());
     }

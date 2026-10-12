@@ -66,8 +66,8 @@ internal static class Pages
 
             foreach (var member in Members(catalogue, package, type.Name))
             {
-                page.Append("**").Append(member.Name).Append("** — ")
-                    .Append(member.Summary ?? "*no summary*").Append("\n\n");
+                page.Append("**").Append(member.Name).Append("** — ");
+                page.Append(member.Summary ?? "*no summary*").Append("\n\n");
 
                 if (member.Remarks is { } said)
                     page.Append(said).Append("\n\n");
@@ -87,8 +87,11 @@ internal static class Pages
         page.Append("| Package | Public types |\n| --- | --- |\n");
 
         foreach (var package in Catalogue.Packages)
-            page.Append("| [").Append(package).Append("](").Append(Slug(package)).Append(".md) | ")
-                .Append(Types(catalogue, package).Count).Append(" |\n");
+        {
+            page.Append("| [").Append(package);
+            page.Append("](").Append(Slug(package)).Append(".md) | ");
+            page.Append(Types(catalogue, package).Count).Append(" |\n");
+        }
 
         page.Append("\nThe count is the assembly's, not the file's: it comes from `GetExportedTypes()` rather ")
             .Append("than from what these pages happen to list, so a type added without regenerating makes ")
@@ -151,7 +154,10 @@ internal static class Pages
             page.Append("| ");
 
             if (dated > 0)
-                page.Append('[').Append(package).Append("](").Append(Slug(package)).Append(".md)");
+            {
+                page.Append('[').Append(package).Append("](");
+                page.Append(Slug(package)).Append(".md)");
+            }
             else
                 page.Append(package);
 

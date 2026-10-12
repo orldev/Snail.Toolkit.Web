@@ -37,17 +37,16 @@ public static class ServiceCollectionExtensions
 
             services.AddWeb(configuration);
 
-            var scraping = services.BindOnce<ScrapingOptions>(configuration, ScrapingOptions.SectionName);
+            var scraping = services.BindOnce<ScrapingOptions>(configuration, ScrapingOptions.SectionName, static (options, section) => options.Bind(section));
 
             if (configure is not null)
                 scraping.Configure(configure);
 
             Validated(scraping);
 
-            Validated(services.BindOnce<HumanBehaviorOptions>(
-                configuration, HumanBehaviorOptions.SectionName));
+            Validated(services.BindOnce<HumanBehaviorOptions>(configuration, HumanBehaviorOptions.SectionName, static (options, section) => options.Bind(section)));
 
-            Validated(services.BindOnce<CrawlOptions>(configuration, CrawlOptions.SectionName));
+            Validated(services.BindOnce<CrawlOptions>(configuration, CrawlOptions.SectionName, static (options, section) => options.Bind(section)));
 
             return services.AddScrapingParts();
         }

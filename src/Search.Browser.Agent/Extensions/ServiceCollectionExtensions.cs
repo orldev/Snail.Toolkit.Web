@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
             services.AddSearch(configuration);
             services.AddPageAgent(configuration);
 
-            Validated(services.BindOnce<GoogleOptions>(configuration, GoogleOptions.SectionName));
+            Validated(services.BindOnce<GoogleOptions>(configuration, GoogleOptions.SectionName, static (options, section) => options.Bind(section)));
 
             services.Paced();
             services.Following();
@@ -91,11 +91,7 @@ public static class ServiceCollectionExtensions
                 if (named >= Measured)
                     return;
 
-                loggers.CreateLogger<Google>().LogWarning(
-                    "{Host} is paced at {Named} by configuration, faster than the {Measured} this engine was measured to answer at; the configured gap stands and refusals are to be expected",
-                    host,
-                    named,
-                    Measured);
+                Log.PacedFaster(loggers.CreateLogger<Google>(), host, named, Measured);
             });
 
     /// <summary>Adds the client that asks where a wrapped link leads without going there.</summary>

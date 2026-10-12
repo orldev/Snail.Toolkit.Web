@@ -89,6 +89,28 @@ public sealed class WebSearch(
     /// The resting providers are yielded first and cost nothing: they are what the search decided not to do,
     /// one entry per provider and query like every other attempt, so a caller folding attempts into a report
     /// counts them the same way. They are not recorded in the metrics, which count requests made.
+    /// <para>
+    /// Which engines are worth a place is decided as each query's turn is drawn rather than once for the batch,
+    /// because the answer changes while the batch runs: the engine that refused the first query cannot answer the
+    /// second, and the one whose parser is broken cannot answer any of them.
+    /// </para>
+    /// <para>
+    /// The budget's own source runs on the same clock the deadline below is read from, so a deployment or a test that
+    /// keeps its own TimeProvider is obeyed by both halves of the same promise. It is deliberately NOT linked to the
+    /// caller's token: what it means is "the budget ran out", and the caller cancelling is a different sentence that
+    /// the fan-out already tells.
+    /// </para>
+    /// <para>
+    /// The fan-out itself runs under the CALLER's token and the attempts under the budget's. Handing the budget to
+    /// the fan-out instead ends the whole enumeration the moment it fires — measured on 2026-09-15, the first budget
+    /// test died inside the channel read with the attempts it was meant to report still unwritten. What the budget
+    /// may do is cut an attempt short; ending the search is the caller's alone.
+    /// </para>
+    /// <para>
+    /// An attempt ALSO listens to the fan-out's own token, which fires when the caller stops reading. Until
+    /// 2026-09-20 that token was discarded, and a caller that broke out of the loop — the documented way to take the
+    /// cheap answers and skip the dear one — was held five seconds while the dear one ran on.
+    /// </para>
     /// </remarks>
     private async IAsyncEnumerable<SearchAttempt> AskedAsync(
         IReadOnlyList<string> queries,
@@ -104,32 +126,16 @@ public sealed class WebSearch(
                 yield return Unasked(provider, until, query);
         }
 
-        // Which engines are worth a place is decided as each query's turn is drawn rather than once for the
-        // batch, because the answer changes while the batch runs: the engine that refused the first query
-        // cannot answer the second, and the one whose parser is broken cannot answer any of them.
         var faulted = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
 
         var work = queries.SelectMany(query =>
             Turn(awake, faulted).Select(provider => (Provider: provider, Query: query)));
 
-        // The budget's own source runs on the same clock the deadline below is read from, so a deployment or a
-        // test that keeps its own TimeProvider is obeyed by both halves of the same promise. It is deliberately
-        // NOT linked to the caller's token: what it means is "the budget ran out", and the caller cancelling is
-        // a different sentence that the fan-out already tells.
         using var timed = budget is { } limit ? new CancellationTokenSource(limit, clock) : null;
 
         var deadline = budget is { } span ? clock.GetUtcNow() + span : (DateTimeOffset?)null;
         var spent = timed?.Token ?? CancellationToken.None;
 
-        // The fan-out itself runs under the CALLER's token and the attempts under the budget's. Handing the
-        // budget to the fan-out instead ends the whole enumeration the moment it fires — measured on
-        // 2026-09-15, the first budget test died inside the channel read with the attempts it was meant to
-        // report still unwritten. What the budget may do is cut an attempt short; ending the search is the
-        // caller's alone.
-        //
-        // An attempt ALSO listens to the fan-out's own token, which fires when the caller stops reading. Until
-        // 2026-09-20 that token was discarded, and a caller that broke out of the loop — the documented way to
-        // take the cheap answers and skip the dear one — was held five seconds while the dear one ran on.
         var asked = Fanout.OverAsync(
             work,
             async (item, fanned) =>
@@ -264,11 +270,7 @@ public sealed class WebSearch(
         IReadOnlyList<ISearchProvider> awake = [.. _providers.Where(provider => !asleep.Contains(provider.Name))];
 
         if (asleep.Count > 0)
-            logger.Log(
-                awake.Count > 0 ? LogLevel.Information : LogLevel.Warning,
-                "{Resting} left out of this search, resting after a refusal; {Count} provider(s) asked",
-                string.Join(", ", asleep),
-                awake.Count);
+            Log.Resting(logger, awake.Count > 0 ? LogLevel.Information : LogLevel.Warning, string.Join(", ", asleep), awake.Count);
 
         return awake;
     }
@@ -361,8 +363,7 @@ public sealed class WebSearch(
         {
             var duration = Stopwatch.GetElapsedTime(started);
 
-            logger.LogWarning("{Provider} ran past the budget for '{Query}' after {Ms:F0}ms",
-                provider.Name, query, duration.TotalMilliseconds);
+            Log.OverBudget(logger, provider.Name, query, duration.TotalMilliseconds);
 
             return Record(provider, query, duration, "out of time") with
             {
@@ -373,8 +374,7 @@ public sealed class WebSearch(
         {
             var duration = Stopwatch.GetElapsedTime(started);
 
-            logger.LogWarning("{Provider} was cancelled for '{Query}' after {Ms:F0}ms",
-                provider.Name, query, duration.TotalMilliseconds);
+            Log.Cancelled(logger, provider.Name, query, duration.TotalMilliseconds);
 
             return Record(provider, query, duration, "cancelled") with
             {
@@ -385,8 +385,7 @@ public sealed class WebSearch(
         {
             var duration = Stopwatch.GetElapsedTime(started);
 
-            logger.LogError(exception, "{Provider} threw for '{Query}' after {Ms:F0}ms",
-                provider.Name, query, duration.TotalMilliseconds);
+            Log.Threw(logger, exception, provider.Name, query, duration.TotalMilliseconds);
 
             return Record(provider, query, duration, "faulted") with
             {
@@ -410,8 +409,7 @@ public sealed class WebSearch(
 
         if (answer.Value.Count == 0)
         {
-            logger.LogDebug("{Provider} found nothing for '{Query}' in {Ms:F0}ms",
-                provider.Name, query, duration.TotalMilliseconds);
+            Log.FoundNothing(logger, provider.Name, query, duration.TotalMilliseconds);
 
             return Record(provider, query, duration, "empty") with
             {
@@ -419,8 +417,7 @@ public sealed class WebSearch(
             };
         }
 
-        logger.LogInformation("{Provider} found {Count} links for '{Query}' in {Ms:F0}ms",
-            provider.Name, answer.Value.Count, query, duration.TotalMilliseconds);
+        Log.Found(logger, provider.Name, answer.Value.Count, query, duration.TotalMilliseconds);
 
         return Record(provider, query, duration, "ok") with { Results = answer.Value };
     }
@@ -433,16 +430,14 @@ public sealed class WebSearch(
     {
         if (failure.Kind is not SearchFailureKind.Refused)
         {
-            logger.LogError("{Provider} failed for '{Query}' after {Ms:F0}ms: {Reason}",
-                provider.Name, query, duration.TotalMilliseconds, failure.Message);
+            Log.Failed(logger, provider.Name, query, duration.TotalMilliseconds, failure.Message);
 
             return Record(provider, query, duration, "faulted") with { Failure = failure };
         }
 
         var rest = cooldown.Refused(provider.Name);
 
-        logger.LogWarning("{Provider} refused '{Query}' after {Ms:F0}ms and is left alone for {Rest}: {Reason}",
-            provider.Name, query, duration.TotalMilliseconds, rest, failure.Message);
+        Log.RefusedQuery(logger, provider.Name, query, duration.TotalMilliseconds, rest, failure.Message);
 
         return Record(provider, query, duration, "refused") with { Failure = failure };
     }

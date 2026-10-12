@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Snail.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\src\Search.Browser.Agent\Search.Browser.Agent.csproj" />

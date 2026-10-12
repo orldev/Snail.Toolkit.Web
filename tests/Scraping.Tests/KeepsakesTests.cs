@@ -76,6 +76,9 @@ public class KeepsakesTests
     /// <summary>
     /// A host nobody goes back to stops taking up room, on the same rule as every other per-host memory here.
     /// </summary>
+    /// <remarks>
+    /// Forgetting happens when an unknown host arrives, which is the only moment the map grows.
+    /// </remarks>
     [Fact]
     public void Of_HostNobodyReturnedToWithinTheWindow_IsForgotten()
     {
@@ -85,7 +88,6 @@ public class KeepsakesTests
 
         clock.Advance(TimeSpan.FromMinutes(31));
 
-        // Forgetting happens when an unknown host arrives, which is the only moment the map grows.
         kept.Keep("elsewhere.example", "other");
 
         Assert.Null(kept.Of("registry.example"));

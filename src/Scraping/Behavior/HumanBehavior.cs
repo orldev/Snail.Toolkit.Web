@@ -37,11 +37,11 @@ public sealed class HumanBehavior(IOptions<HumanBehaviorOptions> options, ILogge
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            logger.LogDebug("Human simulation ran out of its {Budget} budget", _options.Budget);
+            Log.OutOfBudget(logger, _options.Budget);
         }
         catch (PlaywrightException exception)
         {
-            logger.LogDebug(exception, "Human simulation stopped early");
+            Log.StoppedEarly(logger, exception);
         }
     }
 

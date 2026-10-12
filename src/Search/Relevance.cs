@@ -6,8 +6,8 @@ namespace Snail.Toolkit.Web.Search;
 /// <remarks>
 /// The worst of the three shapes an engine can answer in. An empty page is read as "nothing found" and a
 /// refusal is read as a refusal, but a page of ten unrelated links is structurally an answer: measured on
-/// 2026-09-15 from a datacentre address, one engine answered «"Роснано"» with biblical sites and Netflix,
-/// «Роснано» without the quotes with a chain of hotels, and «отзыв лицензии КИВИ Банк» with car parts and
+/// 2026-09-15 from a datacentre address, one engine answered «"Rusnano"» (in Russian) with biblical sites and Netflix,
+/// «Rusnano» (in Russian) without the quotes with a chain of hotels, and «QIWI Bank licence revoked» (in Russian) with car parts and
 /// Microsoft sign-in pages. A parser cannot tell that from an answer; a reader can, at a glance, and this is
 /// that glance written down.
 /// <para>

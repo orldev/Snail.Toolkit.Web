@@ -1,0 +1,7 @@
+<Project Sdk="Snail.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Web\Web.csproj" />
+  </ItemGroup>
+
+</Project>

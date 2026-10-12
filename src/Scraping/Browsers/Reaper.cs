@@ -65,18 +65,18 @@ internal sealed class Reaper(
         if (!permits.IsIdleFor(idleTimeout))
             return;
 
-        if (!permits.Emptied())
+        if (!permits.TryEmpty())
             return;
 
         try
         {
-            logger.LogInformation("The browser was idle for {Timeout} and is being closed", idleTimeout);
+            Log.IdleClosing(logger, idleTimeout);
 
             await closeAsync();
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "The idle browser could not be closed");
+            Log.IdleCloseFailed(logger, exception);
         }
         finally
         {

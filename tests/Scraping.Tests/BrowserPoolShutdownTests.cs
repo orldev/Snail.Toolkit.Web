@@ -36,6 +36,11 @@ public class BrowserPoolShutdownTests
     /// with a remark explaining that a caller arriving after disposal and one already queued when it began
     /// must be told the same thing. This is the same caller, one gate further in.
     /// </para>
+    /// <para>
+    /// The name rather than the exact spelling of it: a caller refused by the guard at the top of RentAsync is told
+    /// the full type name and one refused at the opening gate is told nameof, and which of the two it meets is a
+    /// matter of how far it got before the shutdown landed.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task RentAsync_QueuedBehindAnOpeningBrowserWhenThePoolCloses_IsToldThePoolClosed()
@@ -53,9 +58,6 @@ public class BrowserPoolShutdownTests
 
         var refusal = await Assert.ThrowsAnyAsync<ObjectDisposedException>(async () => await second);
 
-        // The name rather than the exact spelling of it: a caller refused by the guard at the top of
-        // RentAsync is told the full type name and one refused at the opening gate is told nameof, and which
-        // of the two it meets is a matter of how far it got before the shutdown landed.
         Assert.Contains(nameof(BrowserPool), refusal.ObjectName, StringComparison.Ordinal);
 
         Observe(first);
@@ -72,6 +74,10 @@ public class BrowserPoolShutdownTests
     /// field and written null. Nothing closes that browser afterwards and nothing can — the pool is gone, and
     /// the process it launched or the connection it holds outlives it.
     /// </para>
+    /// <para>
+    /// Well inside the connect timeout the pool was given, so finishing here means the shutdown ended it rather than
+    /// the timeout running out on its own.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task RentAsync_OpeningABrowserWhenThePoolCloses_DoesNotCarryOnOpeningIt()
@@ -86,14 +92,16 @@ public class BrowserPoolShutdownTests
 
         await pool.DisposeAsync();
 
-        // Well inside the connect timeout the pool was given, so finishing here means the shutdown ended it
-        // rather than the timeout running out on its own.
         var ended = Ended(opening);
 
         Assert.Same(ended, await Task.WhenAny(ended, Task.Delay(TimeSpan.FromSeconds(5))));
     }
 
     /// <summary>Runs a rent to whatever end it comes to, since these checks are about when, not which.</summary>
+    /// <remarks>
+    /// A pool shutting down under a caller may answer in several ways; which one is the subject of the checks above
+    /// rather than of this helper.
+    /// </remarks>
     private static async Task Ended(Task<IBrowserLease> renting)
     {
         try
@@ -102,8 +110,6 @@ public class BrowserPoolShutdownTests
         }
         catch (Exception)
         {
-            // A pool shutting down under a caller may answer in several ways; which one is the subject of the
-            // checks above rather than of this helper.
         }
     }
 
@@ -126,6 +132,10 @@ public class BrowserPoolShutdownTests
             NullLogger<BrowserPool>.Instance);
 
     /// <summary>A socket that accepts a connection and then says nothing, which is a browser server under load.</summary>
+    /// <remarks>
+    /// Held for the life of the test: closing it would end the connection and let the client fail early, which is the
+    /// opposite of the window these checks need.
+    /// </remarks>
     private sealed class Stalling : IDisposable
     {
         private readonly TcpListener _listener;
@@ -153,8 +163,6 @@ public class BrowserPoolShutdownTests
         {
             try
             {
-                // Held for the life of the test: closing it would end the connection and let the client fail
-                // early, which is the opposite of the window these checks need.
                 using var held = await _listener.AcceptTcpClientAsync();
 
                 _connected.TrySetResult();

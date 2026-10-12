@@ -1,0 +1,19 @@
+name: build and tests
+
+# The shared library CI of Snail.Sdk: the tests, the API reference the build writes, the package validated against
+# the last release. The tests that need the patched browser in a container, or a live browser server, are left to
+# tests.yml, which has the image; the filter names their classes.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: orldev/Snail.Sdk/.github/workflows/lib-ci.yml@v1
+    with:
+      test-filter: 'FullyQualifiedName!~.SiteCallsTests&FullyQualifiedName!~.PageAgentTests&FullyQualifiedName!~.CrawlIntegrationTests&FullyQualifiedName!~.KeptVisitTests&FullyQualifiedName!~.BrowserPoolTests&FullyQualifiedName!~.PageReaderTests&FullyQualifiedName!~.PageSnapshotsTests&FullyQualifiedName!~.Live'

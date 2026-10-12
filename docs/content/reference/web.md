@@ -441,6 +441,8 @@ Null means the site asked for nothing, which is not the same as asking for zero:
 
 **Parse** — Reads a `robots.txt` document.
 
+A `crawl-delay` is checked with IsFinite as well as its sign, and the sign alone is not close. NumberStyles.Float parses "NaN" and "Infinity" by name and reads any exponent past 1e308 as infinity, and NaN < 0 is false — so all three reached TimeSpan.FromSeconds, which answers NaN with ArgumentException and the rest with OverflowException, out of a method whose whole contract is that a site's own file is input rather than a contract. One line of one robots.txt ended every read of that origin.
+
 **Sitemaps** — Gets the sitemaps the site points at, in the order it named them.
 
 
@@ -504,6 +506,8 @@ For a consumer that configures in code rather than from a file. Validation is re
 A marker per settings type is what makes the second call free. `ServiceCollectionDescriptorExtensions` deduplicates only descriptors that name an implementation type, and a bound section is an instance, so it can never be one of those.
 
 WHAT IS BOUND HERE IS READ ONCE. Every consumer of these settings takes `IOptions` and keeps `.Value` from its constructor, so a change on disk reaches a running process only through a restart. That is a decision rather than an omission, and it is worth stating because the alternative is half a decision: several of these numbers are not re-readable at all without inventing a behaviour for the change — a semaphore cannot be resized while callers wait on it, and a Polly pipeline is assembled once per process by design. A library where some settings reload and others silently do not is harder to reason about than one where none do, and nothing measured so far asks for the first.
+
+THE BINDING IS THE CALLER'S, so that it is written where the settings type is known. The configuration binding generator replaces a `Bind` call with code of its own only where the type is concrete; inside this generic method it could not (SYSLIB1104), the reflection binder ran, and in a native app every setting was silently left at its default. Measured on 2026-10-12 by the audit's native probe.
 
 
 ## SiteRules

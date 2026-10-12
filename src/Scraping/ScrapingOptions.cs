@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Snail.Toolkit.Web.Scraping;
 
 /// <summary>
@@ -32,6 +34,7 @@ public sealed class ScrapingOptions
     public Engine Engine { get; set; } = Engine.Chromium;
 
     /// <summary>Gets or sets whether launched browsers run without a window.</summary>
+    [SuppressMessage("Naming", "S3L0008", Justification = "The name is the configuration key Web:Scraping:Headless; a rename would silently stop binding the settings already written.")]
     public bool Headless { get; set; } = true;
 
     /// <summary>Gets or sets whether Chromium keeps its sandbox.</summary>
@@ -41,6 +44,7 @@ public sealed class ScrapingOptions
     /// exploit on any scraped page ran with the privileges of the host process. Turn this off only where the
     /// container already provides isolation and cannot offer the kernel features Chromium needs.
     /// </remarks>
+    [SuppressMessage("Naming", "S3L0008", Justification = "The name is the configuration key Web:Scraping:Sandboxed; a rename would silently stop binding the settings already written.")]
     public bool Sandboxed { get; set; } = true;
 
     /// <summary>Gets or sets whether TLS certificate errors are ignored.</summary>
@@ -48,6 +52,7 @@ public sealed class ScrapingOptions
     /// Was unconditionally on before, which hides a misconfigured MITM proxy and accepts any certificate a
     /// network attacker presents. Turn it on only where a proxy you control terminates TLS.
     /// </remarks>
+    [SuppressMessage("Naming", "S3L0008", Justification = "The name is the configuration key Web:Scraping:IgnoreCertificateErrors; a rename would silently stop binding the settings already written.")]
     public bool IgnoreCertificateErrors { get; set; }
 
     /// <summary>Gets or sets how many pages may be open at once across all hosts.</summary>
@@ -80,6 +85,7 @@ public sealed class ScrapingOptions
     /// idle, so waiting for it spent the entire navigation budget on every such page and then reported a
     /// timeout — the slowest possible way to produce nothing.
     /// </remarks>
+    [SuppressMessage("Naming", "S3L0008", Justification = "The name is the configuration key Web:Scraping:WaitForNetworkIdle; a rename would silently stop binding the settings already written.")]
     public bool WaitForNetworkIdle { get; set; }
 
     /// <summary>Gets or sets how many times a transient failure is retried.</summary>
