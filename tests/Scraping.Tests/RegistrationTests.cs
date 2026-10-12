@@ -186,6 +186,23 @@ public class RegistrationTests
     }
 
     /// <summary>
+    /// The engines' reader parses a results page and extracts nothing from it, since an engine reads only the
+    /// markup; every other reader answers the text and the title as before.
+    /// </summary>
+    [Fact]
+    public async Task AddScraping_EnginesReader_ParsesTheResultsPageWithoutItsText()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScraping(options => options.MaxDegreeOfParallelism = 4);
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Equal(Reading.Text, provider.GetRequiredService<PageContents>().Reading);
+        Assert.Equal(Reading.DocumentOnly, provider.GetRequiredKeyedService<PageContents>(EngineReading.Key).Reading);
+    }
+
+    /// <summary>
     /// An engine other than Chromium with the built-in fingerprints is refused before the host starts.
     /// </summary>
     /// <remarks>

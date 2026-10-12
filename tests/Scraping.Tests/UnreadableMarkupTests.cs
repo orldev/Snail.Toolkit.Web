@@ -67,6 +67,27 @@ public class UnreadableMarkupTests
         Assert.Contains("Текст страницы.", outcome.Value.Text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// An extraction of the consumer's own is handed the markup as before: the parse that serves this library's
+    /// extraction, and its ceiling, are not imposed on one that may read markup its own way.
+    /// </summary>
+    [Fact]
+    public void Judged_ExtractionOfItsOwn_IsAskedWithTheMarkup()
+    {
+        var outcome = new PageContents(new Verbatim(), Options.Create(new ScrapingOptions())).Judged(Page(Nested(5_000)));
+
+        Assert.True(outcome.IsSuccess);
+        Assert.Equal(Nested(5_000), outcome.Value.Text);
+        Assert.Equal("named", outcome.Value.Title);
+    }
+
+    private sealed class Verbatim : ITextExtraction
+    {
+        public string Clean(string html) => html;
+
+        public string? Title(string html) => "named";
+    }
+
     private static PageContents Contents()
         => new(new TextExtraction(), Options.Create(new ScrapingOptions()));
 

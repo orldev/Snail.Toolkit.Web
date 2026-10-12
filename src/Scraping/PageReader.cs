@@ -34,12 +34,19 @@ public sealed class PageReader(
 
     /// <inheritdoc />
     public Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
+        => ReadAsync(address, appetite, contents.Reading, ct);
+
+    /// <summary>Reads <paramref name="address"/> whole, answering what <paramref name="reading"/> asks of the page.</summary>
+    internal Task<PageOutcome> ReadAsync(Link address, Reading reading, CancellationToken ct)
+        => ReadAsync(address, Appetite.Everything, reading, ct);
+
+    private Task<PageOutcome> ReadAsync(Link address, Appetite appetite, Reading reading, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(address);
 
         return attempts.AtAsync(
             address,
-            (identity, target, token) => FetchAsync(address, target, identity, appetite, token),
+            (identity, target, token) => FetchAsync(address, target, identity, appetite, reading, token),
             ct);
     }
 
@@ -48,6 +55,7 @@ public sealed class PageReader(
         Uri target,
         WebIdentity identity,
         Appetite appetite,
+        Reading reading,
         CancellationToken ct)
     {
         try
@@ -71,7 +79,7 @@ public sealed class PageReader(
             var html = await page.ContentAsync();
             var rendered = await page.EvaluateAsync<string?>("() => document.body ? document.body.innerText : ''");
 
-            return Judge(address, identity, html, rendered, page.Url, response?.Status, Rests.AskedFor(response?.Headers, DateTimeOffset.UtcNow));
+            return Judge(address, identity, html, rendered, page.Url, response?.Status, Rests.AskedFor(response?.Headers, DateTimeOffset.UtcNow), reading);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -123,7 +131,8 @@ public sealed class PageReader(
         string? rendered,
         string finalUrl,
         int? status,
-        TimeSpan? restAskedFor)
+        TimeSpan? restAskedFor,
+        Reading reading)
     {
         var verdict = blocks.Inspect(html, finalUrl);
 
@@ -146,7 +155,7 @@ public sealed class PageReader(
                 RetryAfter = restAskedFor
             });
 
-        return contents.Judged(new Document
+        var document = new Document
         {
             Address = address,
             Identity = identity,
@@ -154,7 +163,9 @@ public sealed class PageReader(
             Rendered = rendered,
             FinalUrl = finalUrl,
             StatusCode = status
-        });
+        };
+
+        return contents.Judged(document, reading);
     }
 
     /// <summary>Follows the page's own script errors while the read lasts.</summary>

@@ -380,7 +380,9 @@ Reads a document's links as absolute addresses.
 
 | Member | Summary |
 | --- | --- |
+| `IReadOnlyList<Link> From(HtmlDocument document, Uri address)` | Resolves every `href` a robot may follow in a document already parsed. |
 | `IReadOnlyList<Link> From(string html, Uri address)` | Resolves every `href` a robot may follow against the address the page was read from. |
+| `Link? CanonicalOf(HtmlDocument document, Uri address)` | Reads the address a document already parsed declares as its own, when it declares one. |
 | `Link? CanonicalOf(string html, Uri address)` | Reads the address the document declares as its own, when it declares one. |
 | `LinkExtraction()` |  |
 
@@ -409,5 +411,7 @@ Turns markup into readable text with its paragraph structure intact.
 | Member | Summary |
 | --- | --- |
 | `TextExtraction()` |  |
+| `string Clean(HtmlDocument document)` | Answers the readable text of a document already parsed, and leaves the document as it was. |
 | `string Clean(string html)` | Strips scripts, styles and frames and returns the readable text. |
+| `string? Title(HtmlDocument document)` | Answers the name of a document already parsed, or `null` when it has none. |
 | `string? Title(string html)` | Answers the document's own name — its `<title>`, or its first heading when it has none — or `null` when it has neither. |

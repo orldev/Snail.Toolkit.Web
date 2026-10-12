@@ -1,3 +1,4 @@
+using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Text;
 
@@ -25,6 +26,12 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
         ? ContentBudget.Of(options.Value.MaxContentCharacters)
         : ContentBudget.Unlimited;
 
+    /// <summary>Gets what a read answers when nobody asks for anything else.</summary>
+    internal Reading Reading { get; private init; } = Reading.Text;
+
+    /// <summary>The same contents, answering <paramref name="reading"/> by default; how the engines' readers get theirs.</summary>
+    internal PageContents Answering(Reading reading) => new(text, options) { Reading = reading };
+
     /// <summary>The content the document carries, or the reason it carries none.</summary>
     /// <remarks>
     /// Emptiness is judged on the rendered text rather than on the markup: a browser answers
@@ -44,7 +51,10 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
     /// nothing.
     /// </para>
     /// </remarks>
-    public PageOutcome Judged(Document document)
+    public PageOutcome Judged(Document document) => Judged(document, Reading);
+
+    /// <summary>The content the document carries, read as <paramref name="reading"/> asks, or the reason it carries none.</summary>
+    internal PageOutcome Judged(Document document, Reading reading)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -58,17 +68,19 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
 
         try
         {
-            var budgeted = _budget.Apply(text.Clean(document.Html));
+            var (clean, title, parsed) = Read(document.Html, reading);
+            var budgeted = _budget.Apply(clean);
 
             return PageOutcome.Success(
                 new PageContent(document.Address, document.Html, budgeted.Text, DateTimeOffset.UtcNow)
                 {
                     Final = Link.Of(document.FinalUrl),
-                    Title = text.Title(document.Html),
+                    Title = title,
                     StatusCode = document.StatusCode,
                     UserAgent = document.Identity.UserAgent,
                     IsTruncated = budgeted.IsTruncated,
-                    OriginalLength = budgeted.OriginalLength
+                    OriginalLength = budgeted.OriginalLength,
+                    Parsed = reading is Reading.Text ? null : parsed
                 });
         }
         catch (MarkupTooDeepException refused)
@@ -81,5 +93,27 @@ public sealed class PageContents(ITextExtraction text, IOptions<ScrapingOptions>
                 Cause = refused
             });
         }
+    }
+
+    /// <summary>Reads the page's text and title, from one parse of its markup where the extraction is this library's own.</summary>
+    /// <remarks>
+    /// Each of the two parsed the markup on its own, and the parse is most of what either costs. Another
+    /// extraction is asked as it always was: what it does with markup, a ceiling on nesting included, is its own.
+    /// <para>
+    /// A search engine's results page is parsed and nothing more. Its text and title were extracted for every
+    /// query and read by nobody, since an engine reads its results out of the markup: measured on 2026-10-12 by
+    /// the audit, three parses and the text cost 4.34 MB a page, one parse alone 1.23 MB.
+    /// </para>
+    /// </remarks>
+    private (string Text, string? Title, HtmlDocument? Parsed) Read(string html, Reading reading)
+    {
+        if (text is not TextExtraction own || string.IsNullOrWhiteSpace(html))
+            return (text.Clean(html), text.Title(html), null);
+
+        var parsed = Markup.Read(html);
+
+        return reading is Reading.DocumentOnly
+            ? (string.Empty, null, parsed)
+            : (own.Clean(parsed), own.Title(parsed), parsed);
     }
 }

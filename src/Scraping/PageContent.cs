@@ -1,3 +1,5 @@
+using HtmlAgilityPack;
+
 namespace Snail.Toolkit.Web.Scraping;
 
 /// <summary>
@@ -46,4 +48,8 @@ public sealed record PageContent(Link Requested, string Html, string Text, DateT
 
     /// <summary>Gets whether the browser was redirected away from the requested address.</summary>
     public bool IsRedirected => Requested != Final;
+
+    /// <summary>Gets the document the read parsed, handed to the reader inside this library that reads it next.</summary>
+    /// <remarks>Set only on the roads that ask for it; see <see cref="Reading"/>.</remarks>
+    internal HtmlDocument? Parsed { get; init; }
 }

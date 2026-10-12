@@ -1,6 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Politeness;
@@ -57,13 +57,31 @@ public sealed class Crawler(
     {
         ArgumentNullException.ThrowIfNull(addresses);
 
-        return Fanout.OverAsync(
+        return StreamAsync(addresses, reader.ReadAsync, ct);
+    }
+
+    private IAsyncEnumerable<PageOutcome> StreamAsync(
+        IEnumerable<Link> addresses,
+        Func<Link, CancellationToken, Task<PageOutcome>> read,
+        CancellationToken ct)
+        => Fanout.OverAsync(
             Spread.OverHosts(addresses, HostOf, _scraping.MaxDegreeOfParallelism, OpensAt),
-            async (address, token) => await reader.ReadAsync(address, token),
+            async (address, token) => await read(address, token),
             Unexpected,
             _scraping.MaxDegreeOfParallelism,
             ct);
-    }
+
+    /// <summary>Reads a page of the crawl, keeping the document parsed for its text so that its links need no parse of their own.</summary>
+    /// <remarks>
+    /// A followed page was parsed four times — for its text, its title, its links and its canonical address —
+    /// and the parse is most of what each of them costs. Only this library's reader can hand the document on,
+    /// and only for the pages of a walk, which drop it once their links are read; a reader of the consumer's own
+    /// is asked as it always was.
+    /// </remarks>
+    private Task<PageOutcome> ReadKeepingAsync(Link address, CancellationToken ct)
+        => reader is PageReader own
+            ? own.ReadAsync(address, Reading.TextAndDocument, ct)
+            : reader.ReadAsync(address, ct);
 
     /// <summary>The host an address is paced by, and an empty name for one that has none.</summary>
     /// <remarks>
@@ -228,7 +246,7 @@ public sealed class Crawler(
 
         List<Link> next = [];
 
-        await foreach (var outcome in StreamAsync(wanted, ct))
+        await foreach (var outcome in StreamAsync(wanted, ReadKeepingAsync, ct))
         {
             if (Recorded(visit, outcome, depth) is { } page)
                 visit.Pages.Add(page);
@@ -247,7 +265,7 @@ public sealed class Crawler(
         if ((page.Final.Address ?? page.Requested.Address) is not { } origin)
             yield break;
 
-        foreach (var link in links.From(page.Html, origin))
+        foreach (var link in LinksOf(page, origin))
         {
             if (visit.Scope.Covers(link) && visit.Seen.Add(link))
                 yield return link;
@@ -289,15 +307,23 @@ public sealed class Crawler(
     /// Only text long enough to be its own evidence is compared. Two thin pages — a navigation fragment, an
     /// empty category — are identical for reasons that have nothing to do with being one document, and
     /// collapsing those would lose real pages rather than duplicates.
+    /// <para>
+    /// The digest is taken over the text's own UTF-16 bytes onto the stack and kept as its first 128 bits. It
+    /// used to be the UTF-8 bytes in a new array, turned into a hex string of 64 characters: measured on
+    /// 2026-10-12 by the audit, 35 680 bytes and twice the time per page of 20 000 characters, for an answer
+    /// that is the same — two texts collide in 128 bits of SHA-256 no more often than in 256.
+    /// </para>
     /// </remarks>
     private static bool IsSaidAlready(Visit visit, string text)
     {
         if (text.Length < DistinctiveText)
             return false;
 
-        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+        Span<byte> digest = stackalloc byte[SHA256.HashSizeInBytes];
 
-        return !visit.Bodies.Add(digest);
+        SHA256.HashData(MemoryMarshal.AsBytes(text.AsSpan()), digest);
+
+        return !visit.Bodies.Add(MemoryMarshal.Read<UInt128>(digest));
     }
 
     /// <summary>Takes the address the page claims for itself, where it claims one this crawl may use.</summary>
@@ -306,13 +332,23 @@ public sealed class Crawler(
         if ((page.Final.Address ?? page.Requested.Address) is not { } origin)
             return page.Final;
 
-        if (links.CanonicalOf(page.Html, origin) is not { } canonical || !visit.Scope.IsOnTheSite(canonical))
+        if (CanonicalOf(page, origin) is not { } canonical || !visit.Scope.IsOnTheSite(canonical))
             return page.Final;
 
         visit.Seen.Add(canonical);
 
         return canonical;
     }
+
+    private IReadOnlyList<Link> LinksOf(PageContent page, Uri origin)
+        => page.Parsed is { } parsed && links is LinkExtraction own
+            ? own.From(parsed, origin)
+            : links.From(page.Html, origin);
+
+    private Link? CanonicalOf(PageContent page, Uri origin)
+        => page.Parsed is { } parsed && links is LinkExtraction own
+            ? own.CanonicalOf(parsed, origin)
+            : links.CanonicalOf(page.Html, origin);
 
     /// <summary>What makes a scope impossible to crawl, or nothing when it is one that can be walked.</summary>
     /// <remarks>
@@ -356,7 +392,7 @@ public sealed class Crawler(
 
         public HashSet<Link> Kept { get; } = [];
 
-        public HashSet<string> Bodies { get; } = [];
+        public HashSet<UInt128> Bodies { get; } = [];
 
         public List<Outcome<CrawlPage, PageFailure>> Pages { get; } = [];
 

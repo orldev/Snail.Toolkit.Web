@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,20 +27,21 @@ namespace Snail.Toolkit.Web.Text;
 /// <para>
 /// Found by the same reading: the page's <c>title</c> was part of its text, and since it is not a block it
 /// ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by
-/// <see cref="Title"/>; here the head is noise like a script is.
+/// <see cref="Title(string)"/>; here the head is noise like a script is.
 /// </para>
 /// </remarks>
 public sealed partial class TextExtraction : ITextExtraction
 {
-    private const string NoiseQuery = "//script|//style|//noscript|//iframe|//svg|//template|//head|//title";
-
-    /// <summary>The text whose line breaks are the author's own.</summary>
-    private const string VerbatimQuery = "//pre//text()";
-
     /// <summary>The page's own title first, and only outside an inline drawing, whose title names the drawing.</summary>
     private const string TitleQuery = "//title[not(ancestor::svg)]";
 
     private const string HeadingQuery = "//h1";
+
+    /// <summary>The elements whose content is not part of what a reader sees.</summary>
+    private static readonly HashSet<string> Noise = new(StringComparer.Ordinal)
+    {
+        "script", "style", "noscript", "iframe", "svg", "template", "head", "title"
+    };
 
     /// <summary>The elements a browser starts a new line for, before and after.</summary>
     private static readonly HashSet<string> Breaks = new(StringComparer.OrdinalIgnoreCase)
@@ -55,17 +57,21 @@ public sealed partial class TextExtraction : ITextExtraction
 
     /// <inheritdoc />
     public string Clean(string html)
+        => string.IsNullOrWhiteSpace(html) ? string.Empty : Clean(Markup.Read(html));
+
+    /// <summary>Answers the readable text of a document already parsed, and leaves the document as it was.</summary>
+    /// <remarks>
+    /// The text, the title and the links of one page used to be read from a parse each — two for every page read
+    /// and four for every page a crawl follows — and parsing is most of what any of them costs: measured on
+    /// 2026-10-12 by the audit, the parse alone was 0.28–0.43 of the text and title together. One parse can
+    /// answer all of them only if none of them changes it, and the text used to: it removed the scripts, the
+    /// styles and the whole head from the document before walking it, and the head is where the canonical
+    /// address, the base and the robots directives of the links are written. The walk now passes over those
+    /// elements instead of removing them, and answers the same text.
+    /// </remarks>
+    public string Clean(HtmlDocument document)
     {
-        if (string.IsNullOrWhiteSpace(html))
-            return string.Empty;
-
-        var document = Markup.Read(html);
-
-        if (document.DocumentNode.SelectNodes(NoiseQuery) is { } noise)
-        {
-            foreach (var node in noise.ToArray())
-                node.Remove();
-        }
+        ArgumentNullException.ThrowIfNull(document);
 
         var text = new StringBuilder();
         Append(document.DocumentNode, text);
@@ -75,11 +81,13 @@ public sealed partial class TextExtraction : ITextExtraction
 
     /// <inheritdoc />
     public string? Title(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html))
-            return null;
+        => string.IsNullOrWhiteSpace(html) ? null : Title(Markup.Read(html));
 
-        var document = Markup.Read(html);
+    /// <summary>Answers the name of a document already parsed, or <see langword="null"/> when it has none.</summary>
+    /// <remarks>The same answer as <see cref="Title(string)"/>, without parsing the markup a second time.</remarks>
+    public string? Title(HtmlDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
 
         var named = document.DocumentNode.SelectSingleNode(TitleQuery)
             ?? document.DocumentNode.SelectSingleNode(HeadingQuery);
@@ -113,35 +121,44 @@ public sealed partial class TextExtraction : ITextExtraction
     /// BEFORE the element is written at once: without it, text standing directly ahead of a block —
     /// <c>&lt;div&gt;Introduction&lt;p&gt;First&lt;/p&gt;&lt;/div&gt;</c> — ran into it as «IntroductionFirst».
     /// </para>
+    /// <para>
+    /// The break owed to a <c>pre</c> also says so, and that is how the walk knows which text is the author's:
+    /// everything between the element and its break is inside it, at any depth. The text nodes under a
+    /// <c>pre</c> used to be found by an XPath query over the whole document first.
+    /// </para>
     /// </remarks>
     private static void Append(HtmlNode root, StringBuilder text)
     {
-        var pending = new Stack<HtmlNode?>();
-        var verbatim = root.SelectNodes(VerbatimQuery)?.ToHashSet() ?? [];
+        var pending = new Stack<(HtmlNode? Node, bool IsVerbatimEnd)>();
+        var verbatim = 0;
 
         Push(root, pending);
 
-        while (pending.TryPop(out var node))
+        while (pending.TryPop(out var item))
         {
-            if (node is null)
+            if (item.Node is not { } node)
             {
                 text.Append('\n');
+                verbatim -= item.IsVerbatimEnd ? 1 : 0;
                 continue;
             }
 
             if (node.NodeType is HtmlNodeType.Text)
             {
-                text.Append(verbatim.Contains(node) ? node.InnerText : AnySpace().Replace(node.InnerText, " "));
+                AppendText(text, node.InnerText, isVerbatim: verbatim > 0);
                 continue;
             }
 
-            if (node.NodeType is not HtmlNodeType.Element)
+            if (node.NodeType is not HtmlNodeType.Element || Noise.Contains(node.Name))
                 continue;
 
             if (Breaks.Contains(node.Name))
             {
+                var isVerbatim = node.Name.Equals("pre", StringComparison.OrdinalIgnoreCase);
+
                 text.Append('\n');
-                pending.Push(null);
+                pending.Push((null, isVerbatim));
+                verbatim += isVerbatim ? 1 : 0;
             }
             else if (Cells.Contains(node.Name))
             {
@@ -153,20 +170,96 @@ public sealed partial class TextExtraction : ITextExtraction
     }
 
     /// <summary>Stacks a node's children so that they come back off it in the order they were written.</summary>
-    private static void Push(HtmlNode node, Stack<HtmlNode?> pending)
+    private static void Push(HtmlNode node, Stack<(HtmlNode? Node, bool IsVerbatimEnd)> pending)
     {
-        for (var index = node.ChildNodes.Count - 1; index >= 0; index--)
-            pending.Push(node.ChildNodes[index]);
+        var children = node.ChildNodes;
+
+        for (var index = children.Count - 1; index >= 0; index--)
+            pending.Push((children[index], false));
     }
 
+    /// <summary>Writes a text node: as it stands inside preformatted text, with every run of white space as one space elsewhere.</summary>
+    /// <remarks>
+    /// The runs were collapsed by a regular expression on every text node of the page, each answering a string of
+    /// its own before it was appended; collapsing while appending answers the same characters.
+    /// </remarks>
+    private static void AppendText(StringBuilder text, string value, bool isVerbatim)
+    {
+        if (isVerbatim)
+        {
+            text.Append(value);
+            return;
+        }
+
+        var span = value.AsSpan();
+        var at = 0;
+
+        while (at < span.Length)
+        {
+            var start = at;
+
+            while (at < span.Length && !char.IsWhiteSpace(span[at]))
+                at++;
+
+            text.Append(span[start..at]);
+
+            if (at == span.Length)
+                return;
+
+            text.Append(' ');
+
+            while (at < span.Length && char.IsWhiteSpace(span[at]))
+                at++;
+        }
+    }
+
+    /// <summary>Makes every run of white space one line break where it holds one, one space where not, and trims the ends.</summary>
+    /// <remarks>
+    /// One pass, where there were two regular expressions over the whole text and a trim after them, each
+    /// answering a copy of it.
+    /// </remarks>
     private static string Collapse(string text)
-        => BlankLines().Replace(HorizontalSpace().Replace(text, " "), "\n").Trim();
+    {
+        var span = text.AsSpan().Trim();
 
-    [GeneratedRegex(@"[^\S\n]+")]
-    private static partial Regex HorizontalSpace();
+        if (span.IsEmpty)
+            return string.Empty;
 
-    [GeneratedRegex(@"\s*\n\s*(?:\n\s*)*")]
-    private static partial Regex BlankLines();
+        var buffer = ArrayPool<char>.Shared.Rent(span.Length);
+
+        try
+        {
+            var written = 0;
+            var at = 0;
+
+            while (at < span.Length)
+            {
+                var start = at;
+
+                while (at < span.Length && !char.IsWhiteSpace(span[at]))
+                    at++;
+
+                span[start..at].CopyTo(buffer.AsSpan(written));
+                written += at - start;
+
+                if (at == span.Length)
+                    break;
+
+                var isLineBreak = false;
+
+                for (; char.IsWhiteSpace(span[at]); at++)
+                    isLineBreak |= span[at] == '\n';
+
+                buffer[written++] = isLineBreak ? '\n' : ' ';
+            }
+
+            return new string(buffer, 0, written);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(buffer);
+        }
+    }
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex AnySpace();

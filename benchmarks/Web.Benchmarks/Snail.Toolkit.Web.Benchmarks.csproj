@@ -1,7 +1,15 @@
 <Project Sdk="Snail.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Web\Web.csproj" />
+    <ProjectReference Include="..\..\src\Scraping\Scraping.csproj" />
+    <ProjectReference Include="..\..\src\Search.Browser\Search.Browser.csproj" />
   </ItemGroup>
 
 </Project>

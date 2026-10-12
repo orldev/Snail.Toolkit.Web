@@ -160,7 +160,7 @@ public abstract class BrowserSearch(IOptions<SearchOptions> search, ILogger logg
 
         try
         {
-            document = Markup.Read(page.Html);
+            document = page.Parsed ?? Markup.Read(page.Html);
         }
         catch (MarkupTooDeepException tooDeep)
         {

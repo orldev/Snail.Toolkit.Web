@@ -103,11 +103,16 @@ public static class ServiceCollectionExtensions
                     provider.GetRequiredService<ILogger<Attempts<PageContent>>>(),
                     repeatsRefusals: false));
 
+            services.TryAddKeyedSingleton(
+                EngineReading.Key,
+                (provider, _) => provider.GetRequiredService<PageContents>().Answering(Reading.DocumentOnly));
+
             services.TryAddKeyedSingleton<IPageReader>(
                 EngineReading.Key,
                 (provider, key) => ActivatorUtilities.CreateInstance<PageReader>(
                     provider,
-                    provider.GetRequiredKeyedService<IAttempts<PageContent>>(key)));
+                    provider.GetRequiredKeyedService<IAttempts<PageContent>>(key),
+                    provider.GetRequiredKeyedService<PageContents>(key)));
 
             return services;
         }

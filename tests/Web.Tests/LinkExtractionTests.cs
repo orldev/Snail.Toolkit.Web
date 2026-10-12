@@ -21,6 +21,33 @@ public class LinkExtractionTests
     public void From_RootRelativeHref_ResolvesAgainstTheHost()
         => Assert.Equal(["https://example.com/about"], Canonicals("""<a href="/about">about</a>"""));
 
+    /// <summary>A document already parsed answers the links and the canonical address its markup answers.</summary>
+    [Fact]
+    public void From_ParsedDocument_AnswersWhatTheMarkupAnswers()
+    {
+        const string html = """
+            <head><base href="/docs/"><link rel="canonical alternate" href="guide.html"></head>
+            <a href="next.html?utm_source=x">next</a><a rel="nofollow" href="/out">out</a><a href="next.html">again</a>
+            """;
+        var document = Markup.Read(html);
+
+        Assert.Equal(_links.From(html, Page), _links.From(document, Page));
+        Assert.Equal(_links.CanonicalOf(html, Page), _links.CanonicalOf(document, Page));
+    }
+
+    /// <summary>
+    /// A link resolved from the page carries the address its text parses into, not the resolution it came from:
+    /// the two differ in what they remember being written, and the address is public.
+    /// </summary>
+    [Fact]
+    public void From_HrefWrittenWithoutItsSlash_CarriesTheAddressItsTextParsesInto()
+    {
+        var link = Assert.Single(_links.From("""<a href="https://www.example.org">home</a>""", Page));
+
+        Assert.Equal("https://www.example.org/", link.Address!.OriginalString);
+        Assert.Equal("https://www.example.org/", link.Text);
+    }
+
     /// <summary>
     /// A <c>&lt;base href&gt;</c> silently moves what every relative link means. Ignoring it resolves a whole
     /// site one directory off, and every address then answers 404.

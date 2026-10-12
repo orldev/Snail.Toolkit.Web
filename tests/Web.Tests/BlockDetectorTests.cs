@@ -150,6 +150,17 @@ public class BlockDetectorTests
         Assert.False(verdict.IsBlocked);
     }
 
+    /// <summary>
+    /// One pass over every word answers whether any is there; which one is named is still the list's to say,
+    /// in its own order and whatever the page's case.
+    /// </summary>
+    [Theory]
+    [InlineData("<p>ACCESS DENIED while Checking Your Browser</p>", "markup:checking your browser")]
+    [InlineData("<p>Request Blocked</p><div class=\"G-Recaptcha\"></div>", "markup:request blocked")]
+    [InlineData("<div class=\"g-recaptcha-response\"></div><div class=\"H-Captcha\"></div>", "markup:h-captcha")]
+    public void Inspect_PageCarryingSeveralSignals_NamesTheFirstTheListNames(string html, string signal)
+        => Assert.Equal(signal, _detector.Inspect(html, "https://example.com/").Signal);
+
     [Fact]
     public void Inspect_OrdinaryPage_ReportsClear()
         => Assert.False(_detector.Inspect("<html><body><p>Hello</p></body></html>", "https://example.com/").IsBlocked);

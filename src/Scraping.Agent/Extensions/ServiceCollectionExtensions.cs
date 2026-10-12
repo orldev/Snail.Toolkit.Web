@@ -56,7 +56,8 @@ public static class ServiceCollectionExtensions
             EngineReading.Key,
             (provider, key) => ActivatorUtilities.CreateInstance<PageAgent>(
                 provider,
-                provider.GetRequiredKeyedService<IAttempts<PageContent>>(key)));
+                provider.GetRequiredKeyedService<IAttempts<PageContent>>(key),
+                provider.GetRequiredKeyedService<PageContents>(key)));
 
         return services;
     }

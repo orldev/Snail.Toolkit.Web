@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
 
@@ -38,7 +39,34 @@ public sealed class SiteRules : ISiteRules
     }
 
     /// <inheritdoc />
-    public async ValueTask<bool> IsAllowedAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+    /// <remarks>
+    /// Asked on every attempt at every page, and for every page of a site but the first the rules are already
+    /// read: the answer then comes from them at once. It used to build the origin's address, a closure and an
+    /// async state machine each time — measured on 2026-10-12 by the audit, with the identity beside it, 2 437
+    /// bytes a request where 328 do. Whatever is not read yet, still being read or out of date takes the road
+    /// it always took.
+    /// </remarks>
+    public ValueTask<bool> IsAllowedAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+        => url is not null && _options.IsObeyed && Fresh(url) is { } rules
+            ? ValueTask.FromResult(rules.IsAllowed(url.PathAndQuery, _options.UserAgent))
+            : IsAllowedOnceReadAsync(url!, proxy, ct);
+
+    /// <inheritdoc />
+    /// <remarks>Answered at once from rules already read, as <see cref="IsAllowedAsync"/> is.</remarks>
+    public ValueTask<TimeSpan?> DelayAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+        => url is not null && _options.IsObeyed && Fresh(url) is { } rules
+            ? ValueTask.FromResult(Capped(rules))
+            : DelayOnceReadAsync(url!, proxy, ct);
+
+    /// <inheritdoc />
+    public async ValueTask<RobotsFile> RulesAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(url);
+
+        return await CachedAsync(url, proxy, ct);
+    }
+
+    private async ValueTask<bool> IsAllowedOnceReadAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(url);
 
@@ -50,8 +78,7 @@ public sealed class SiteRules : ISiteRules
         return rules.IsAllowed(url.PathAndQuery, _options.UserAgent);
     }
 
-    /// <inheritdoc />
-    public async ValueTask<TimeSpan?> DelayAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+    private async ValueTask<TimeSpan?> DelayOnceReadAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(url);
 
@@ -60,18 +87,52 @@ public sealed class SiteRules : ISiteRules
 
         var rules = await CachedAsync(url, proxy, ct);
 
+        return Capped(rules);
+    }
+
+    private TimeSpan? Capped(RobotsFile rules)
+    {
         if (rules.CrawlDelay(_options.UserAgent) is not { } asked)
             return null;
 
         return asked < _options.LongestCrawlDelay ? asked : _options.LongestCrawlDelay;
     }
 
-    /// <inheritdoc />
-    public async ValueTask<RobotsFile> RulesAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct = default)
+    /// <summary>The origin's rules when they are read and still fresh, or nothing when only a read can tell.</summary>
+    [SuppressMessage("Usage", "VSTHRD002", Justification = "The read is looked at only once it completed successfully, so nothing waits.")]
+    private RobotsFile? Fresh(Uri url)
     {
-        ArgumentNullException.ThrowIfNull(url);
+        if (KeyOf(url) is not { } key || !_cache.TryGet(key, out var entry))
+            return null;
 
-        return await CachedAsync(url, proxy, ct);
+        if (!entry.Read.IsValueCreated || entry.Read.Value is not { IsCompletedSuccessfully: true } read)
+            return null;
+
+        var cached = read.Result;
+
+        return _clock.GetUtcNow() - cached.ReadAt <= _options.CacheLifetime ? cached.Rules : null;
+    }
+
+    /// <summary>The key an origin is remembered under, where it can be written without parsing an address.</summary>
+    /// <remarks>
+    /// The key is the origin's parsed address read back, and for an http address with a plain host that is its
+    /// scheme and authority with a slash; any other host is left to the parse, which says what it becomes.
+    /// </remarks>
+    private static string? KeyOf(Uri url)
+    {
+        if (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps)
+            return null;
+
+        if (url.HostNameType is not (UriHostNameType.Dns or UriHostNameType.IPv4))
+            return null;
+
+        foreach (var character in url.Host)
+        {
+            if (!char.IsAscii(character) || char.IsUpper(character))
+                return null;
+        }
+
+        return $"{url.Scheme}://{url.Authority}/";
     }
 
     private async Task<RobotsFile> CachedAsync(Uri url, ProxyEndpoint? proxy, CancellationToken ct)

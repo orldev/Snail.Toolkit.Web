@@ -21,6 +21,28 @@ public class TextExtractionTests
         Assert.Equal("hi", text);
     }
 
+    /// <summary>
+    /// One parse answers the text, the title and the links of a page only if the text leaves the document as it
+    /// found it: the head it passes over is where the canonical address and the base are written.
+    /// </summary>
+    [Fact]
+    public void Clean_ParsedDocument_AnswersTheSameTextAndLeavesTheDocumentWhole()
+    {
+        const string html = """
+            <html><head><title>Name</title><link rel="canonical" href="/self"><script>run()</script></head>
+            <body><pre> kept
+              as written </pre><svg><title>drawing</title></svg><p>Text</p></body></html>
+            """;
+        var document = Markup.Read(html);
+        var before = document.DocumentNode.OuterHtml;
+
+        var text = _extraction.Clean(document);
+
+        Assert.Equal(_extraction.Clean(html), text);
+        Assert.Equal(before, document.DocumentNode.OuterHtml);
+        Assert.Equal("Name", _extraction.Title(document));
+    }
+
     [Fact]
     public void Clean_ScriptAndStyle_AreRemoved()
     {

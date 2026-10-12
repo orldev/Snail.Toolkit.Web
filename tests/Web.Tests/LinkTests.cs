@@ -20,6 +20,26 @@ public class LinkTests
         Assert.Equal(expected, Link.Of(url).Canonical);
     }
 
+    /// <summary>
+    /// The canonical form is concatenated from the parsed parts where a second parse could change nothing, and
+    /// built where it could; these are the addresses on either side of that line, with the form both ways answer.
+    /// </summary>
+    [Theory]
+    [InlineData("http://Example.COM/a/b/?utm_source=x&b=2#frag", "https://example.com/a/b?b=2")]
+    [InlineData("http://x.com:443/a", "https://x.com/a")]
+    [InlineData("https://x.com:80/a/", "https://x.com:80/a")]
+    [InlineData("https://x.com/??a=1", "https://x.com/?a=1")]
+    [InlineData("https://[::1]/a/", "https://[::1]/a")]
+    [InlineData("https://x.com/a?a=1&utm_term=2&c=3", "https://x.com/a?a=1&c=3")]
+    [InlineData("https://x.com//", "https://x.com/")]
+    [InlineData("https://x.com/a?&&", "https://x.com/a")]
+    [InlineData("https://bücher.example/a/", "https://bücher.example/a")]
+    [InlineData("https://x.com/a/.../", "https://x.com/a/...")]
+    public void Of_AddressesEitherSideOfTheConcatenation_AnswerTheBuiltForm(string url, string expected)
+    {
+        Assert.Equal(expected, Link.Of(url).Canonical);
+    }
+
     [Fact]
     public void Of_DistinctPaths_KeepsThemApart()
     {

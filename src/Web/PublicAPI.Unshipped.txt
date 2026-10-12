@@ -237,7 +237,9 @@ Snail.Toolkit.Web.Text.ITextExtraction
 Snail.Toolkit.Web.Text.ITextExtraction.Clean(string! html) -> string!
 Snail.Toolkit.Web.Text.ITextExtraction.Title(string! html) -> string?
 Snail.Toolkit.Web.Text.LinkExtraction
+Snail.Toolkit.Web.Text.LinkExtraction.CanonicalOf(HtmlAgilityPack.HtmlDocument! document, System.Uri! address) -> Snail.Toolkit.Web.Link?
 Snail.Toolkit.Web.Text.LinkExtraction.CanonicalOf(string! html, System.Uri! address) -> Snail.Toolkit.Web.Link?
+Snail.Toolkit.Web.Text.LinkExtraction.From(HtmlAgilityPack.HtmlDocument! document, System.Uri! address) -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Link!>!
 Snail.Toolkit.Web.Text.LinkExtraction.From(string! html, System.Uri! address) -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Link!>!
 Snail.Toolkit.Web.Text.LinkExtraction.LinkExtraction() -> void
 Snail.Toolkit.Web.Text.Markup
@@ -245,8 +247,10 @@ Snail.Toolkit.Web.Text.MarkupTooDeepException
 Snail.Toolkit.Web.Text.MarkupTooDeepException.MarkupTooDeepException(int mostNesting, System.Exception? cause = null) -> void
 Snail.Toolkit.Web.Text.MarkupTooDeepException.MostNesting.get -> int
 Snail.Toolkit.Web.Text.TextExtraction
+Snail.Toolkit.Web.Text.TextExtraction.Clean(HtmlAgilityPack.HtmlDocument! document) -> string!
 Snail.Toolkit.Web.Text.TextExtraction.Clean(string! html) -> string!
 Snail.Toolkit.Web.Text.TextExtraction.TextExtraction() -> void
+Snail.Toolkit.Web.Text.TextExtraction.Title(HtmlAgilityPack.HtmlDocument! document) -> string?
 Snail.Toolkit.Web.Text.TextExtraction.Title(string! html) -> string?
 static Snail.Toolkit.Web.Detection.BlockVerdict.Blocked(string! signal) -> Snail.Toolkit.Web.Detection.BlockVerdict!
 static Snail.Toolkit.Web.Detection.BlockVerdict.Clear.get -> Snail.Toolkit.Web.Detection.BlockVerdict!

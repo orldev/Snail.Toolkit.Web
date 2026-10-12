@@ -46,6 +46,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
     ];
 
     private readonly Fingerprint[] _fingerprints;
+    private readonly Shaped?[] _shaped;
     private readonly IProxyRotation _proxies;
     private int _cursor = -1;
 
@@ -61,6 +62,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
             .ToArray();
 
         _fingerprints = configured.Length > 0 ? configured : BuiltIn;
+        _shaped = new Shaped?[_fingerprints.Length];
 
         if (configured.Length == 0)
             Log.BuiltInFingerprints(logger, BuiltIn.Length, IdentityOptions.SectionName, nameof(IdentityOptions.Fingerprints));
@@ -80,9 +82,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
 
         var steady = Steadily(host);
 
-        return Built(
-            _fingerprints[steady % (uint)_fingerprints.Length],
-            _proxies.For(host));
+        return Built((int)(steady % (uint)_fingerprints.Length), _proxies.For(host));
     }
 
     /// <inheritdoc />
@@ -90,7 +90,7 @@ public sealed partial class IdentityRotation : IIdentityRotation
     {
         var next = (uint)Interlocked.Increment(ref _cursor);
 
-        return Built(_fingerprints[next % (uint)_fingerprints.Length], _proxies.Next());
+        return Built((int)(next % (uint)_fingerprints.Length), _proxies.Next());
     }
 
     /// <summary>A number the same host answers with in any process, on any machine, forever.</summary>
@@ -109,24 +109,41 @@ public sealed partial class IdentityRotation : IIdentityRotation
         return hash;
     }
 
-    private WebIdentity Built(Fingerprint fingerprint, ProxyEndpoint? exit)
+    /// <summary>The identity of the fingerprint at <paramref name="index"/>, leaving by <paramref name="exit"/>.</summary>
+    /// <remarks>
+    /// Everything an identity says is derived from its fingerprint alone, and it was derived again on every
+    /// request — a regular expression, three chains of comparisons and a split of the languages: measured on
+    /// 2026-10-12 by the audit, about 300 ns and 1 021 bytes a request, for the same answer each time. The
+    /// identity is now shaped once per fingerprint and handed out again, with the exit set when a proxy is in
+    /// use. It is shaped anew whenever the fingerprint's values are no longer the ones it was shaped from, since
+    /// a fingerprint is a settings object anyone holding it can change.
+    /// </remarks>
+    private WebIdentity Built(int index, ProxyEndpoint? exit)
     {
-        var userAgent = fingerprint.UserAgent;
+        var fingerprint = _fingerprints[index];
 
-        return new WebIdentity
+        if (Volatile.Read(ref _shaped[index]) is not { } shaped || !shaped.IsOf(fingerprint))
+        {
+            shaped = new Shaped(fingerprint);
+            Volatile.Write(ref _shaped[index], shaped);
+        }
+
+        return exit is null ? shaped.Identity : shaped.Identity with { Proxy = exit };
+    }
+
+    private static WebIdentity Built(string userAgent, string locale, string timezone, string acceptLanguage)
+        => new()
         {
             UserAgent = userAgent,
             Platform = PlatformOf(userAgent),
             NavigatorPlatform = NavigatorPlatformOf(userAgent),
             Brand = BrandOf(userAgent),
             MajorVersion = MajorVersionOf(userAgent),
-            Locale = fingerprint.Locale,
-            Timezone = fingerprint.Timezone,
-            AcceptLanguage = fingerprint.AcceptLanguage,
-            Languages = LanguagesOf(fingerprint.AcceptLanguage),
-            Proxy = exit
+            Locale = locale,
+            Timezone = timezone,
+            AcceptLanguage = acceptLanguage,
+            Languages = LanguagesOf(acceptLanguage)
         };
-    }
 
     private static string BrandOf(string userAgent) => userAgent switch
     {
@@ -169,4 +186,31 @@ public sealed partial class IdentityRotation : IIdentityRotation
 
     [GeneratedRegex(@"(?:Chrome|Edg|Firefox|Version)/(\d+)")]
     private static partial Regex VersionPattern();
+
+    /// <summary>An identity, and the very values of the fingerprint it was shaped from.</summary>
+    private sealed class Shaped
+    {
+        private readonly string _userAgent;
+        private readonly string _locale;
+        private readonly string _timezone;
+        private readonly string _acceptLanguage;
+
+        public Shaped(Fingerprint fingerprint)
+        {
+            _userAgent = fingerprint.UserAgent;
+            _locale = fingerprint.Locale;
+            _timezone = fingerprint.Timezone;
+            _acceptLanguage = fingerprint.AcceptLanguage;
+
+            Identity = Built(_userAgent, _locale, _timezone, _acceptLanguage);
+        }
+
+        public WebIdentity Identity { get; }
+
+        public bool IsOf(Fingerprint current)
+            => ReferenceEquals(_userAgent, current.UserAgent)
+               && ReferenceEquals(_locale, current.Locale)
+               && ReferenceEquals(_timezone, current.Timezone)
+               && ReferenceEquals(_acceptLanguage, current.AcceptLanguage);
+    }
 }

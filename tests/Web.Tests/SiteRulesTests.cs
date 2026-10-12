@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Identity;
 using Snail.Toolkit.Web.Robots;
 
@@ -136,6 +137,36 @@ public class SiteRulesTests
 
         Assert.Equal(20, rules.RememberedOrigins);
         Assert.Equal(20, source.Reads);
+    }
+
+    /// <summary>
+    /// Rules already read answer at once, without a read and without waiting; rules out of date are read again,
+    /// and a host written in capitals is the same origin as the one written in lower case.
+    /// </summary>
+    [Fact]
+    public async Task IsAllowedAsync_RulesAlreadyRead_AnswerAtOnceUntilTheyAreOutOfDate()
+    {
+        var source = new CountedSource(RobotsFile.Parse(Closed));
+        var clock = new FakeTimeProvider();
+        var rules = new SiteRules(
+            source,
+            Options.Create(new RobotsOptions { IsObeyed = true, CacheLifetime = TimeSpan.FromMinutes(10) }),
+            clock);
+
+        await rules.IsAllowedAsync(new Uri("https://example.com/a"), null);
+
+        var allowed = rules.IsAllowedAsync(new Uri("https://EXAMPLE.com/private/b"), null);
+        var delay = rules.DelayAsync(new Uri("https://example.com:443/c"), null);
+
+        Assert.True(allowed.IsCompletedSuccessfully);
+        Assert.False(await allowed);
+        Assert.True(delay.IsCompletedSuccessfully);
+        Assert.Equal(1, source.Reads);
+
+        clock.Advance(TimeSpan.FromMinutes(11));
+
+        Assert.True(await rules.IsAllowedAsync(new Uri("https://example.com/public"), null));
+        Assert.Equal(2, source.Reads);
     }
 
     private static SiteRules Expiring(TimeSpan lifetime)

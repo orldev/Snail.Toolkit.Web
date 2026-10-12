@@ -149,6 +149,49 @@ public class IdentityRotationTests
         Assert.Equal(first, rotation.For("registry.example").Proxy?.Server);
     }
 
+    /// <summary>
+    /// An identity is shaped once per fingerprint, and shaped again when the fingerprint's values change: a
+    /// fingerprint is a settings object, and what it says now is what the next identity says.
+    /// </summary>
+    [Fact]
+    public void Next_FingerprintChangedAfterStart_SaysWhatTheFingerprintSaysNow()
+    {
+        var fingerprint = new Fingerprint { UserAgent = KnownAgent, AcceptLanguage = "en-US,en;q=0.9" };
+        var rotation = Rotation(fingerprint);
+
+        rotation.Next();
+        fingerprint.AcceptLanguage = "fr-FR,fr;q=0.9";
+        fingerprint.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Firefox/131.0";
+
+        var identity = rotation.Next();
+
+        Assert.Equal(["fr-FR", "fr"], identity.Languages);
+        Assert.Equal("macOS", identity.Platform);
+        Assert.Equal("Firefox", identity.Brand);
+    }
+
+    /// <summary>The exit travels with the identity it was handed out with, and only with it.</summary>
+    [Fact]
+    public void Next_WithProxiesConfigured_GivesEachIdentityItsOwnExit()
+    {
+        var options = new IdentityOptions
+        {
+            Fingerprints = [new Fingerprint { UserAgent = KnownAgent }],
+            Proxies = ["http://one.example:8080", "http://two.example:8080"]
+        };
+        var rotation = new IdentityRotation(
+            Options.Create(options),
+            new ProxyRotation(Options.Create(options)),
+            NullLogger<IdentityRotation>.Instance);
+
+        var first = rotation.Next();
+        var second = rotation.Next();
+
+        Assert.Equal("http://one.example:8080", first.Proxy!.Server);
+        Assert.Equal("http://two.example:8080", second.Proxy!.Server);
+        Assert.Equal(first.UserAgent, second.UserAgent);
+    }
+
     /// <summary>A round-robin, not a random pick: random reuse comes in bursts, and bursts are what get banned.</summary>
     [Fact]
     public void Next_WithProxiesConfigured_HandsThemOutInTurn()

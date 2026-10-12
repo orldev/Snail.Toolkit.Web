@@ -27,8 +27,18 @@ public sealed class LinkExtraction : ILinkExtraction
     {
         ArgumentNullException.ThrowIfNull(address);
 
-        if (Loaded(html) is not { } document)
-            return [];
+        return Loaded(html) is { } document ? From(document, address) : [];
+    }
+
+    /// <summary>Resolves every <c>href</c> a robot may follow in a document already parsed.</summary>
+    /// <remarks>
+    /// The same links as <see cref="From(string, Uri)"/>, without parsing the markup again: a crawl reads a page's
+    /// text, title, links and canonical address, and each used to parse the page for itself.
+    /// </remarks>
+    public IReadOnlyList<Link> From(HtmlDocument document, Uri address)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(address);
 
         if (!IsFollowable(document))
             return [];
@@ -61,8 +71,15 @@ public sealed class LinkExtraction : ILinkExtraction
     {
         ArgumentNullException.ThrowIfNull(address);
 
-        if (Loaded(html) is not { } document)
-            return null;
+        return Loaded(html) is { } document ? CanonicalOf(document, address) : null;
+    }
+
+    /// <summary>Reads the address a document already parsed declares as its own, when it declares one.</summary>
+    /// <remarks>The same address as <see cref="CanonicalOf(string, Uri)"/>, without parsing the markup again.</remarks>
+    public Link? CanonicalOf(HtmlDocument document, Uri address)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(address);
 
         var declared = document.DocumentNode
             .SelectNodes("//link[@rel][@href]")
@@ -123,6 +140,6 @@ public sealed class LinkExtraction : ILinkExtraction
         if (absolute.Scheme != Uri.UriSchemeHttp && absolute.Scheme != Uri.UriSchemeHttps)
             return null;
 
-        return Link.Of(absolute.AbsoluteUri);
+        return Link.Of(absolute);
     }
 }

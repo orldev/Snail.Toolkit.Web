@@ -81,13 +81,15 @@ public sealed class DuckDuckGo(
 
             try
             {
-                foreach (var result in Parsed(html).Where(result => seen.Add(result.Address)).Take(wanted - added))
+                var document = Markup.Read(html);
+
+                foreach (var result in Parsed(document).Where(result => seen.Add(result.Address)).Take(wanted - added))
                     found.Add(result);
 
                 if (found.Count == added)
                     break;
 
-                offset = NextOffset(html);
+                offset = NextOffset(document);
             }
             catch (MarkupTooDeepException tooDeep)
             {
@@ -108,10 +110,16 @@ public sealed class DuckDuckGo(
     /// The largest offset on the page is the next one: the same markup carries a previous-page control at a
     /// smaller offset once past the first page.
     /// </remarks>
-    internal static int? NextOffset(string html)
-    {
-        var document = Markup.Read(html);
+    internal static int? NextOffset(string html) => NextOffset(Markup.Read(html));
 
+    /// <summary>Reads the offset the next-page control of a page already parsed asks for.</summary>
+    /// <remarks>
+    /// The results and the offset were each read from a parse of their own, and the parse is most of what
+    /// either costs: measured on 2026-10-12 by the audit, one parse for both is 0.50–0.65 of the time and
+    /// 63 % of the bytes.
+    /// </remarks>
+    private static int? NextOffset(HtmlDocument document)
+    {
         if (document.DocumentNode.SelectNodes("//input[@name='s'][@value]") is not { } controls)
             return null;
 
@@ -159,9 +167,11 @@ public sealed class DuckDuckGo(
     /// page or a changed layout looks like: an empty list is the honest answer to all three, and the caller
     /// records it as an answered attempt with nothing in it.
     /// </remarks>
-    internal static IEnumerable<SearchResult> Parsed(string html)
+    internal static IEnumerable<SearchResult> Parsed(string html) => Parsed(Markup.Read(html));
+
+    private static IEnumerable<SearchResult> Parsed(HtmlDocument document)
     {
-        var blocks = Markup.Read(html).DocumentNode.SelectNodes("//div[contains(@class,'web-result')]");
+        var blocks = document.DocumentNode.SelectNodes("//div[contains(@class,'web-result')]");
 
         if (blocks is null)
             yield break;

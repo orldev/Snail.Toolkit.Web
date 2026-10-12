@@ -18,6 +18,30 @@ Everything below is the first release taking shape. The dated groups are there b
 was a single round of work — an audit and its treatment — and it is the part most likely to matter to
 someone reading this before the first publication.
 
+### The performance audit's fixes, 2026-10-13
+
+Measured before and after with the benchmarks in `benchmarks/`; every answer is the same as before.
+
+#### Added
+
+- **Text, title, links and canonical address from a document already parsed.** `TextExtraction.Clean` and
+  `Title`, `LinkExtraction.From` and `CanonicalOf` each gain an overload taking the `HtmlDocument` that
+  `Markup.Read` answers, so a caller reading its own pages parses each once. `Clean` no longer removes
+  anything from the document it walks.
+
+#### Changed
+
+- **A page costs one parse.** A page read parses its markup once for text and title (6.44 → 3.66 MB in the
+  benchmark), a crawled page once for text, title, links and canonical address (11.67 → 4.22 MB), and a
+  browser engine's results page once, without the text nobody read (9.15 → 3.2 MB). `Link.Of` no longer
+  builds a `UriBuilder` (374 → 171 KB over a page's links), and `BlockDetector` answers a clear page in one
+  pass (0.17–0.21 of the time).
+- **A DuckDuckGo results page costs one parse** (1.55 → 1.0 MB a query).
+- **What every attempt pays first is a third of what it was** (2 437 → 328 bytes): `IdentityRotation` shapes
+  each fingerprint's identity once and hands it out again, and `SiteRules` answers at once from rules it has
+  already read. Two identities handed out from one fingerprint now share the values they carry, so they
+  compare equal where they used to differ only by the list of languages each held.
+
 ### Found by its first MCP consumer, 2026-10-04
 
 Defects that only showed once a model, rather than a program, was reading what the toolkit returned —
