@@ -2,14 +2,16 @@ using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Identity;
+using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Robots;
 
 namespace Snail.Toolkit.Web.Benchmarks;
 
-/// <summary>What every attempt pays before it reaches a site: an identity, and the site's rules asked twice.</summary>
+/// <summary>What every attempt pays before it reaches a site: an identity, the site's rules asked twice, and a turn at its gate.</summary>
 /// <remarks>
 /// The attempts ask for an identity, whether the address is allowed and how long the site asks to be left alone,
-/// on every try of every page. The rules are already read, as they are for every page of a site but the first.
+/// on every try of every page. The rules are already read, as they are for every page of a site but the first. The
+/// turn is taken at a gate with no gap between requests, so that the timing is of the bookkeeping, not of the wait.
 /// </remarks>
 [MemoryDiagnoser]
 public class Bookkeeping
@@ -20,6 +22,8 @@ public class Bookkeeping
 
     private SiteRules _rules = null!;
 
+    private HostPoliteness _politeness = null!;
+
     [GlobalSetup]
     public async Task SetupAsync()
     {
@@ -27,6 +31,8 @@ public class Bookkeeping
 
         _identities = new IdentityRotation(Options.Create(new IdentityOptions()), new NoProxies(), NullLogger<IdentityRotation>.Instance);
         _rules = new SiteRules(new Canned(robots), Options.Create(new RobotsOptions { IsObeyed = true }));
+
+        _politeness = new HostPoliteness(Options.Create(new PolitenessOptions { MinDelayPerHost = TimeSpan.Zero }));
 
         var allowed = await _rules.IsAllowedAsync(_address, null);
         var delay = await _rules.DelayAsync(_address, null);
@@ -41,6 +47,12 @@ public class Bookkeeping
     [Benchmark]
     public WebIdentity Identity() => _identities.Next();
 
+    [Benchmark]
+    public Task Turn() => TurnAsync();
+
+    [GlobalCleanup]
+    public void Cleanup() => _politeness.Dispose();
+
     private async Task<int> RequestAsync()
     {
         var identity = _identities.Next();
@@ -48,6 +60,13 @@ public class Bookkeeping
         var delay = await _rules.DelayAsync(_address, identity.Proxy);
 
         return (allowed ? 1 : 0) + (delay?.Seconds ?? 0) + identity.UserAgent.Length;
+    }
+
+    private async Task TurnAsync()
+    {
+        var turn = await _politeness.EnterAsync(_address);
+
+        await turn.DisposeAsync();
     }
 
     private sealed class NoProxies : IProxyRotation

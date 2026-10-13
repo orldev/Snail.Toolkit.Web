@@ -1,6 +1,6 @@
 using System.Globalization;
+using System.Text;
 using System.Xml;
-using System.Xml.Linq;
 
 namespace Snail.Toolkit.Web.Sitemaps;
 
@@ -29,6 +29,14 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
     /// <summary>A document that lists nothing, used when a site has no sitemap or an unreadable one.</summary>
     public static SitemapFile Empty { get; } = new([], []);
 
+    /// <summary>The settings <c>XDocument.Parse</c> reads with when told nothing.</summary>
+    private static XmlReaderSettings Settings { get; } = new()
+    {
+        IgnoreWhitespace = true,
+        DtdProcessing = DtdProcessing.Parse,
+        MaxCharactersFromEntities = 10_000_000
+    };
+
     /// <summary>Gets whether this document points at further sitemaps rather than at pages.</summary>
     public bool IsIndex => Sitemaps.Count > 0;
 
@@ -37,46 +45,119 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
     {
         ArgumentNullException.ThrowIfNull(xml);
 
-        if (Root(xml) is not { } root)
-            return Empty;
+        using var text = new StringReader(xml);
 
+        return Read(text);
+    }
+
+    /// <summary>Reads a <c>urlset</c> or <c>sitemapindex</c> document as it streams in.</summary>
+    /// <remarks>
+    /// Streamed rather than loaded: the document used to be built whole as an <c>XDocument</c>, every element and
+    /// every text node of ten thousand addresses held at once, to be walked a single time. The reader is made
+    /// with the settings <c>XDocument.Parse</c> uses, and it is read to the end before anything is answered, so
+    /// a document that would not have loaded still reads as empty — however late in it the fault lies.
+    /// </remarks>
+    internal static SitemapFile Read(TextReader text)
+    {
         List<SitemapEntry> pages = [];
         List<SitemapEntry> sitemaps = [];
         HashSet<Link> seen = [];
 
-        foreach (var element in root.Elements())
+        try
         {
-            if (Address(element) is not { } address || !seen.Add(address))
-                continue;
+            using var reader = XmlReader.Create(text, Settings);
 
-            if (element.Name.LocalName.Equals("sitemap", StringComparison.OrdinalIgnoreCase))
+            while (reader.Read())
             {
-                sitemaps.Add(new SitemapEntry(address, Modified(element)));
-                continue;
-            }
+                if (reader.NodeType != XmlNodeType.Element || reader.Depth != 1)
+                    continue;
 
-            if (element.Name.LocalName.Equals("url", StringComparison.OrdinalIgnoreCase))
-                pages.Add(new SitemapEntry(address, Modified(element)));
+                var kind = reader.LocalName;
+                var (location, modified) = Fields(reader);
+
+                if (Address(location) is not { } address || !seen.Add(address))
+                    continue;
+
+                if (kind.Equals("sitemap", StringComparison.OrdinalIgnoreCase))
+                {
+                    sitemaps.Add(new SitemapEntry(address, Modified(modified)));
+                    continue;
+                }
+
+                if (kind.Equals("url", StringComparison.OrdinalIgnoreCase))
+                    pages.Add(new SitemapEntry(address, Modified(modified)));
+            }
+        }
+        catch (XmlException)
+        {
+            return Empty;
         }
 
         return new SitemapFile(pages, sitemaps);
     }
 
-    private static XElement? Root(string xml)
+    /// <summary>The text of an entry's first <c>loc</c> and first <c>lastmod</c>, leaving the reader on its end.</summary>
+    private static (string? Location, string? Modified) Fields(XmlReader reader)
     {
-        try
+        string? location = null;
+        string? modified = null;
+        var isLocationRead = false;
+        var isModifiedRead = false;
+
+        if (reader.IsEmptyElement)
+            return (location, modified);
+
+        while (reader.Read() && reader.Depth > 1)
         {
-            return XDocument.Parse(xml).Root;
+            if (reader.NodeType != XmlNodeType.Element || reader.Depth != 2)
+                continue;
+
+            if (!isLocationRead && reader.LocalName.Equals("loc", StringComparison.OrdinalIgnoreCase))
+            {
+                isLocationRead = true;
+                location = Value(reader);
+                continue;
+            }
+
+            if (!isModifiedRead && reader.LocalName.Equals("lastmod", StringComparison.OrdinalIgnoreCase))
+            {
+                isModifiedRead = true;
+                modified = Value(reader);
+            }
         }
-        catch (XmlException)
-        {
-            return null;
-        }
+
+        return (location, modified);
     }
 
-    private static Link? Address(XElement element)
+    /// <summary>An element's text, its descendants' included and trimmed, as <c>XElement.Value</c> gave it.</summary>
+    private static string? Value(XmlReader reader)
     {
-        if (Child(element, "loc") is not { } text)
+        if (reader.IsEmptyElement)
+            return null;
+
+        var depth = reader.Depth;
+        string? first = null;
+        StringBuilder? joined = null;
+
+        while (reader.Read() && reader.Depth > depth)
+        {
+            if (reader.NodeType is not (XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.SignificantWhitespace or XmlNodeType.Whitespace))
+                continue;
+
+            if (first is null)
+                first = reader.Value;
+            else
+                (joined ??= new StringBuilder(first)).Append(reader.Value);
+        }
+
+        var value = (joined?.ToString() ?? first)?.Trim();
+
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private static Link? Address(string? text)
+    {
+        if (text is null)
             return null;
 
         var address = Link.Of(text);
@@ -84,9 +165,9 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
         return address.IsAbsolute ? address : null;
     }
 
-    private static DateTimeOffset? Modified(XElement element)
+    private static DateTimeOffset? Modified(string? text)
     {
-        if (Child(element, "lastmod") is not { } text)
+        if (text is null)
             return null;
 
         return DateTimeOffset.TryParse(
@@ -96,15 +177,5 @@ public sealed record SitemapFile(IReadOnlyList<SitemapEntry> Pages, IReadOnlyLis
             out var when)
             ? when
             : null;
-    }
-
-    private static string? Child(XElement element, string name)
-    {
-        var child = element.Elements()
-            .FirstOrDefault(candidate => candidate.Name.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase));
-
-        var value = child?.Value.Trim();
-
-        return string.IsNullOrEmpty(value) ? null : value;
     }
 }

@@ -19,6 +19,12 @@ namespace Snail.Toolkit.Web.Scraping.Sitemaps;
 /// The read is capped. Compressed XML expands by twenty to one and the file is written by the site being read,
 /// so an unbounded read is a memory limit set by someone else.
 /// </para>
+/// <para>
+/// The cap holds on the network too: only the headers are awaited and the body is read under it. Awaited whole,
+/// as the client does by default, the body was buffered before the cap was ever consulted — measured on
+/// 2026-10-13, an answer of 50 MB cost 95 MB per read under a ceiling of 1 000 bytes. A body that breaks off
+/// while it is read fails as an <see cref="IOException"/>, and reads as no sitemap, as a failed request does.
+/// </para>
 /// </remarks>
 public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<HttpSitemapSource> logger)
     : ISitemapSource, IDisposable
@@ -39,7 +45,7 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
 
         try
         {
-            var response = await _http.For(proxy).GetAsync(address, budget.Token);
+            using var response = await _http.For(proxy).GetAsync(address, HttpCompletionOption.ResponseHeadersRead, budget.Token);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -48,13 +54,13 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
                 return SitemapFile.Empty;
             }
 
-            return SitemapFile.Parse(await TextAsync(response, budget.Token));
+            return await ParsedAsync(response, budget.Token);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException or OperationCanceledException)
         {
             Log.SitemapUnreadable(logger, exception, address);
 
@@ -62,22 +68,43 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
         }
     }
 
-    private async Task<string> TextAsync(HttpResponseMessage response, CancellationToken ct)
+    /// <summary>Reads the sitemap from the bytes kept, expanding them first when they are gzipped.</summary>
+    /// <remarks>
+    /// The bytes are decoded as UTF-8 while the document is read, as they were decoded whole before: the kept
+    /// bytes used to be copied into an array of their own and that array into a string twice its size, three
+    /// copies of up to <see cref="CrawlOptions.MaxSitemapBytes"/> on the large-object heap for one read. The
+    /// declared encoding is not consulted and nothing else is detected.
+    /// <para>
+    /// A leading UTF-8 byte-order mark is skipped. It used to be decoded into a character ahead of the document,
+    /// which the XML reader refuses, so a sitemap saved with the mark — plenty of editors and CMSs write one —
+    /// read as no sitemap at all. Only that one mark is taken: a UTF-16 mark is still read as UTF-8, as before.
+    /// </para>
+    /// </remarks>
+    private async Task<SitemapFile> ParsedAsync(HttpResponseMessage response, CancellationToken ct)
     {
         await using var body = await response.Content.ReadAsStreamAsync(ct);
+        await using var raw = await BoundedAsync(body, ct);
 
-        var raw = await BoundedAsync(body, ct);
+        if (!IsGzipped(raw))
+            return Parsed(raw);
 
-        if (raw is not [GzipFirstByte, GzipSecondByte, ..])
-            return Encoding.UTF8.GetString(raw);
+        await using var expanding = new GZipStream(raw, CompressionMode.Decompress);
+        await using var expanded = await BoundedAsync(expanding, ct);
 
-        await using var compressed = new MemoryStream(raw);
-        await using var expanding = new GZipStream(compressed, CompressionMode.Decompress);
-
-        return Encoding.UTF8.GetString(await BoundedAsync(expanding, ct));
+        return Parsed(expanded);
     }
 
-    private async Task<byte[]> BoundedAsync(Stream source, CancellationToken ct)
+    private static bool IsGzipped(MemoryStream raw)
+        => raw.Length >= 2 && raw.GetBuffer() is [GzipFirstByte, GzipSecondByte, ..];
+
+    private static SitemapFile Parsed(MemoryStream kept)
+    {
+        using var text = new StreamReader(kept, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+
+        return SitemapFile.Read(text);
+    }
+
+    private async Task<MemoryStream> BoundedAsync(Stream source, CancellationToken ct)
     {
         var kept = new MemoryStream();
         var buffer = new byte[16 * 1024];
@@ -87,14 +114,21 @@ public sealed class HttpSitemapSource(IOptions<CrawlOptions> options, ILogger<Ht
             var read = await source.ReadAsync(buffer, ct);
 
             if (read == 0)
-                return kept.ToArray();
+                return Rewound(kept);
 
             await kept.WriteAsync(buffer.AsMemory(0, (int)Math.Min(read, _options.MaxSitemapBytes - kept.Length)), ct);
         }
 
         Log.SitemapCut(logger, _options.MaxSitemapBytes, CrawlOptions.SectionName, nameof(CrawlOptions.MaxSitemapBytes));
 
-        return kept.ToArray();
+        return Rewound(kept);
+    }
+
+    private static MemoryStream Rewound(MemoryStream kept)
+    {
+        kept.Position = 0;
+
+        return kept;
     }
 
     /// <inheritdoc />

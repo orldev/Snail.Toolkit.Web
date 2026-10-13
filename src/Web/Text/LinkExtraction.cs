@@ -40,20 +40,19 @@ public sealed class LinkExtraction : ILinkExtraction
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(address);
 
-        if (!IsFollowable(document))
+        var marks = Marks.Of(document, isAnchorsWanted: true);
+
+        if (!marks.IsFollowable || marks.Anchors.Count == 0)
             return [];
 
-        if (document.DocumentNode.SelectNodes("//a[@href]") is not { } anchors)
-            return [];
-
-        var origin = Origin(document, address);
+        var origin = Origin(marks.Base, address);
 
         List<Link> links = [];
         HashSet<Link> seen = [];
 
-        foreach (var anchor in anchors)
+        foreach (var anchor in marks.Anchors)
         {
-            if (Relations(anchor.GetAttributeValue("rel", string.Empty)).Contains("nofollow"))
+            if (Names(anchor.GetAttributeValue("rel", string.Empty), "nofollow"))
                 continue;
 
             if (Resolved(origin, anchor.GetAttributeValue("href", string.Empty)) is not { } link)
@@ -81,14 +80,12 @@ public sealed class LinkExtraction : ILinkExtraction
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(address);
 
-        var declared = document.DocumentNode
-            .SelectNodes("//link[@rel][@href]")
-            ?.FirstOrDefault(node => Relations(node.GetAttributeValue("rel", string.Empty)).Contains("canonical"));
+        var marks = Marks.Of(document, isAnchorsWanted: false);
 
-        if (declared is null)
+        if (marks.Canonical is not { } declared)
             return null;
 
-        return Resolved(Origin(document, address), declared.GetAttributeValue("href", string.Empty));
+        return Resolved(Origin(marks.Base, address), declared.GetAttributeValue("href", string.Empty));
     }
 
     private static HtmlDocument? Loaded(string html)
@@ -99,27 +96,51 @@ public sealed class LinkExtraction : ILinkExtraction
         return Markup.Read(html);
     }
 
-    /// <summary>Answers whether the document as a whole allows its links to be followed.</summary>
-    private static bool IsFollowable(HtmlDocument document)
+    /// <summary>Answers whether a space- or comma-separated list of relations names <paramref name="relation"/>.</summary>
+    /// <remarks>
+    /// Read in place: the list used to be split, each entry lower-cased into a string of its own and gathered into
+    /// a list, for every anchor of every page, to answer one yes or no. Each entry is still trimmed of white space
+    /// and compared after lowering each character by the invariant culture, which is what
+    /// <see cref="string.ToLowerInvariant()"/> did to it, so a relation matches exactly the spellings it matched
+    /// then. A comparison ignoring case would not: measured over every character on 2026-10-13, lowering turns the
+    /// Kelvin sign into <c>k</c> and an ordinal comparison ignoring case does not match the two.
+    /// </remarks>
+    private static bool Names(string value, string relation)
     {
-        var directives = document.DocumentNode
-            .SelectNodes("//meta[@name][@content]")
-            ?.Where(node => node.GetAttributeValue("name", string.Empty)
-                .Equals("robots", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(node => Relations(node.GetAttributeValue("content", string.Empty)));
+        var rest = value.AsSpan();
 
-        return directives is null || !directives.Any(directive => directive is "nofollow" or "none");
+        while (true)
+        {
+            var cut = rest.IndexOfAny(' ', ',');
+            var entry = cut < 0 ? rest : rest[..cut];
+
+            if (IsSpelled(entry.Trim(), relation))
+                return true;
+
+            if (cut < 0)
+                return false;
+
+            rest = rest[(cut + 1)..];
+        }
     }
 
-    private static IReadOnlyList<string> Relations(string value)
-        => [.. value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(entry => entry.ToLowerInvariant())];
-
-    private static Uri Origin(HtmlDocument document, Uri address)
+    private static bool IsSpelled(ReadOnlySpan<char> entry, string relation)
     {
-        var declared = document.DocumentNode
-            .SelectSingleNode("//base[@href]")
-            ?.GetAttributeValue("href", string.Empty);
+        if (entry.Length != relation.Length)
+            return false;
+
+        for (var at = 0; at < entry.Length; at++)
+        {
+            if (char.ToLowerInvariant(entry[at]) != relation[at])
+                return false;
+        }
+
+        return true;
+    }
+
+    private static Uri Origin(HtmlNode? declaring, Uri address)
+    {
+        var declared = declaring?.GetAttributeValue("href", string.Empty);
 
         if (string.IsNullOrWhiteSpace(declared))
             return address;
@@ -129,7 +150,7 @@ public sealed class LinkExtraction : ILinkExtraction
 
     private static Link? Resolved(Uri origin, string href)
     {
-        var text = HtmlEntity.DeEntitize(href).Trim();
+        var text = (href.Contains('&', StringComparison.Ordinal) ? HtmlEntity.DeEntitize(href) : href).Trim();
 
         if (text.Length == 0 || text.StartsWith('#'))
             return null;
@@ -141,5 +162,111 @@ public sealed class LinkExtraction : ILinkExtraction
             return null;
 
         return Link.Of(absolute);
+    }
+
+    /// <summary>What a document says about its links, read in one walk: its anchors, its base, its canonical address.</summary>
+    /// <remarks>
+    /// The walk replaces four XPath queries — the anchors, the robots directives, the base and the canonical link —
+    /// each of which went over the whole document on its own. It moves exactly as HtmlAgilityPack's XPath navigator
+    /// does, to the first child, the next sibling and back up to the parent, so it meets the same elements in the
+    /// same order; an element is matched by its lower-cased name and an attribute by the presence of its lower-cased
+    /// name, which is what <c>//a[@href]</c> asked. A prefixed name such as <c>svg:a</c> matched none of the
+    /// queries and matches nothing here.
+    /// </remarks>
+    private sealed class Marks
+    {
+        public List<HtmlNode> Anchors { get; } = [];
+
+        public bool IsFollowable { get; private set; } = true;
+
+        public HtmlNode? Base { get; private set; }
+
+        public HtmlNode? Canonical { get; private set; }
+
+        public static Marks Of(HtmlDocument document, bool isAnchorsWanted)
+        {
+            var marks = new Marks();
+            var root = document.DocumentNode;
+            var node = root.HasChildNodes ? root.ChildNodes[0] : null;
+            var depth = 1;
+
+            while (node is not null)
+            {
+                if (node.NodeType == HtmlNodeType.Element)
+                    marks.Note(node, isAnchorsWanted);
+
+                node = Next(node, ref depth);
+            }
+
+            return marks;
+        }
+
+        private static HtmlNode? Next(HtmlNode node, ref int depth)
+        {
+            if (node.HasChildNodes)
+            {
+                depth++;
+
+                return node.ChildNodes[0];
+            }
+
+            var current = node;
+
+            while (depth > 0 && current is not null)
+            {
+                if (current.NextSibling is { } sibling)
+                    return sibling;
+
+                current = current.ParentNode;
+                depth--;
+            }
+
+            return null;
+        }
+
+        private void Note(HtmlNode element, bool isAnchorsWanted)
+        {
+            switch (element.Name)
+            {
+                case "a" when isAnchorsWanted && Has(element, "href"):
+                    Anchors.Add(element);
+                    break;
+                case "meta" when IsFollowable && Has(element, "name") && Has(element, "content"):
+                    IsFollowable = !IsRefusal(element);
+                    break;
+                case "base" when Base is null && Has(element, "href"):
+                    Base = element;
+                    break;
+                case "link" when Canonical is null && Has(element, "rel") && Has(element, "href"):
+                    Canonical = Names(element.GetAttributeValue("rel", string.Empty), "canonical") ? element : null;
+                    break;
+            }
+        }
+
+        private static bool IsRefusal(HtmlNode meta)
+        {
+            if (!meta.GetAttributeValue("name", string.Empty).Equals("robots", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var content = meta.GetAttributeValue("content", string.Empty);
+
+            return Names(content, "nofollow") || Names(content, "none");
+        }
+
+        private static bool Has(HtmlNode element, string name)
+        {
+            if (!element.HasAttributes)
+                return false;
+
+            var attributes = element.Attributes;
+
+            for (var index = 0; index < attributes.Count; index++)
+            {
+                if (string.Equals(attributes[index].Name, name, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
+        }
     }
 }

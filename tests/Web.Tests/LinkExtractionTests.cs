@@ -117,6 +117,29 @@ public class LinkExtractionTests
         => Assert.Single(Canonicals("""<meta name="robots" content="noindex"><a href="/a">a</a>"""));
 
     /// <summary>
+    /// Relations are compared after lowering each character by the invariant culture, as they were when each entry
+    /// was lower-cased into a string of its own: upper case is honoured, and the dotted capital I stays a letter
+    /// of its own rather than being read as <c>i</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("NOFOLLOW", false)]
+    [InlineData(" noopener ,NoFollow ", false)]
+    [InlineData("nofollow\tnoopener", true)]
+    [InlineData("no follow", true)]
+    public void From_LinkWithRelation_IsFollowedAsItsSpellingSays(string relation, bool isFollowed)
+        => Assert.Equal(isFollowed, Canonicals($"""<a href="/a" rel="{relation}">a</a>""").Any());
+
+    [Theory]
+    [InlineData("Canonical")]
+    [InlineData("alternate CANONICAL")]
+    public void CanonicalOf_RelationInAnyCase_ReadsIt(string relation)
+        => Assert.NotNull(_links.CanonicalOf($"""<link rel="{relation}" href="/docs/guide">""", Page));
+
+    [Fact]
+    public void CanonicalOf_RelationWithADottedCapitalI_AnswersUnknown()
+        => Assert.Null(_links.CanonicalOf("<link rel=\"CANON\u0130CAL\" href=\"/docs/guide\">", Page));
+
+    /// <summary>
     /// The one thing that can say two different addresses are the same document. Without it a crawl reports a
     /// print view, a page parameter and the article itself as three pages.
     /// </summary>

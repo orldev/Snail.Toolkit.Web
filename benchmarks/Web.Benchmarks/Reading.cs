@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using HtmlAgilityPack;
 using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Text;
 
@@ -21,12 +22,15 @@ public class Reading
 
     private string _html = null!;
 
+    private HtmlDocument _parsed = null!;
+
     private string[] _addresses = null!;
 
     [GlobalSetup]
     public void Setup()
     {
         _html = Page.Build();
+        _parsed = Markup.Read(_html);
 
         var found = _links.From(_html, Page.Address);
         _addresses = [.. found.Select(link => link.Text)];
@@ -46,6 +50,16 @@ public class Reading
     {
         var found = _links.From(_html, Page.Address);
         var canonical = _links.CanonicalOf(_html, Page.Address);
+
+        return found.Count + (canonical is null ? 0 : 1);
+    }
+
+    /// <summary>The links of a page parsed once already, which is how a crawl now reads them: the per-anchor work alone.</summary>
+    [Benchmark]
+    public int LinksOfParsedPage()
+    {
+        var found = _links.From(_parsed, Page.Address);
+        var canonical = _links.CanonicalOf(_parsed, Page.Address);
 
         return found.Count + (canonical is null ? 0 : 1);
     }

@@ -19,6 +19,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
     private readonly PolitenessOptions _options;
     private readonly Remembered<Gate> _gates;
     private readonly TimeProvider _clock;
+    private readonly Func<string, Gate> _newGate;
 
     /// <summary>How many hosts are currently remembered.</summary>
     internal int RememberedHosts => _gates.Count;
@@ -37,6 +38,7 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
         _options = options.Value;
         _clock = clock ?? TimeProvider.System;
         _gates = new Remembered<Gate>(_options.ForgetHostAfter, (gate, since) => gate.IsIdleSince(since), _clock);
+        _newGate = NewGate;
     }
 
     /// <inheritdoc />
@@ -101,10 +103,15 @@ public sealed class HostPoliteness : IPoliteness, IDisposable
     /// cannot be forgotten, and neither can a host with a request in flight. An idle gate carries no decision:
     /// recreating it gives the same answer as keeping it.
     /// </remarks>
-    private Gate GateFor(string host)
-        => _gates.Of(host, name => new Gate(
-            Math.Max(1, _options.MaxConcurrentPerHost),
-            _options.GapFor(name) ?? _options.MinDelayPerHost));
+    private Gate GateFor(string host) => _gates.Of(host, _newGate);
+
+    /// <summary>A new host's gate, with the gap configured for it.</summary>
+    /// <remarks>
+    /// Held as one delegate made in the constructor: written inline it captured this instance, and a new delegate
+    /// was allocated for every turn and every rest although a gate is made once per host.
+    /// </remarks>
+    private Gate NewGate(string host)
+        => new(Math.Max(1, _options.MaxConcurrentPerHost), _options.GapFor(host) ?? _options.MinDelayPerHost);
 
     /// <inheritdoc />
     /// <remarks>

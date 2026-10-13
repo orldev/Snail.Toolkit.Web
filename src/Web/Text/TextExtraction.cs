@@ -76,7 +76,7 @@ public sealed partial class TextExtraction : ITextExtraction
         var text = new StringBuilder();
         Append(document.DocumentNode, text);
 
-        return Collapse(WebUtility.HtmlDecode(text.ToString()));
+        return HasReference(text) ? Collapse(WebUtility.HtmlDecode(text.ToString())) : Collapsed(text);
     }
 
     /// <inheritdoc />
@@ -218,9 +218,45 @@ public sealed partial class TextExtraction : ITextExtraction
     /// One pass, where there were two regular expressions over the whole text and a trim after them, each
     /// answering a copy of it.
     /// </remarks>
-    private static string Collapse(string text)
+    private static string Collapse(string text) => Collapse(text.AsSpan());
+
+    /// <summary>Answers whether the gathered text holds an ampersand, the only character decoding acts on.</summary>
+    private static bool HasReference(StringBuilder text)
     {
-        var span = text.AsSpan().Trim();
+        foreach (var chunk in text.GetChunks())
+        {
+            if (chunk.Span.Contains('&'))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Collapses the gathered text straight from the builder, when there is nothing in it to decode.</summary>
+    /// <remarks>
+    /// Decoding text without an ampersand answers the same text, so the builder's whole length used to be copied
+    /// into a string only to be read once more and dropped: two hundred kilobytes on a page of a hundred thousand
+    /// characters. It is copied into a pooled buffer instead.
+    /// </remarks>
+    private static string Collapsed(StringBuilder text)
+    {
+        var gathered = ArrayPool<char>.Shared.Rent(text.Length);
+
+        try
+        {
+            text.CopyTo(0, gathered, text.Length);
+
+            return Collapse(gathered.AsSpan(0, text.Length));
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(gathered);
+        }
+    }
+
+    private static string Collapse(ReadOnlySpan<char> text)
+    {
+        var span = text.Trim();
 
         if (span.IsEmpty)
             return string.Empty;

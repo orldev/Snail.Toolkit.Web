@@ -44,6 +44,30 @@ Measured before and after with the benchmarks in `benchmarks/`; every answer is 
   `WebIdentity.Languages` is still an `IReadOnlyList<string>`, but no longer a `string[]` that a cast could
   edit for every identity after it.
 
+### The audit's remaining items, 2026-10-13
+
+Measured before and after with the benchmarks in `benchmarks/`; every answer is the same as before.
+
+#### Changed
+
+- **A parsed page's links in one walk.** `LinkExtraction` reads the anchors, the robots directives, the base
+  and the canonical link in one pass instead of four XPath queries, and reads `rel` in place (435.75 → 332 KB
+  and 0.38–0.78 → 0.25–0.26 ms over a page's links). Relations still match exactly the spellings they matched:
+  each character is lowered as `ToLowerInvariant` lowered it.
+- **A sitemap is streamed.** `SitemapFile.Parse` reads with an `XmlReader` instead of loading an `XDocument`
+  (14.27 → 8.55 MB for 10 000 addresses), and `HttpSitemapSource` reads it from the bytes it kept instead of
+  copying them into an array and a string (20.63 → 15.15 MB a download).
+- **A page's text costs one large string fewer** (3.66 → 3.44 MB a page read, half the gen2 collections), and
+  a turn at a host's gate 64 bytes fewer.
+
+#### Fixed
+
+- **`MaxSitemapBytes` bounds the download.** The whole body was buffered by the HTTP client before the ceiling
+  was consulted, so a 50 MB answer cost 95 MB per read under a ceiling of 1 000 bytes; the body is now read
+  under the ceiling.
+- **A sitemap saved with a UTF-8 byte-order mark is read.** The mark was decoded into a character ahead of
+  the document, which XML refuses, so such a sitemap, plain or gzipped, read as no sitemap at all.
+
 ### Found by its first MCP consumer, 2026-10-04
 
 Defects that only showed once a model, rather than a program, was reading what the toolkit returned —
