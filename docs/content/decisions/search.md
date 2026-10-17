@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-21 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+22 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## SearchOptions.RefusalCooldown
 
@@ -257,3 +257,12 @@ The same holds for a rest, and until 2026-09-20 this reasoning was applied to th
 A search without a budget is bounded all the same, by `Timeout` — the longest one request may take. An engine whose host opens after that could only be asked in order to be timed out, and hearing when it opens is worth more than spending the time to be told nothing.
 
 A provider that names no host is always asked. It is not a promise that it is quick — it is that this library knows nothing about its cost, and refusing to ask on a guess would be worse than paying it.
+
+
+## DuckDuckGo.NextOffset
+
+`2026-10-12` · *internal*
+
+*Reads the offset the next-page control of a page already parsed asks for.*
+
+The results and the offset were each read from a parse of their own, and the parse is most of what either costs: measured on 2026-10-12 by the audit, one parse for both is 0.50–0.65 of the time and 63 % of the bytes.

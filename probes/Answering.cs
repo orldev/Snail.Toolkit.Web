@@ -46,7 +46,7 @@ internal static class Answering
         var engine = container.GetRequiredService<IEnumerable<ISearchProvider>>()
             .Single(provider => provider.Name == Google.ProviderName);
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — поиск целиком через зарегистрированный провайдер");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — the whole search through the registered provider");
 
         var started = DateTimeOffset.UtcNow;
         var answer = await engine.FindAsync(Query);
@@ -54,21 +54,21 @@ internal static class Answering
 
         if (!answer.IsSuccess)
         {
-            Console.WriteLine($"  ОТКАЗ                    {answer.Failure}");
+            Console.WriteLine($"  REFUSED                  {answer.Failure}");
 
             return;
         }
 
-        Console.WriteLine($"  результатов              {answer.Value.Count}, за {spent.TotalSeconds:F0} с");
+        Console.WriteLine($"  results                  {answer.Value.Count}, in {spent.TotalSeconds:F0} s");
 
         foreach (var result in answer.Value)
-            Console.WriteLine($"    {(result.Address.IsAbsolute ? "адрес" : "ОБЁРТКА")}  {result.Address.Canonical[..Math.Min(62, result.Address.Canonical.Length)]}");
+            Console.WriteLine($"    {(result.Address.IsAbsolute ? "address" : "WRAPPER")}  {result.Address.Canonical[..Math.Min(62, result.Address.Canonical.Length)]}");
 
         var wrapped = answer.Value.Count(result => !result.Address.IsAbsolute);
         var own = answer.Value.Count(result => result.Address.Address?.Host.EndsWith("google.com", StringComparison.OrdinalIgnoreCase) == true);
 
-        Console.WriteLine($"  нераскрытых              {wrapped}");
-        Console.WriteLine($"  осталось на движке       {own}");
-        Console.WriteLine($"  первый заголовок         {answer.Value.FirstOrDefault()?.Title}");
+        Console.WriteLine($"  unresolved               {wrapped}");
+        Console.WriteLine($"  left on the engine       {own}");
+        Console.WriteLine($"  first title              {answer.Value.FirstOrDefault()?.Title}");
     }
 }

@@ -26,13 +26,13 @@ internal static class Wrappers
         using var driver = await Playwright.CreateAsync();
         await using var browser = await driver.Firefox.ConnectAsync(endpoint, new BrowserTypeConnectOptions { Timeout = 30000 });
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — раскрывается ли обёртка ссылки");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — does a link wrapper resolve");
 
         var page = await Serp.OpenAsync(browser, Query);
 
         if (Serp.IsRefusal(page))
         {
-            Console.WriteLine("  выдача                   ОТКАЗ /sorry/ — замер не состоялся");
+            Console.WriteLine("  results page             REFUSED /sorry/: nothing was measured");
 
             return;
         }
@@ -41,7 +41,7 @@ internal static class Wrappers
         var anchors = await Serp.AnchorsAsync(page);
         var wrapped = anchors.Where(href => href?.StartsWith('/') == true).ToArray();
 
-        Console.WriteLine($"  выдача                   якорей {anchors.Length}, обёрнутых {wrapped.Length}");
+        Console.WriteLine($"  results page             anchors {anchors.Length}, wrapped {wrapped.Length}");
 
         if (wrapped.Length > 0)
             await FollowAsync(page.Context, serp, wrapped[0]);
@@ -53,7 +53,7 @@ internal static class Wrappers
     /// <summary>Asks the engine where one wrapper leads, without following it.</summary>
     private static async Task FollowAsync(IBrowserContext context, string serp, string wrapper)
     {
-        Console.WriteLine($"  пробуем                  {wrapper[..Math.Min(56, wrapper.Length)]}…");
+        Console.WriteLine($"  trying                   {wrapper[..Math.Min(56, wrapper.Length)]}…");
 
         var reply = await context.APIRequest.GetAsync("https://www.google.com" + wrapper, new APIRequestContextOptions
         {
@@ -62,8 +62,8 @@ internal static class Wrappers
             Timeout = 30000
         });
 
-        Console.WriteLine($"  ответ обёртки            {reply.Status} {reply.StatusText}");
-        Console.WriteLine($"  Location                 {(reply.Headers.TryGetValue("location", out var found) ? found : "нет заголовка")}");
+        Console.WriteLine($"  wrapper answered         {reply.Status} {reply.StatusText}");
+        Console.WriteLine($"  Location                 {(reply.Headers.TryGetValue("location", out var found) ? found : "no header")}");
     }
 
     /// <summary>The arm kept as a record that the simplified layout is not a way out.</summary>
@@ -76,7 +76,7 @@ internal static class Wrappers
 
         if (Serp.IsRefusal(page))
         {
-            Console.WriteLine("  gbv=1                    ОТКАЗ /sorry/");
+            Console.WriteLine("  gbv=1                    REFUSED /sorry/");
 
             return;
         }
@@ -84,7 +84,7 @@ internal static class Wrappers
         var anchors = await Serp.AnchorsAsync(page);
         var plain = anchors.Count(href => href?.StartsWith("http", StringComparison.Ordinal) == true);
 
-        Console.WriteLine($"  gbv=1                    якорей {anchors.Length}, прямых {plain}");
-        Console.WriteLine($"  адрес после gbv=1        {page.Url[..Math.Min(100, page.Url.Length)]}");
+        Console.WriteLine($"  gbv=1                    anchors {anchors.Length}, direct {plain}");
+        Console.WriteLine($"  address after gbv=1      {page.Url[..Math.Min(100, page.Url.Length)]}");
     }
 }

@@ -4,4 +4,9 @@
     <ProjectReference Include="..\src\Search.Browser.Agent\Search.Browser.Agent.csproj" />
   </ItemGroup>
 
+  <!-- The pages the probes measure, read beside the program by Samples. -->
+  <ItemGroup>
+    <None Include="Pages\*.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

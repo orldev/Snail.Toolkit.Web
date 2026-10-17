@@ -61,31 +61,37 @@ internal static class Contexts
         (1, 1)
     ];
 
+    /// <summary>A document with enough in it to make a renderer do renderer things.</summary>
+    /// <remarks>
+    /// Kept in <c>Pages/context.html</c>: its text is what a renderer lays out, in the language it was measured in.
+    /// </remarks>
+    private static readonly string Document = Samples.Page("context.html");
+
     public static async Task ReportAsync(string endpoint)
     {
         using var driver = await Playwright.CreateAsync();
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — чего стоит контекст рядом с процессом");
-        Console.WriteLine($"  контейнер {Container}, сервер {endpoint}");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — what a context costs beside a process");
+        Console.WriteLine($"  container {Container}, server {endpoint}");
 
         await WarmedUpAsync(driver, endpoint);
 
         var idle = await MegabytesAsync();
 
-        Console.WriteLine($"  сервер на холостом ходу, после разогрева: {Printed(idle)}");
+        Console.WriteLine($"  server idle, after the warm-up:          {Printed(idle)}");
         Console.WriteLine();
-        Console.WriteLine("  плечо            страниц   память    на страницу   процессов   открытие: медиана / худшее");
+        Console.WriteLine("  arm               pages    memory      per page   processes   opening: median / worst");
 
         foreach (var arm in Arms)
             await MeasureAsync(driver, endpoint, arm.Processes, arm.PerProcess);
 
         Console.WriteLine();
-        Console.WriteLine($"  сервер снова на холостом ходу:            {Printed(await MegabytesAsync())}");
+        Console.WriteLine($"  server idle again:                        {Printed(await MegabytesAsync())}");
         Console.WriteLine();
-        Console.WriteLine("  Последнее плечо повторяет первое: расхождение между ними — это дрейф,");
-        Console.WriteLine("  и пока он не мал, разницу между остальными плечами читать нельзя.");
-        Console.WriteLine("  Две строки холостого хода отвечают на отдельный вопрос: возвращается ли");
-        Console.WriteLine("  память закрытых контекстов, без чего выбор их числа не имеет смысла.");
+        Console.WriteLine("  The last arm repeats the first: the difference between them is drift,");
+        Console.WriteLine("  and until it is small, the differences between the other arms cannot be read.");
+        Console.WriteLine("  The two idle lines answer a question of their own: whether the memory of");
+        Console.WriteLine("  closed contexts comes back, without which choosing their number means nothing.");
     }
 
     /// <summary>Opens and closes one page before anything is measured.</summary>
@@ -109,7 +115,7 @@ internal static class Contexts
     }
 
     private static string Printed(double? megabytes)
-        => megabytes is { } number ? $"{number,7:F0} МБ" : "неизвестно (docker не ответил)";
+        => megabytes is { } number ? $"{number,7:F0} MB" : "unknown (docker did not answer)";
 
     private static async Task MeasureAsync(IPlaywright driver, string endpoint, int processes, int perProcess)
     {
@@ -175,13 +181,13 @@ internal static class Contexts
         var worst = sorted[^1].TotalMilliseconds;
 
         var cost = before is { } was && after is { } now
-            ? $"{now - was,7:F0} МБ  {(now - was) / pages,8:F0} МБ"
+            ? $"{now - was,7:F0} MB  {(now - was) / pages,8:F0} MB"
             : "      —            —   ";
 
         var counted = running is { } number ? $"{number,6}" : "     ?";
 
         Console.WriteLine(
-            $"  {processes,2} проц × {perProcess,2} конт {pages,8}  {cost}  {counted}      {median,7:F0} мс / {worst,5:F0} мс");
+            $"  {processes,2} proc × {perProcess,2} ctx  {pages,8}  {cost}  {counted}      {median,7:F0} ms / {worst,5:F0} ms");
     }
 
     /// <summary>How many top-level browser processes the container is actually running.</summary>
@@ -259,27 +265,4 @@ internal static class Contexts
             ? number * scale
             : null;
     }
-
-    /// <summary>A document with enough in it to make a renderer do renderer things.</summary>
-    private const string Document =
-        """
-        <!doctype html><html><head><title>Проба</title><style>
-        .row { display: flex; gap: 8px; padding: 4px; border-bottom: 1px solid #ddd; }
-        .cell { flex: 1; font: 14px/1.4 system-ui, sans-serif; }
-        </style></head><body><main id="rows"></main><script>
-        const rows = document.getElementById('rows');
-        for (let index = 0; index < 2000; index++) {
-          const row = document.createElement('div');
-          row.className = 'row';
-          for (let cell = 0; cell < 4; cell++) {
-            const box = document.createElement('div');
-            box.className = 'cell';
-            box.textContent = 'строка ' + index + ' поле ' + cell + ' — текст, который надо разложить';
-            row.appendChild(box);
-          }
-          rows.appendChild(row);
-        }
-        document.body.offsetHeight;
-        </script></body></html>
-        """;
 }

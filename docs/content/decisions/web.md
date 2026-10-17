@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-19 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+25 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -212,6 +212,8 @@ Eight thousand `div` elements is forty kilobytes of body, which any site can ser
 
 A `null` on the stack is the line break owed to a block element whose children have all been written. It is pushed before that element's children, so it is popped after them. The break BEFORE the element is written at once: without it, text standing directly ahead of a block — `<div>Introduction<p>First</p></div>` — ran into it as «IntroductionFirst».
 
+The break owed to a `pre` also says so, and that is how the walk knows which text is the author's: everything between the element and its break is inside it, at any depth. The text nodes under a `pre` used to be found by an XPath query over the whole document first.
+
 
 ## HostPoliteness.DelayAsync
 
@@ -244,3 +246,55 @@ Two defects are fixed here against the version this came from. `SelectNodes` ans
 THAT SECOND FIX OVERSHOT, and stood until 2026-10-04: every newline of the SOURCE was kept, as though a line break in markup were a line break on the page. It is whitespace. A sentence written across three source lines with a link in the middle came back as three lines, a navigation bar as a column of single words — measured through the MCP server built on this toolkit, on a page of the PostgreSQL manual, where roughly half the lines of the text were one word long. What ends a line now is what ends one in a browser: a block element, on both of its sides. Whitespace inside a text node is one space, except in preformatted text, which is the one place a line break in the source is the author's.
 
 Found by the same reading: the page's `title` was part of its text, and since it is not a block it ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by `Title`; here the head is noise like a script is.
+
+
+## BlockDetector.Inspect
+
+`2026-10-12`
+
+Nearly every page is clear, and finding that out took eleven case-insensitive scans of the whole document and a regular expression after them. One pass over all the words at once answers "nothing here" first — measured on 2026-10-12 by the audit, 0.17–0.21 of the time — and only a page that carries one of them is asked again signal by signal, so the signal named is the one the list names first, as before.
+
+
+## IdentityRotation.Built
+
+`2026-10-12` · *internal*
+
+*The identity of the fingerprint at `index`, leaving by `exit`.*
+
+Everything an identity says is derived from its fingerprint alone, and it was derived again on every request — a regular expression, three chains of comparisons and a split of the languages: measured on 2026-10-12 by the audit, about 300 ns and 1 021 bytes a request, for the same answer each time. The identity is now shaped once per fingerprint and handed out again, with the exit set when a proxy is in use. It is shaped anew whenever the fingerprint's values are no longer the ones it was shaped from, since a fingerprint is a settings object anyone holding it can change.
+
+Since every identity of one fingerprint now carries the same list of languages, the list is handed out read-only: as an array, a caller casting it back could have rewritten the languages of every identity after its own.
+
+
+## Link.Reduced
+
+`2026-10-12` · *internal*
+
+*Takes the comparable form from the parsed address's own parts, or builds it where that is not sure.*
+
+Building it with a `UriBuilder` and reading the built address back parsed every link twice and split its query into an array, a sequence and a joined string, for every link of every page, every sitemap entry and every search result: measured on 2026-10-12 by the audit, 0.47 of the time and 52 % of the bytes once the parts are concatenated instead. Concatenating is only sure where the second parse could not have changed anything, so whatever it could change — credentials, a host outside lower-case ASCII or written as IPv6, http on the port of https, a query opening with a second question mark, a path that trims down to nothing or to a dot — is still built the long way, and both ways answer the same form.
+
+
+## SiteRules.IsAllowedAsync
+
+`2026-10-12`
+
+Asked on every attempt at every page, and for every page of a site but the first the rules are already read: the answer then comes from them at once. It used to build the origin's address, a closure and an async state machine each time — measured on 2026-10-12 by the audit, with the identity beside it, 2 437 bytes a request where 328 do. Whatever is not read yet, still being read or out of date takes the road it always took.
+
+
+## TextExtraction.Clean
+
+`2026-10-12`
+
+*Answers the readable text of a document already parsed, and leaves the document as it was.*
+
+The text, the title and the links of one page used to be read from a parse each — two for every page read and four for every page a crawl follows — and parsing is most of what any of them costs: measured on 2026-10-12 by the audit, the parse alone was 0.28–0.43 of the text and title together. One parse can answer all of them only if none of them changes it, and the text used to: it removed the scripts, the styles and the whole head from the document before walking it, and the head is where the canonical address, the base and the robots directives of the links are written. The walk now passes over those elements instead of removing them, and answers the same text.
+
+
+## LinkExtraction.Names
+
+`2026-10-13` · *internal*
+
+*Answers whether a space- or comma-separated list of relations names `relation`.*
+
+Read in place: the list used to be split, each entry lower-cased into a string of its own and gathered into a list, for every anchor of every page, to answer one yes or no. Each entry is still trimmed of white space and compared after lowering each character by the invariant culture, which is what `ToLowerInvariant` did to it, so a relation matches exactly the spellings it matched then. A comparison ignoring case would not: measured over every character on 2026-10-13, lowering turns the Kelvin sign into `k` and an ordinal comparison ignoring case does not match the two.

@@ -1,26 +1,15 @@
-# The theme is our own: theme.name is null and custom_dir points at the theme beside this file, so MkDocs
-# renders with the templates in this repository and nothing else. That decision is what makes the design
-# identical to the system it is drawn from rather than approximately like it -- the header, the navigation and the search
-# field are markup, and no amount of CSS turns somebody else's markup into a row of names separated by commas.
+# The theme is the one every Snail site wears, carried by Snail.Sdk: the SnailSite target lays it over this file.
 site_name: Snail.Toolkit.Web
 site_description: Questions about the web, answered separately, on one shared foundation.
 site_url: https://orldev.github.io/Snail.Toolkit.Web/
 repo_url: https://github.com/orldev/Snail.Toolkit.Web
 copyright: MIT
 
-# Everything the site is made of sits beside this file: content/ is the prose, theme/ the templates, and
-# generator/ the tool that writes the generated half. Both paths below are read relative to THIS file, so
+# Everything the site is made of sits beside this file: content/ is the prose and generator/ the tool that
+# writes the generated half. Both paths below are read relative to THIS file, so
 # the pipeline moves as one folder and none of them names the repository root.
 docs_dir: content
 site_dir: site
-
-theme:
-  name: null
-  custom_dir: theme
-  # Declared HERE rather than in a mkdocs_theme.yml beside the templates: that file is read only for a NAMED
-  # theme, so with name: null it is never opened and a template without a page of its own is never rendered.
-  static_templates:
-    - 404.html
 
 # The nav is written by hand while the pages under reference/ and decisions/ are generated, and that is the
 # guard rather than an oversight: --strict fails on a page missing from the nav and on a nav entry missing its

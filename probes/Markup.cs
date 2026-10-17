@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using HtmlAgilityPack;
 using Snail.Toolkit.Web.Text;
 
@@ -36,15 +37,18 @@ internal static class Markup
 
     private static readonly Shape[] Shapes =
     [
-        new("статья", Paragraphs: 400, Depth: 12),
-        new("крупная страница", Paragraphs: 3_000, Depth: 20),
-        new("каталог", Paragraphs: 12_000, Depth: 20),
-        new("вложенность 500", Paragraphs: 200, Depth: 500),
-        new("вложенность 1000", Paragraphs: 200, Depth: 1_000),
-        new("вложенность 2000", Paragraphs: 200, Depth: 2_000),
-        new("вложенность 5000", Paragraphs: 200, Depth: 5_000),
-        new("вложенность 20000", Paragraphs: 200, Depth: 20_000)
+        new("article", Paragraphs: 400, Depth: 12),
+        new("large page", Paragraphs: 3_000, Depth: 20),
+        new("catalogue", Paragraphs: 12_000, Depth: 20),
+        new("nesting 500", Paragraphs: 200, Depth: 500),
+        new("nesting 1000", Paragraphs: 200, Depth: 1_000),
+        new("nesting 2000", Paragraphs: 200, Depth: 2_000),
+        new("nesting 5000", Paragraphs: 200, Depth: 5_000),
+        new("nesting 20000", Paragraphs: 200, Depth: 20_000)
     ];
+
+    /// <summary>The markup <see cref="Page"/> repeats: the head, then a paragraph with <c>{n}</c> for its number.</summary>
+    private static readonly string[] Sample = Samples.Lines("markup.html");
 
     public static Task ReportAsync(string endpoint)
     {
@@ -56,19 +60,19 @@ internal static class Markup
 
         Warm(text, links, address);
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — чего стоит разбор разметки и сколько его платится дважды");
-        Console.WriteLine($"  HtmlAgilityPack, {Rounds} раундов на плечо, берётся медиана");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — what parsing markup costs and how much of it is paid twice");
+        Console.WriteLine($"  HtmlAgilityPack, {Rounds} rounds per arm, the median is taken");
         Console.WriteLine();
-        Console.WriteLine("  страница             размер   глубина     разбор    Clean   Title    путь чтения   экономия");
+        Console.WriteLine("  page                   size     depth      parse    Clean   Title   reading path     saving");
 
         foreach (var shape in Shapes)
             Measure(shape, text, links, address);
 
         Console.WriteLine();
-        Console.WriteLine("  «разбор» — один LoadHtml без извлечения. «путь чтения» — Clean + Title, то есть");
-        Console.WriteLine("  то, что платит КАЖДАЯ прочитанная страница. «экономия» — сколько сняло бы");
-        Console.WriteLine("  слияние пары в один вызов, и это ровно один разбор, не больше.");
-        Console.WriteLine("  Обход по ссылкам платит ещё столько же вторым разом — From и CanonicalOf.");
+        Console.WriteLine("  'parse' is one LoadHtml without extraction. 'reading path' is Clean + Title, that is");
+        Console.WriteLine("  what EVERY page read pays. 'saving' is how much merging the pair into one call");
+        Console.WriteLine("  would remove, and that is exactly one parse, no more.");
+        Console.WriteLine("  Following links pays as much again a second time: From and CanonicalOf.");
 
         Refused();
 
@@ -88,14 +92,14 @@ internal static class Markup
     private static void Refused()
     {
         Console.WriteLine();
-        Console.WriteLine("  потолок глубины у самого парсера (OptionMaxNestedChildNodes = 1000)");
+        Console.WriteLine("  the parser's own depth ceiling (OptionMaxNestedChildNodes = 1000)");
         Console.WriteLine();
-        Console.WriteLine("  страница             без потолка   с потолком   чем кончилось");
+        Console.WriteLine("  page                 no ceiling   with ceiling   how it ended");
 
         foreach (var shape in Shapes)
         {
             var html = Page(shape);
-            var ended = "разобралась";
+            var ended = "parsed";
 
             var (open, capped) = Paired(
                 () => Parse(html),
@@ -119,16 +123,16 @@ internal static class Markup
         }
 
         Console.WriteLine();
-        Console.WriteLine("  Потолок стоит того, только если отказ ДЕШЕВЛЕ разбора. Если обе колонки равны,");
-        Console.WriteLine("  парсер платит всё и жалуется потом, и лечить надо не здесь.");
-        Console.WriteLine("  Плечи чередуются по раундам, иначе второе читалось бы на разогретом процессе");
-        Console.WriteLine("  и разница между ними была бы разогревом, а не ценой потолка.");
+        Console.WriteLine("  The ceiling is worth it only if refusing is CHEAPER than parsing. If both columns are equal,");
+        Console.WriteLine("  the parser pays everything and complains afterwards, and the cure belongs elsewhere.");
+        Console.WriteLine("  The arms alternate by round; otherwise the second would be read on a warmer process");
+        Console.WriteLine("  and the difference between them would be the warm-up, not the price of the ceiling.");
     }
 
     /// <summary>Runs every path once on a small page, so the first shape is not the one paying for start-up.</summary>
     private static void Warm(TextExtraction text, LinkExtraction links, Uri address)
     {
-        var html = Page(new Shape("разогрев", 50, 5));
+        var html = Page(new Shape("warm-up", 50, 5));
 
         for (var round = 0; round < 3; round++)
         {
@@ -215,22 +219,23 @@ internal static class Markup
     /// <remarks>
     /// Links and a canonical address are included because two of the four parses look for exactly those, and a
     /// page without them would let those calls return early against markup they never walked.
+    /// <para>
+    /// The markup is kept in <c>Pages/markup.html</c>: the head on its first line, a paragraph with <c>{n}</c> for its
+    /// number on the second. Its text is in the language the page was measured in, so it is data, not code.
+    /// </para>
     /// </remarks>
     private static string Page(Shape shape)
     {
         var html = new System.Text.StringBuilder();
 
-        html.Append("<html><head><title>Проба разметки</title>")
-            .Append("<link rel=\"canonical\" href=\"https://example.test/page\"></head><body>");
+        html.Append(Sample[0]);
 
         for (var level = 0; level < shape.Depth; level++)
             html.Append("<div class=\"level\">");
 
         for (var paragraph = 0; paragraph < shape.Paragraphs; paragraph++)
         {
-            html.Append("<p>Абзац номер ").Append(paragraph);
-            html.Append(", в котором есть <a href=\"/link-").Append(paragraph);
-            html.Append("\">ссылка</a> и немного текста, чтобы страница была похожа на страницу.</p>");
+            html.Append(Sample[1].Replace("{n}", paragraph.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal));
         }
 
         for (var level = 0; level < shape.Depth; level++)
@@ -246,12 +251,12 @@ internal static class Markup
         var bytes = System.Text.Encoding.UTF8.GetByteCount(html);
 
         return bytes >= 1024 * 1024
-            ? $"{bytes / (1024.0 * 1024.0):0.0} МБ"
-            : $"{bytes / 1024.0:0} КБ";
+            ? $"{bytes / (1024.0 * 1024.0):0.0} MB"
+            : $"{bytes / 1024.0:0} KB";
     }
 
     private static string Ms(double milliseconds)
-        => milliseconds >= 1000 ? $"{milliseconds / 1000:0.00} с" : $"{milliseconds:0.0} мс";
+        => milliseconds >= 1000 ? $"{milliseconds / 1000:0.00} s" : $"{milliseconds:0.0} ms";
 
     private sealed record Shape(string Name, int Paragraphs, int Depth);
 }

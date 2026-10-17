@@ -22,16 +22,16 @@ Func<string, Task>? chosen = name switch
 
 if (chosen is null)
 {
-    Console.WriteLine("Пробы:");
-    Console.WriteLine("  fingerprint  сетевой отпечаток сборки: JA3/JA4, HTTP/2, порядок заголовков");
-    Console.WriteLine("  wrappers     раскрывается ли обёртка ссылки редиректом, и помогает ли упрощённая выдача");
-    Console.WriteLine("  resolving    чем платит раскрытие: нужна ли сессия и терпит ли движок подряд");
-    Console.WriteLine("  counting     считает ли движок запросы, а не страницы");
-    Console.WriteLine("  answering    поиск целиком, так как его позовёт потребитель");
-    Console.WriteLine("  contexts     чего стоит контекст рядом с процессом: память и время открытия");
-    Console.WriteLine("  markup       чего стоит разбор разметки и сколько его платится дважды");
+    Console.WriteLine("Probes:");
+    Console.WriteLine("  fingerprint  the build's network fingerprint: JA3/JA4, HTTP/2, header order");
+    Console.WriteLine("  wrappers     whether a link wrapper resolves by a redirect, and whether the basic results page helps");
+    Console.WriteLine("  resolving    what resolving costs: whether it needs a session and whether the engine takes it in a row");
+    Console.WriteLine("  counting     whether the engine counts requests rather than pages");
+    Console.WriteLine("  answering    the whole search, as a consumer calls it");
+    Console.WriteLine("  contexts     what a context costs beside a process: memory and opening time");
+    Console.WriteLine("  markup       what parsing markup costs and how much of it is paid twice");
     Console.WriteLine();
-    Console.WriteLine("  dotnet run --project probes -- <проба> [ws://адрес-сервера/]");
+    Console.WriteLine("  dotnet run --project probes -- <probe> [ws://server-address/]");
 
     return 1;
 }

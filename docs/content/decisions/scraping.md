@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-21 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+24 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -227,3 +227,38 @@ Here rather than in whoever asked for the visit, because the state can only be r
 The text of a page says what it says; a picture says what it shows — a chart, a map, a layout, a page whose content is drawn rather than written. Added on 2026-10-04 for the MCP server built on this toolkit, where the reader is a model that can look.
 
 A picture is a visit like any other: the same identity, the same politeness gate, the same robots rules and the same judgement of a wall, because it goes through the same `IAttempts` and `IVisits` the page reader does. A site that would refuse the text refuses the picture.
+
+
+## Crawler.IsSaidAlready
+
+`2026-10-12` · *internal*
+
+*Answers whether this crawl already kept a page saying exactly this.*
+
+Only text long enough to be its own evidence is compared. Two thin pages — a navigation fragment, an empty category — are identical for reasons that have nothing to do with being one document, and collapsing those would lose real pages rather than duplicates.
+
+The digest is taken over the text's own UTF-16 bytes onto the stack and kept as its first 128 bits. It used to be the UTF-8 bytes in a new array, turned into a hex string of 64 characters: measured on 2026-10-12 by the audit, 35 680 bytes and twice the time per page of 20 000 characters, for an answer that is the same — two texts collide in 128 bits of SHA-256 no more often than in 256.
+
+
+## PageContents.Read
+
+`2026-10-12` · *internal*
+
+*Reads the page's text and title, from one parse of its markup where the extraction is this library's own.*
+
+Each of the two parsed the markup on its own, and the parse is most of what either costs. Another extraction is asked as it always was: what it does with markup, a ceiling on nesting included, is its own.
+
+A search engine's results page is parsed and nothing more. Its text and title were extracted for every query and read by nobody, since an engine reads its results out of the markup: measured on 2026-10-12 by the audit, three parses and the text cost 4.34 MB a page, one parse alone 1.23 MB.
+
+
+## HttpSitemapSource
+
+`2026-10-13`
+
+*Downloads a sitemap over HTTP, decompressing the gzipped ones.*
+
+Compression is decided by the first two bytes rather than by the file name or the content type. A sitemap is routinely served as `.xml.gz` with no `Content-Encoding`, which no HTTP client decompresses on its own, and just as routinely served gzipped from a name that says `.xml`.
+
+The read is capped. Compressed XML expands by twenty to one and the file is written by the site being read, so an unbounded read is a memory limit set by someone else.
+
+The cap holds on the network too: only the headers are awaited and the body is read under it. Awaited whole, as the client does by default, the body was buffered before the cap was ever consulted — measured on 2026-10-13, an answer of 50 MB cost 95 MB per read under a ceiling of 1 000 bytes. A body that breaks off while it is read fails as an `IOException`, and reads as no sitemap, as a failed request does.

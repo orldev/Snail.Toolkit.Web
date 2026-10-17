@@ -8,12 +8,12 @@
     needs a measurement and has no time to repair it.
   -->
   <!--
-    Snail.Sdk knows a program that is neither packed nor documented, and whose text is data rather than prose, by
-    the name *.Benchmarks; the probe is that kind of program under another name, so it says so here. Its strings
-    are queries and pages in the language they are measured in, which the English-only rule leaves alone.
+    A program of the repository's own, neither packed nor documented: Snail.Sdk's kind Tool. It is held to every rule
+    of the code beside it, so its messages are in English; the pages it measures are data in the language they were
+    measured in, and live in Pages/ rather than in the code.
   -->
   <PropertyGroup>
-    <SnailProjectKind>Benchmarks</SnailProjectKind>
+    <SnailProjectKind>Tool</SnailProjectKind>
   </PropertyGroup>
 
   <ItemGroup>

@@ -77,7 +77,7 @@ src/Search.Browser       → Snail.Toolkit.Web.Search.Browser
 src/Search.Browser.Agent → Snail.Toolkit.Web.Search.Browser.Agent
 src/Scraping.Agent       → Snail.Toolkit.Web.Scraping.Agent
 tests/…                    one suite per package
-docs/                      the site: content/, theme/, generator/, mkdocs.yml
+docs/                      the site: content/, generator/, mkdocs.yml
 browser/                   the patched Firefox and the image it is published as
 probes/…                   measurements, invoked by name
 artifacts/                 everything the build produces, and nothing a person writes

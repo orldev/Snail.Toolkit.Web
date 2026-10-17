@@ -194,7 +194,7 @@ src/Search.Browser       → Snail.Toolkit.Web.Search.Browser
 src/Search.Browser.Agent → Snail.Toolkit.Web.Search.Browser.Agent
 src/Scraping.Agent       → Snail.Toolkit.Web.Scraping.Agent
 tests/…                    one suite per package
-docs/                      the site: content/, theme/, generator/, mkdocs.yml
+docs/                      the site: content/, generator/, mkdocs.yml
 browser/                   the patched Firefox and the image it is published as
 probes/…                   measurements, invoked by name
 artifacts/                 everything the build produces, and nothing a person writes
@@ -244,15 +244,14 @@ dotnet test                                    # adds the integration suites
 ## Documentation
 
 The site at [orldev.github.io/Snail.Toolkit.Web](https://orldev.github.io/Snail.Toolkit.Web/) is built from
-`docs/`, which holds all four parts of it: `content/` is the prose, `theme/` the templates, `generator/` the
-tool that writes the generated half, and `mkdocs.yml` the build. MkDocs runs with `theme.name` set to null,
-so the templates in this repository are the whole of it and there is no theme package to track.
+`docs/`: `content/` is the prose, `generator/` the tool that writes the generated half, and `mkdocs.yml`
+the build. The theme is the one every Snail site wears: Snail.Sdk carries it with the MkDocs version it is built
+with, and its `SnailSite` target lays it over `mkdocs.yml`.
 
 ```bash
 dotnet run --project docs/generator -- docs    # regenerate reference/ and decisions/
-pip install mkdocs==1.6.1 pymdown-extensions==10.21.3
-mkdocs serve --config-file docs/mkdocs.yml     # http://127.0.0.1:8000
-mkdocs build --strict --config-file docs/mkdocs.yml   # what CI runs
+dotnet msbuild src/Scraping.Agent -t:SnailSite -p:SnailSiteServe=true   # http://127.0.0.1:8000
+dotnet msbuild src/Scraping.Agent -t:SnailSite                           # what CI runs
 ```
 
 Two of the sections are **generated from the compiler's own documentation** and are checked in, so the site

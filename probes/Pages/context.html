@@ -1,0 +1,18 @@
+<!doctype html><html><head><title>Проба</title><style>
+.row { display: flex; gap: 8px; padding: 4px; border-bottom: 1px solid #ddd; }
+.cell { flex: 1; font: 14px/1.4 system-ui, sans-serif; }
+</style></head><body><main id="rows"></main><script>
+const rows = document.getElementById('rows');
+for (let index = 0; index < 2000; index++) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  for (let cell = 0; cell < 4; cell++) {
+    const box = document.createElement('div');
+    box.className = 'cell';
+    box.textContent = 'строка ' + index + ' поле ' + cell + ' — текст, который надо разложить';
+    row.appendChild(box);
+  }
+  rows.appendChild(row);
+}
+document.body.offsetHeight;
+</script></body></html>

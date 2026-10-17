@@ -26,13 +26,13 @@ internal static class Resolving
         using var driver = await Playwright.CreateAsync();
         await using var browser = await driver.Firefox.ConnectAsync(endpoint, new BrowserTypeConnectOptions { Timeout = 30000 });
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — чем платит раскрытие");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — what resolving costs");
 
         var page = await Serp.OpenAsync(browser, Query);
 
         if (Serp.IsRefusal(page))
         {
-            Console.WriteLine("  выдача                   ОТКАЗ /sorry/ — замер не состоялся");
+            Console.WriteLine("  results page             REFUSED /sorry/: nothing was measured");
 
             return;
         }
@@ -43,7 +43,7 @@ internal static class Resolving
             .Select(href => "https://www.google.com" + href)
             .ToArray();
 
-        Console.WriteLine($"  обёрнутых                {wrapped.Length}");
+        Console.WriteLine($"  wrapped                  {wrapped.Length}");
 
         if (wrapped.Length == 0)
             return;
@@ -62,7 +62,7 @@ internal static class Resolving
             Timeout = 30000
         });
 
-        Console.WriteLine($"  из браузера              {browsed.Status} → {(browsed.Headers.TryGetValue("location", out var led) ? led : "нет Location")}");
+        Console.WriteLine($"  from the browser         {browsed.Status} → {(browsed.Headers.TryGetValue("location", out var led) ? led : "no Location")}");
 
         using var bare = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
         {
@@ -73,18 +73,18 @@ internal static class Resolving
         {
             using var raw = await bare.GetAsync(wrapper);
 
-            Console.WriteLine($"  голым клиентом           {(int)raw.StatusCode} → {raw.Headers.Location?.ToString() ?? "нет Location"}");
+            Console.WriteLine($"  bare client              {(int)raw.StatusCode} → {raw.Headers.Location?.ToString() ?? "no Location"}");
         }
         catch (HttpRequestException failure)
         {
-            Console.WriteLine($"  голым клиентом           сорвалось: {failure.Message}");
+            Console.WriteLine($"  bare client              failed: {failure.Message}");
         }
     }
 
     /// <summary>Every wrapper in turn, at the interval the provider uses.</summary>
     private static async Task InTurnAsync(IBrowserContext context, string serp, string[] wrapped)
     {
-        Console.WriteLine("  подряд, шаг 1.5 с:");
+        Console.WriteLine("  in a row, 1.5 s apart:");
 
         var led = 0;
 
@@ -102,13 +102,13 @@ internal static class Resolving
             if (reply.Status == 302 && found is not null)
                 led++;
 
-            var shown = found ?? "нет Location";
+            var shown = found ?? "no Location";
 
             Console.WriteLine($"    {index + 1}. {reply.Status} {shown[..Math.Min(70, shown.Length)]}");
 
             await Task.Delay(1500);
         }
 
-        Console.WriteLine($"  раскрылось               {led} из {wrapped.Length}");
+        Console.WriteLine($"  resolved                 {led} of {wrapped.Length}");
     }
 }

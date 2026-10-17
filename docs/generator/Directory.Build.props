@@ -9,12 +9,11 @@
     cannot be generated is documentation that silently stops matching the code.
   -->
   <!--
-    Snail.Sdk knows a program that is neither packed nor documented, and whose text is data rather than prose, by
-    the name *.Benchmarks; the generator is that kind of program under another name, so it says so here. Its strings
-    are queries and pages in the language they are measured in, which the English-only rule leaves alone.
+    A program of the repository's own, neither packed nor documented: Snail.Sdk's kind Tool. It is held to every rule
+    of the code beside it, so its messages are in English like the rest.
   -->
   <PropertyGroup>
-    <SnailProjectKind>Benchmarks</SnailProjectKind>
+    <SnailProjectKind>Tool</SnailProjectKind>
   </PropertyGroup>
 
   <!--

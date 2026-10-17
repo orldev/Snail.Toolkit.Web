@@ -345,6 +345,8 @@ Compression is decided by the first two bytes rather than by the file name or th
 
 The read is capped. Compressed XML expands by twenty to one and the file is written by the site being read, so an unbounded read is a memory limit set by someone else.
 
+The cap holds on the network too: only the headers are awaited and the body is read under it. Awaited whole, as the client does by default, the body was buffered before the cap was ever consulted — measured on 2026-10-13, an answer of 50 MB cost 95 MB per read under a ceiling of 1 000 bytes. A body that breaks off while it is read fails as an `IOException`, and reads as no sitemap, as a failed request does.
+
 
 ## HumanBehavior
 
@@ -578,6 +580,8 @@ The budget lands on the extracted text and the markup goes back whole. Cutting m
 
 SO NOTHING HERE BOUNDS THE MARKUP, and that is why the one bound it does have is a refusal rather than a cut. Parsing is quadratic in nesting depth, so markup nested a thousand tags deep costs seconds of CPU per page — and this is the only place that can say so in the caller's own vocabulary. Left to itself the refusal would have arrived as an empty text and been reported as `Empty`: a page that published a great deal, described as having published nothing.
 
+**Judged** — The content the document carries, read as `reading` asks, or the reason it carries none.
+
 
 ## PageFailure
 
@@ -615,6 +619,8 @@ A `429` is the site saying how often it is willing to be asked, and `Retry-After
 Loads a page in a pooled browser under a freshly generated identity.
 
 What surrounds the fetch — the identity, the site's ruling on it, its turn at the per-host gate, the retry when the answer was worth asking again for — belongs to `IAttempts` and is not restated here. This class is what happens once all of that has been arranged: open a page, read it, and say what it turned out to be.
+
+**ReadAsync** — Reads `address` whole, answering what `reading` asks of the page.
 
 
 ## PageSnapshot

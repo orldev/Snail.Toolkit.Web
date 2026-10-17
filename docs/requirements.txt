@@ -1,4 +1,0 @@
-# The site generator, pinned: a floating version would change the rendering of the documentation without changing
-# the documentation. pymdown-extensions is asked for by name since no theme package brings it.
-mkdocs==1.6.1
-pymdown-extensions==10.21.3

@@ -30,13 +30,13 @@ internal static class Fingerprint
     {
         using var driver = await Playwright.CreateAsync();
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — сетевой отпечаток");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — the network fingerprint");
 
         await using (var ours = await driver.Firefox.ConnectAsync(endpoint, new BrowserTypeConnectOptions { Timeout = 30000 }))
-            await AskAsync(ours, "наша сборка (сервер)");
+            await AskAsync(ours, "our build (server)");
 
         await using (var stock = await driver.Firefox.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true }))
-            await AskAsync(stock, "штатный Playwright-Firefox (локально)");
+            await AskAsync(stock, "stock Playwright Firefox (local)");
     }
 
     private static async Task AskAsync(IBrowser browser, string label)
@@ -64,7 +64,7 @@ internal static class Fingerprint
         }
         catch (JsonException)
         {
-            Console.WriteLine($"  зеркало ответило не JSON: {body[..Math.Min(200, body.Length)]}");
+            Console.WriteLine($"  the mirror answered something other than JSON: {body[..Math.Min(200, body.Length)]}");
         }
     }
 
@@ -74,14 +74,14 @@ internal static class Fingerprint
         {
             Show(tls, "ja3_hash", "  JA3");
             Show(tls, "ja4", "  JA4");
-            Show(tls, "ja4_r", "  JA4 развёрнутый");
+            Show(tls, "ja4_r", "  JA4 raw");
             Show(tls, "peetprint_hash", "  peetprint");
         }
 
         if (root.TryGetProperty("http2", out var http2) && http2.TryGetProperty("akamai_fingerprint_hash", out var akamai))
             Console.WriteLine($"  HTTP/2                  {akamai.GetString()}");
 
-        Show(root, "http_version", "  версия");
+        Show(root, "http_version", "  version");
 
         if (root.TryGetProperty("http1", out var http1) && http1.TryGetProperty("headers", out var plain))
             foreach (var header in plain.EnumerateArray())

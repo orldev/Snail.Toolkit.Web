@@ -14,11 +14,11 @@ var mode = args.Length > 0 ? args[0] : string.Empty;
 
 if (mode is not ("docs" or "check"))
 {
-    Console.WriteLine("Генератор документации:");
-    Console.WriteLine("  docs    записать docs/content/reference и docs/content/decisions из xml и сборок");
-    Console.WriteLine("  check   упасть, если на диске лежит не то, что сгенерировалось бы");
+    Console.WriteLine("The documentation generator:");
+    Console.WriteLine("  docs    write docs/content/reference and docs/content/decisions from the xml and the assemblies");
+    Console.WriteLine("  check   fail if what is on disk is not what would be written");
     Console.WriteLine();
-    Console.WriteLine("  dotnet run --project docs/generator -- <режим>");
+    Console.WriteLine("  dotnet run --project docs/generator -- <mode>");
 
     return 1;
 }
@@ -41,10 +41,10 @@ foreach (var (where, body) in pages)
 // section that nothing generates any more.
 Swept(root, pages);
 
-Console.WriteLine($"{DateTime.Now:HH:mm} — записано страниц: {pages.Count}");
+Console.WriteLine($"{DateTime.Now:HH:mm} — pages written: {pages.Count}");
 
 foreach (var (where, body) in pages.OrderBy(page => page.Key, StringComparer.Ordinal))
-    Console.WriteLine($"  {where,-40} {body.Length,8:N0} символов");
+    Console.WriteLine($"  {where,-40} {body.Length,8:N0} characters");
 
 return 0;
 
@@ -57,25 +57,25 @@ static int Checked(string root, IReadOnlyDictionary<string, string> pages)
         var path = Path.Combine(root, "docs", "content", where);
 
         if (!File.Exists(path))
-            wrong.Add($"  ОТСУТСТВУЕТ  {where}");
+            wrong.Add($"  MISSING      {where}");
         else if (File.ReadAllText(path) != body)
-            wrong.Add($"  РАСХОДИТСЯ   {where}");
+            wrong.Add($"  DIFFERS      {where}");
     }
 
     foreach (var extra in Extra(root, pages))
-        wrong.Add($"  ЛИШНЯЯ       {extra}");
+        wrong.Add($"  EXTRA        {extra}");
 
     if (wrong.Count == 0)
     {
-        Console.WriteLine($"{DateTime.Now:HH:mm} — документация совпадает с кодом, страниц: {pages.Count}");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — the documentation matches the code, pages: {pages.Count}");
 
         return 0;
     }
 
-    Console.WriteLine("Документация разошлась с кодом:");
+    Console.WriteLine("The documentation no longer matches the code:");
     wrong.ForEach(Console.WriteLine);
     Console.WriteLine();
-    Console.WriteLine("  Перегенерировать: dotnet run --project docs/generator -- docs");
+    Console.WriteLine("  Regenerate: dotnet run --project docs/generator -- docs");
 
     return 1;
 }

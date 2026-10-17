@@ -16,6 +16,10 @@ THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape 
 
 A VENDOR'S NAME IS A BARE WORD TOO, and the list carried one until 2026-10-04. Every page of Wikipedia names the captcha it would show an editor in the settings MediaWiki inlines into the document — `"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha"` — so the substring `hcaptcha` called the whole encyclopedia a wall: an article that had loaded in full with status 200 came back as `Blocked: markup:hcaptcha`, and because a block is transient the reader spent its identities proving it again. Measured through the MCP server built on this toolkit, on the first two articles it was asked for. What matches now is the widget, the same way reCAPTCHA is matched: `h-captcha` as the class of the element a visitor has to solve, and not the hidden `h-captcha-response` field beside it.
 
+**Inspect** — *no summary*
+
+Nearly every page is clear, and finding that out took eleven case-insensitive scans of the whole document and a regular expression after them. One pass over all the words at once answers "nothing here" first — measured on 2026-10-12 by the audit, 0.17–0.21 of the time — and only a page that carries one of them is asked again signal by signal, so the signal named is the one the list names first, as before.
+
 
 ## BlockVerdict
 
@@ -261,6 +265,10 @@ Anything that is not an absolute http or https address is kept verbatim rather t
 
 Credentials survive into `Address` and into nothing else. Every other form of a link is read by somebody: `Canonical` is the key a crawl deduplicates by and the value the reader puts on the `url.full` span tag, and `Text` is what a log line prints. Until 2026-09-13 a password written into an address reached all three, so one link with basic credentials published them to the tracing backend and to every log that named the link.
 
+**Of** — Reads an address already parsed as an absolute http or https one into its comparable form.
+
+The same link `Of` answers for the address's `AbsoluteUri`, without parsing that text a second time: a page's links are resolved against its address, and each resolution already is the parse. The parsed address is kept only where it was written exactly as the text reads, since `Address` is public and a resolved `https://example.com` remembers being written without its slash where the text parsed again does not; any other address goes the long way, as do credentials, whose shown form is rebuilt from the text.
+
 **Text** — Gets the address as it was written, less any credentials it carried.
 
 
@@ -273,6 +281,14 @@ Everything a page links to is written relative to something, and the something i
 Anything that is not http or https is dropped rather than reported — `mailto:`, `tel:`, `javascript:` and a bare fragment are all ordinary on a real page and none of them is a page to read. Duplicates are dropped by canonical form, so the twenty links a navigation bar repeats count once.
 
 `nofollow` is obeyed, on the link and on the document, because it governs traffic this library is about to send. `noindex` is not: it asks not to be listed in a search index, and a caller reading one site on purpose is not building one.
+
+**CanonicalOf** — Reads the address a document already parsed declares as its own, when it declares one.
+
+The same address as `CanonicalOf`, without parsing the markup again.
+
+**From** — Resolves every `href` a robot may follow in a document already parsed.
+
+The same links as `From`, without parsing the markup again: a crawl reads a page's text, title, links and canonical address, and each used to parse the page for itself.
 
 
 ## Markup
@@ -516,6 +532,14 @@ Caches the rules of every origin visited, one read per origin.
 
 Caching lives here rather than in the transport so that both engines age entries identically: a crawl that re-read `robots.txt` per URL would announce itself twice per page, and one that never re-read it would obey a year-old file.
 
+**DelayAsync** — *no summary*
+
+Answered at once from rules already read, as `IsAllowedAsync` is.
+
+**IsAllowedAsync** — *no summary*
+
+Asked on every attempt at every page, and for every page of a site but the first the rules are already read: the answer then comes from them at once. It used to build the origin's address, a closure and an async state machine each time — measured on 2026-10-12 by the audit, with the identity beside it, 2 437 bytes a request where 328 do. Whatever is not read yet, still being read or out of date takes the road it always took.
+
 
 ## SitemapEntry
 
@@ -558,6 +582,14 @@ Two defects are fixed here against the version this came from. `SelectNodes` ans
 THAT SECOND FIX OVERSHOT, and stood until 2026-10-04: every newline of the SOURCE was kept, as though a line break in markup were a line break on the page. It is whitespace. A sentence written across three source lines with a link in the middle came back as three lines, a navigation bar as a column of single words — measured through the MCP server built on this toolkit, on a page of the PostgreSQL manual, where roughly half the lines of the text were one word long. What ends a line now is what ends one in a browser: a block element, on both of its sides. Whitespace inside a text node is one space, except in preformatted text, which is the one place a line break in the source is the author's.
 
 Found by the same reading: the page's `title` was part of its text, and since it is not a block it ran into the first paragraph — «Example DomainThis domain is for use…». The title is answered by `Title`; here the head is noise like a script is.
+
+**Clean** — Answers the readable text of a document already parsed, and leaves the document as it was.
+
+The text, the title and the links of one page used to be read from a parse each — two for every page read and four for every page a crawl follows — and parsing is most of what any of them costs: measured on 2026-10-12 by the audit, the parse alone was 0.28–0.43 of the text and title together. One parse can answer all of them only if none of them changes it, and the text used to: it removed the scripts, the styles and the whole head from the document before walking it, and the head is where the canonical address, the base and the robots directives of the links are written. The walk now passes over those elements instead of removing them, and answers the same text.
+
+**Title** — Answers the name of a document already parsed, or `null` when it has none.
+
+The same answer as `Title`, without parsing the markup a second time.
 
 
 ## WebDiagnostics

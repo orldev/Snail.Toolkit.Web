@@ -30,25 +30,25 @@ internal static class Counting
         using var driver = await Playwright.CreateAsync();
         await using var browser = await driver.Firefox.ConnectAsync(endpoint, new BrowserTypeConnectOptions { Timeout = 30000 });
 
-        Console.WriteLine($"{DateTime.Now:HH:mm} — считает ли движок запросы, а не страницы");
+        Console.WriteLine($"{DateTime.Now:HH:mm} — does the engine count requests rather than pages");
 
         var lean = 0;
         var full = 0;
 
         for (var round = 1; round <= 3; round++)
         {
-            lean += await IsAnsweredAsync(browser, $"{round}. только документ  ", documentOnly: true) ? 1 : 0;
+            lean += await IsAnsweredAsync(browser, $"{round}. document only    ", documentOnly: true) ? 1 : 0;
 
             await Task.Delay(TimeSpan.FromSeconds(45));
 
-            full += await IsAnsweredAsync(browser, $"{round}. всё целиком      ", documentOnly: false) ? 1 : 0;
+            full += await IsAnsweredAsync(browser, $"{round}. everything        ", documentOnly: false) ? 1 : 0;
 
             if (round < 3)
                 await Task.Delay(TimeSpan.FromSeconds(45));
         }
 
-        Console.WriteLine($"  только документ          {lean} из 3");
-        Console.WriteLine($"  всё целиком              {full} из 3");
+        Console.WriteLine($"  document only            {lean} of 3");
+        Console.WriteLine($"  everything               {full} of 3");
     }
 
     private static async Task<bool> IsAnsweredAsync(IBrowser browser, string label, bool documentOnly)
@@ -86,13 +86,13 @@ internal static class Counting
             var status = reply?.Status ?? 0;
             var found = await page.Locator(Blocks).CountAsync();
 
-            Console.WriteLine($"  {label} {status}, запросов {asked}, блоков выдачи {found}");
+            Console.WriteLine($"  {label} {status}, requests {asked}, result blocks {found}");
 
             return status == 200;
         }
         catch (PlaywrightException failure)
         {
-            Console.WriteLine($"  {label} сорвалось: {failure.Message[..Math.Min(60, failure.Message.Length)]}");
+            Console.WriteLine($"  {label} failed: {failure.Message[..Math.Min(60, failure.Message.Length)]}");
 
             return false;
         }
