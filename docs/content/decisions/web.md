@@ -202,7 +202,7 @@ MEASURED on 2026-09-15: thirty thousand literal rules cost 2.3 s to parse as non
 
 ## TextExtraction.Append
 
-`2026-09-15` · *internal*
+`2026-09-15`, `2026-10-23` · *internal*
 
 *Writes the document's text, with a line break on both sides of every block element.*
 
@@ -213,6 +213,8 @@ Eight thousand `div` elements is forty kilobytes of body, which any site can ser
 A `null` on the stack is the line break owed to a block element whose children have all been written. It is pushed before that element's children, so it is popped after them. The break BEFORE the element is written at once: without it, text standing directly ahead of a block — `<div>Introduction<p>First</p></div>` — ran into it as «IntroductionFirst».
 
 The break owed to a `pre` also says so, and that is how the walk knows which text is the author's: everything between the element and its break is inside it, at any depth. The text nodes under a `pre` used to be found by an XPath query over the whole document first.
+
+A text node is read by its `Text`, not its `InnerText`. MEASURED on 2026-10-23 over the benchmark page, 1 635 text nodes holding 111 318 characters: reading `InnerText` allocated 909 248 bytes and `Text` 262 104 — HtmlAgilityPack builds the former in a string builder of its own around the latter, a fresh one on every call — and that difference was most of what this walk allocated beyond the text it returns. The two give the same characters: equal on every text node of the pages in this repository, newlines, tabs, references and `pre` included. `Text` is also what the node holds whatever the document's compatibility setting, so no option a caller set on a document of their own changes what is read here.
 
 
 ## HostPoliteness.DelayAsync
