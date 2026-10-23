@@ -2,7 +2,13 @@ name: build and tests
 
 # The shared library CI of Snail.Sdk: the tests, the API reference the build writes, the package validated against
 # the last release. The tests that need the patched browser in a container, or a live browser server, are left to
-# tests.yml, which has the image; the filter names their classes.
+# tests.yml, which has the image.
+#
+# The two halves are told apart by the Integration trait those classes carry, not by naming them. Until 2026-10-23
+# both files spelled out the same seven class names, so a browser test added without editing them both would have
+# run here with no browser, and a unit class whose name happened to contain one of them would have been dropped
+# from both. Measured that day before switching: the trait selects the same 648 tests here and the same 56 there,
+# name for name.
 
 on:
   push:
@@ -16,4 +22,4 @@ jobs:
   ci:
     uses: orldev/Snail.Sdk/.github/workflows/lib-ci.yml@v1
     with:
-      test-filter: 'FullyQualifiedName!~.SiteCallsTests&FullyQualifiedName!~.PageAgentTests&FullyQualifiedName!~.CrawlIntegrationTests&FullyQualifiedName!~.KeptVisitTests&FullyQualifiedName!~.BrowserPoolTests&FullyQualifiedName!~.PageReaderTests&FullyQualifiedName!~.PageSnapshotsTests&FullyQualifiedName!~.Live'
+      test-filter: 'Category!=Integration'
