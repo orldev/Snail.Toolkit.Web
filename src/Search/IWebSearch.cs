@@ -6,7 +6,7 @@ namespace Snail.Toolkit.Web.Search;
 public interface IWebSearch
 {
     /// <summary>Runs every query against every provider and collects what came back.</summary>
-    Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct = default);
+    Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct);
 
     /// <summary>Runs every query the budget allows, and says which providers it did not stretch to.</summary>
     /// <remarks>
@@ -38,7 +38,7 @@ public interface IWebSearch
     /// Results are not deduplicated here — deduplication needs the whole answer, and a caller streaming
     /// attempts has chosen to see them arrive instead.
     /// </remarks>
-    IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct = default);
+    IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct);
 
     /// <summary>Yields each attempt as it finishes, and each one the budget did not stretch to.</summary>
     IAsyncEnumerable<SearchAttempt> StreamAsync(

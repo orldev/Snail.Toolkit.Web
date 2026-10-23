@@ -179,7 +179,7 @@ Fetches one page with a real browser and reports what came back.
 | Member | Summary |
 | --- | --- |
 | `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)` | Reads `address`, fetching only as much of it as the appetite allows. |
-| `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, CancellationToken ct = default)` | Reads `address`, retrying the failures worth retrying. |
+| `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, CancellationToken ct)` | Reads `address`, retrying the failures worth retrying. |
 
 ### interface IPageSnapshots
 
@@ -187,7 +187,7 @@ Takes a picture of a page with a real browser.
 
 | Member | Summary |
 | --- | --- |
-| `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct = default)` | Pictures the screen a visitor sees on arriving at `address`. |
+| `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct)` | Pictures the screen a visitor sees on arriving at `address`. |
 | `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, SnapshotFrame frame, CancellationToken ct = default)` | Pictures as much of `address` as the frame takes in. |
 
 ### interface ISiteIndex
@@ -252,7 +252,7 @@ Loads a page in a pooled browser under a freshly generated identity.
 | --- | --- |
 | `PageReader(IAttempts<PageContent> attempts, IVisits visits, IHumanBehavior behavior, IBlockDetector blocks, PageContents contents, IOptions<ScrapingOptions> options, ILogger<PageReader> logger)` | Loads a page in a pooled browser under a freshly generated identity. |
 | `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)` | Reads `address`, fetching only as much of it as the appetite allows. |
-| `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, CancellationToken ct = default)` | Reads `address`, retrying the failures worth retrying. |
+| `Task<Outcome<PageContent, PageFailure>> ReadAsync(Link address, CancellationToken ct)` | Reads `address`, retrying the failures worth retrying. |
 
 ### class PageSnapshot
 
@@ -279,7 +279,7 @@ Pictures a page through the same visit the page reader makes.
 | Member | Summary |
 | --- | --- |
 | `PageSnapshots(IAttempts<PageSnapshot> attempts, IVisits visits, IBlockDetector blocks, IOptions<ScrapingOptions> options, TimeProvider clock, ILogger<PageSnapshots> logger)` | Pictures a page through the same visit the page reader makes. |
-| `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct = default)` | Pictures the screen a visitor sees on arriving at `address`. |
+| `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct)` | Pictures the screen a visitor sees on arriving at `address`. |
 | `Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, SnapshotFrame frame, CancellationToken ct = default)` | Pictures as much of `address` as the frame takes in. |
 | `const int Quality` | The JPEG quality every picture is encoded at. |
 | `const int TallestPage` | How tall a picture of a whole page may be, in the page's own pixels. |

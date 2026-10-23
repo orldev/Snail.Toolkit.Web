@@ -13,7 +13,7 @@ public interface IPageReader
     /// a genuinely empty page. Only cancellation propagates as an exception — an address that is not an
     /// absolute http one comes back as a failure, because a list of links to read routinely holds one.
     /// </remarks>
-    Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default);
+    Task<PageOutcome> ReadAsync(Link address, CancellationToken ct);
 
     /// <summary>Reads <paramref name="address"/>, fetching only as much of it as the appetite allows.</summary>
     /// <remarks>

@@ -36,7 +36,7 @@ public sealed class WebSearch(
     private int _next;
 
     /// <inheritdoc />
-    public Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct = default)
+    public Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct)
         => GatheredAsync(StreamAsync(queries, ct));
 
     /// <inheritdoc />
@@ -65,7 +65,7 @@ public sealed class WebSearch(
     /// </remarks>
     public IAsyncEnumerable<SearchAttempt> StreamAsync(
         IEnumerable<string> queries,
-        CancellationToken ct = default)
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(queries);
 

@@ -22,7 +22,7 @@ public class WebSearchTests
             Answering("A", "http://Example.com/grain/"),
             Answering("B", "https://example.com/grain?utm_source=b"));
 
-        var outcome = await search.FindAsync(["grain"]);
+        var outcome = await search.FindAsync(["grain"], CancellationToken.None);
 
         Assert.Single(outcome.Results);
         Assert.Equal(2, outcome.Attempts.Count);
@@ -33,7 +33,7 @@ public class WebSearchTests
     {
         var search = Search(Answering("A", "https://example.com/a"), Answering("B", "https://example.com/b"));
 
-        Assert.Equal(2, (await search.FindAsync(["grain"])).Results.Count);
+        Assert.Equal(2, (await search.FindAsync(["grain"], CancellationToken.None)).Results.Count);
     }
 
     /// <summary>One provider failing must not take the answer with it.</summary>
@@ -42,7 +42,7 @@ public class WebSearchTests
     {
         var search = Search(Answering("A", "https://example.com/a"), Faulting("B"));
 
-        var outcome = await search.FindAsync(["grain"]);
+        var outcome = await search.FindAsync(["grain"], CancellationToken.None);
 
         Assert.Single(outcome.Results);
         Assert.Single(outcome.Attempts, attempt => attempt.Failure?.Kind is SearchFailureKind.Faulted);
@@ -56,7 +56,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_EveryProviderAnsweredWithNothing_ReportsAnAnsweredSearch()
     {
-        var outcome = await Search(Empty("A"), Empty("B")).FindAsync(["grain"]);
+        var outcome = await Search(Empty("A"), Empty("B")).FindAsync(["grain"], CancellationToken.None);
 
         Assert.False(outcome.HasResults);
         Assert.True(outcome.IsAnswered);
@@ -65,7 +65,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_EveryProviderFailed_ReportsAnUnansweredSearch()
     {
-        var outcome = await Search(Faulting("A"), Faulting("B")).FindAsync(["grain"]);
+        var outcome = await Search(Faulting("A"), Faulting("B")).FindAsync(["grain"], CancellationToken.None);
 
         Assert.False(outcome.HasResults);
         Assert.False(outcome.IsAnswered);
@@ -74,7 +74,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_ProviderThatFailed_CarriesTheMessageItThrew()
     {
-        var outcome = await Search(Faulting("A")).FindAsync(["grain"]);
+        var outcome = await Search(Faulting("A")).FindAsync(["grain"], CancellationToken.None);
 
         Assert.Equal("provider is down", outcome.Attempts[0].Failure?.Message);
     }
@@ -86,7 +86,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_ProviderRefused_IsRecordedAsRefusedNotFaulted()
     {
-        var outcome = await Search(Answering("A", "https://example.com/a"), Refusing("B")).FindAsync(["grain"]);
+        var outcome = await Search(Answering("A", "https://example.com/a"), Refusing("B")).FindAsync(["grain"], CancellationToken.None);
 
         var refused = Assert.Single(outcome.Attempts, attempt => attempt.Provider == "B");
 
@@ -102,8 +102,8 @@ public class WebSearchTests
     {
         var search = Search(Answering("A", "https://example.com/a"), Refusing("B"));
 
-        await search.FindAsync(["grain"]);
-        var second = await search.FindAsync(["barley"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var second = await search.FindAsync(["barley"], CancellationToken.None);
 
         Assert.Equal("A", Assert.Single(second.Attempts, attempt => attempt.IsAnswered).Provider);
         Assert.Equal(
@@ -131,7 +131,7 @@ public class WebSearchTests
         });
         var search = Search(new SearchOptions { MaxDegreeOfParallelism = 1 }, refusing);
 
-        var outcome = await search.FindAsync(["q1", "q2", "q3", "q4", "q5"]);
+        var outcome = await search.FindAsync(["q1", "q2", "q3", "q4", "q5"], CancellationToken.None);
 
         Assert.Equal(1, asked);
         Assert.Equal(4, outcome.Attempts.Count(attempt => attempt.Failure?.Kind is SearchFailureKind.Resting));
@@ -152,7 +152,7 @@ public class WebSearchTests
         var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var search = Search(Empty("A"), new Slow("B", cancelled));
 
-        await foreach (var _ in search.StreamAsync(["grain"]))
+        await foreach (var _ in search.StreamAsync(["grain"], CancellationToken.None))
             break;
 
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
@@ -181,7 +181,7 @@ public class WebSearchTests
         var options = new SearchOptions { ProvidersPerQuery = 2, MaxDegreeOfParallelism = 1 };
         var search = Search(options, faulting, Answering("B", "https://example.com/b"), Answering("C", "https://example.com/c"));
 
-        var outcome = await search.FindAsync(["q1", "q2", "q3"]);
+        var outcome = await search.FindAsync(["q1", "q2", "q3"], CancellationToken.None);
 
         Assert.Equal(1, asked);
         Assert.Equal(["B", "C"], AskedFor(outcome, "q3"));
@@ -201,7 +201,7 @@ public class WebSearchTests
             Answering("B", "https://example.com/b"),
             Answering("C", "https://example.com/c"));
 
-        var outcome = await search.FindAsync(["q1", "q2"]);
+        var outcome = await search.FindAsync(["q1", "q2"], CancellationToken.None);
 
         Assert.Equal(["B", "C"], AskedFor(outcome, "q2"));
     }
@@ -215,8 +215,8 @@ public class WebSearchTests
     {
         var search = Search(Answering("A", "https://example.com/a"), Faulting("B"));
 
-        await search.FindAsync(["grain"]);
-        var second = await search.FindAsync(["barley"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var second = await search.FindAsync(["barley"], CancellationToken.None);
 
         Assert.Equal(2, second.Attempts.Count);
     }
@@ -230,8 +230,8 @@ public class WebSearchTests
     {
         var search = Search(Refusing("A"), Refusing("B"));
 
-        await search.FindAsync(["grain"]);
-        var second = await search.FindAsync(["barley"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var second = await search.FindAsync(["barley"], CancellationToken.None);
 
         Assert.Equal(
             [SearchFailureKind.Resting, SearchFailureKind.Resting],
@@ -258,10 +258,10 @@ public class WebSearchTests
         });
         var search = Search(Cooldown(clock), Answering("A", "https://example.com/a"), recovering);
 
-        await search.FindAsync(["grain"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
         clock.Now += TimeSpan.FromMinutes(5);
-        var second = await search.FindAsync(["barley"]);
-        var third = await search.FindAsync(["rye"]);
+        var second = await search.FindAsync(["barley"], CancellationToken.None);
+        var third = await search.FindAsync(["rye"], CancellationToken.None);
 
         Assert.Equal(2, second.Attempts.Count);
         Assert.Equal(2, third.Attempts.Count);
@@ -274,7 +274,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_RoundNoSmallerThanTheSet_AsksEveryProviderEveryQuery()
     {
-        var outcome = await Search(Empty("A"), Empty("B")).FindAsync(["grain", "barley"]);
+        var outcome = await Search(Empty("A"), Empty("B")).FindAsync(["grain", "barley"], CancellationToken.None);
 
         Assert.Equal(4, outcome.Attempts.Count);
         Assert.Equal(["barley", "barley", "grain", "grain"], outcome.Attempts.Select(a => a.Query).Order());
@@ -290,7 +290,7 @@ public class WebSearchTests
     {
         var search = Search(Empty("A"), Empty("B"), Empty("C"), Empty("D"));
 
-        var outcome = await search.FindAsync(["grain", "barley"]);
+        var outcome = await search.FindAsync(["grain", "barley"], CancellationToken.None);
 
         Assert.Equal(["A", "B"], AskedFor(outcome, "grain"));
         Assert.Equal(["C", "D"], AskedFor(outcome, "barley"));
@@ -302,8 +302,8 @@ public class WebSearchTests
     {
         var search = Search(Empty("A"), Empty("B"), Empty("C"), Empty("D"));
 
-        var first = await search.FindAsync(["grain", "barley", "rye"]);
-        var later = await search.FindAsync(["oats"]);
+        var first = await search.FindAsync(["grain", "barley", "rye"], CancellationToken.None);
+        var later = await search.FindAsync(["oats"], CancellationToken.None);
 
         var shares = first.Attempts.Concat(later.Attempts)
             .GroupBy(attempt => attempt.Provider)
@@ -326,7 +326,7 @@ public class WebSearchTests
             Faulting("B"),
             Answering("C", "https://example.com/c"));
 
-        var outcome = await search.FindAsync(["grain"]);
+        var outcome = await search.FindAsync(["grain"], CancellationToken.None);
 
         Assert.Equal(["https://example.com/c"], outcome.Results.Select(result => result.Address.ToString()));
         Assert.Equal(["A", "B", "C"], AskedFor(outcome, "grain"));
@@ -346,7 +346,7 @@ public class WebSearchTests
             Empty("B"),
             Answering("C", "https://example.com/c"));
 
-        var outcome = await search.FindAsync(["grain"]);
+        var outcome = await search.FindAsync(["grain"], CancellationToken.None);
 
         Assert.Equal(["A", "B"], AskedFor(outcome, "grain"));
     }
@@ -362,7 +362,7 @@ public class WebSearchTests
 
         List<string> order = [];
 
-        await foreach (var attempt in search.StreamAsync(["grain"]))
+        await foreach (var attempt in search.StreamAsync(["grain"], CancellationToken.None))
             order.Add(attempt.Provider);
 
         Assert.Equal(["A", "B"], order);
@@ -374,8 +374,8 @@ public class WebSearchTests
     {
         var search = Search(Refusing("A"), Empty("B"), Empty("C"), Empty("D"));
 
-        await search.FindAsync(["grain"]);
-        var outcome = await search.FindAsync(["barley", "rye"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var outcome = await search.FindAsync(["barley", "rye"], CancellationToken.None);
 
         var asked = outcome.Attempts.Where(attempt => attempt.Failure?.Kind != SearchFailureKind.Resting).ToList();
 
@@ -398,8 +398,8 @@ public class WebSearchTests
         var clock = new Clock(new DateTimeOffset(2026, 9, 12, 20, 0, 0, TimeSpan.Zero));
         var search = Search(Cooldown(clock), Refusing("A"), Empty("B"));
 
-        await search.FindAsync(["grain"]);
-        var second = await search.FindAsync(["barley"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var second = await search.FindAsync(["barley"], CancellationToken.None);
 
         var unasked = Assert.Single(second.Attempts, attempt => attempt.Provider == "A");
 
@@ -414,8 +414,8 @@ public class WebSearchTests
     {
         var search = Search(Refusing("A"), Empty("B"));
 
-        await search.FindAsync(["grain"]);
-        var second = await search.FindAsync(["barley", "rye"]);
+        await search.FindAsync(["grain"], CancellationToken.None);
+        var second = await search.FindAsync(["barley", "rye"], CancellationToken.None);
 
         Assert.Equal(
             ["barley", "rye"],
@@ -427,7 +427,7 @@ public class WebSearchTests
     {
         var seen = new List<SearchAttempt>();
 
-        await foreach (var attempt in Search(Empty("A"), Empty("B")).StreamAsync(["grain"]))
+        await foreach (var attempt in Search(Empty("A"), Empty("B")).StreamAsync(["grain"], CancellationToken.None))
             seen.Add(attempt);
 
         Assert.Equal(2, seen.Count);
@@ -435,12 +435,12 @@ public class WebSearchTests
 
     [Fact]
     public async Task FindAsync_NoQueries_AttemptsNothing()
-        => Assert.Empty((await Search(Empty("A")).FindAsync([])).Attempts);
+        => Assert.Empty((await Search(Empty("A")).FindAsync([], CancellationToken.None)).Attempts);
 
     [Fact]
     public async Task FindAsync_NoProvidersRegistered_ReportsAnUnansweredSearch()
     {
-        var outcome = await Search().FindAsync(["grain"]);
+        var outcome = await Search().FindAsync(["grain"], CancellationToken.None);
 
         Assert.Empty(outcome.Attempts);
         Assert.False(outcome.IsAnswered);
@@ -467,7 +467,7 @@ public class WebSearchTests
             new SearchOptions { AlwaysAsked = ["E"] },
             Empty("A"), Empty("B"), Empty("C"), Empty("D"), Empty("E"));
 
-        var outcome = await search.FindAsync(["grain", "barley"]);
+        var outcome = await search.FindAsync(["grain", "barley"], CancellationToken.None);
 
         Assert.Equal(["A", "B", "E"], AskedFor(outcome, "grain"));
         Assert.Equal(["C", "D", "E"], AskedFor(outcome, "barley"));
@@ -484,7 +484,7 @@ public class WebSearchTests
     {
         var cooldown = Cooldown(new Clock(DateTimeOffset.UnixEpoch));
 
-        await Search(cooldown, Unreadable("A")).FindAsync(["grain"]);
+        await Search(cooldown, Unreadable("A")).FindAsync(["grain"], CancellationToken.None);
 
         Assert.Null(cooldown.RestingUntil("A"));
     }
@@ -493,7 +493,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_EveryProviderAnsweredMarkupTooDeepToRead_IsNotAnAnsweredSearch()
     {
-        var outcome = await Search(Unreadable("A"), Unreadable("B")).FindAsync(["grain"]);
+        var outcome = await Search(Unreadable("A"), Unreadable("B")).FindAsync(["grain"], CancellationToken.None);
 
         Assert.False(outcome.IsAnswered);
     }
@@ -540,7 +540,7 @@ public class WebSearchTests
         var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
         var options = new SearchOptions { Timeout = TimeSpan.FromMinutes(10) };
 
-        await Built(Cooldown(TimeProvider.System), gate, TimeProvider.System, options, [slow]).FindAsync(["grain"]);
+        await Built(Cooldown(TimeProvider.System), gate, TimeProvider.System, options, [slow]).FindAsync(["grain"], CancellationToken.None);
 
         Assert.True(slow.WasAsked);
     }
@@ -562,7 +562,7 @@ public class WebSearchTests
 
         var slow = new StubProvider("Slow", _ => SearchAnswer.Success([]), host: "slow.example");
 
-        var outcome = await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"]);
+        var outcome = await Timed(gate, TimeProvider.System, slow).FindAsync(["grain"], CancellationToken.None);
 
         var attempt = Assert.Single(outcome.Attempts);
 
@@ -610,7 +610,7 @@ public class WebSearchTests
         var timeout = TimeSpan.FromMilliseconds(100);
         var search = Search(new SearchOptions { Timeout = timeout }, new Waiting("Slow"));
 
-        var searching = search.FindAsync(["grain"]);
+        var searching = search.FindAsync(["grain"], CancellationToken.None);
         var ended = await Task.WhenAny(searching, Task.Delay(timeout * 50));
 
         Assert.Same(searching, ended);
@@ -629,7 +629,7 @@ public class WebSearchTests
     [Fact]
     public async Task FindAsync_AProviderWhoseOwnClientTimedOut_IsAFaultRatherThanCanceled()
     {
-        var outcome = await Search(new TimingOut("Slow")).FindAsync(["grain"]);
+        var outcome = await Search(new TimingOut("Slow")).FindAsync(["grain"], CancellationToken.None);
 
         var attempt = Assert.Single(outcome.Attempts);
 

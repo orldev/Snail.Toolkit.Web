@@ -18,6 +18,46 @@ Everything below is the first release taking shape. The dated groups are there b
 was a single round of work — an audit and its treatment — and it is the part most likely to matter to
 someone reading this before the first publication.
 
+### The audit of 2026-10-23
+
+Three promises the documentation made and the code did not keep, each found by a test written to break it,
+and each fixed with that test kept.
+
+#### Fixed
+
+- **`SearchOptions.Timeout` bounds every provider.** It said it was how long one provider request may take,
+  and only the two engine families of this repository kept that, each by its own means. A provider you
+  register yourself through `AddSearchProvider` and that never answered held `FindAsync` without a budget
+  for ever; the search now holds it to the timeout itself. Running out of it is `Faulted`, "did not answer
+  within …", the same reading the browser engines already gave.
+- **An engine that leaves its place in the round empty passes it on.** A query goes to
+  `ProvidersPerQuery` engines; one that faults, refuses or answers unreadable markup now hands its place to
+  the next engine of the round this query has not gone to. Before, a search of one query could come back
+  with nobody having answered while an engine that would have was never asked. An empty answer does not
+  pass the place on — it is an answer. The engine standing in is asked under the same rest, gate, budget and
+  timeout. **The price is time:** without a budget, a search can now spend one timeout per engine in a place
+  where it spent one in total and came back empty.
+- **A request that timed out inside your provider is not reported as you cancelling.** A bare `HttpClient`
+  reaching its own timeout arrived as `SearchFailureKind.Canceled`; it is `Faulted` now, with the provider's
+  own message. `Canceled` is kept for the caller's own cancellation.
+- **A refusal whose `Retry-After` is a date is repeated when the date is inside reach**, as the same gap in
+  seconds always was. The search over HTTP read only the seconds when deciding whether to ask again.
+
+#### Changed
+
+- **Breaking for a caller that passes no token: the short forms require one.** `FindAsync(queries, ct)`,
+  `StreamAsync(queries, ct)`, `ReadAsync(link, ct)` and `TakeAsync(link, ct)` no longer default the
+  `CancellationToken`; the longer forms — with a budget, an appetite or a frame — still do. A call that
+  omitted it, `FindAsync(queries)`, stops compiling: pass your own token. Binary compatibility is kept, and no
+  member was added or removed. This is the shape the public API rules (RS0026, RS0027) ask for, which keeps
+  them switched on for whatever optional parameter comes next, where the alternative was to silence them on
+  these methods.
+- **`StreamAsync` hands over each attempt as it ends, including the failure of a place before the engine
+  standing in has answered.**
+- **A page read allocates a sixth less** (3.52 → 2.90 MB a page read, 3.99 → 3.37 MB a crawled page): a
+  page's text is read from its text nodes without the copy HtmlAgilityPack makes of each. The text is the
+  same, character for character.
+
 ### The performance audit's fixes, 2026-10-13
 
 Measured before and after with the benchmarks in `benchmarks/`; every answer is the same as before.

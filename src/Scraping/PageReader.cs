@@ -30,7 +30,7 @@ public sealed class PageReader(
     private readonly ScrapingOptions _options = options.Value;
 
     /// <inheritdoc />
-    public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
+    public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct)
         => ReadAsync(address, Appetite.Everything, ct);
 
     /// <inheritdoc />

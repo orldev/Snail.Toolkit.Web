@@ -16,7 +16,7 @@ namespace Snail.Toolkit.Web.Scraping;
 public interface IPageSnapshots
 {
     /// <summary>Pictures the screen a visitor sees on arriving at <paramref name="address"/>.</summary>
-    Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct = default);
+    Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct);
 
     /// <summary>Pictures as much of <paramref name="address"/> as the frame takes in.</summary>
     Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, SnapshotFrame frame, CancellationToken ct = default);

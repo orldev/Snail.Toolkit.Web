@@ -20,7 +20,7 @@ public class PageSnapshotsTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/tall.html"));
+        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/tall.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Equal([0xFF, 0xD8, 0xFF], outcome.Value.Image[..3].ToArray());
@@ -75,7 +75,7 @@ public class PageSnapshotsTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/challenge.html"));
+        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/challenge.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Blocked, outcome.Failure.Kind);
@@ -86,7 +86,7 @@ public class PageSnapshotsTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/nowhere.html"));
+        var outcome = await host.Snapshots.TakeAsync(Link.Of($"{SiteFixture.BaseUrl}/nowhere.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Navigation, outcome.Failure.Kind);

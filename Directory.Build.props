@@ -61,12 +61,4 @@
     identity chosen by its tooling rather than by its owner.
   -->
 
-  <!-- Migration debt: RS0026, 19 declarations — public overloads that each take optional parameters (ReadAsync,
-       TakeAsync, FindAsync, StreamAsync, Proxied.Handler), which a later optional parameter would make ambiguous.
-       Reshaping them is a decision about the API, for the owner to take before the first release; behaviour-
-       preserving changes cannot remove it (Toolkit/Snail.Sdk/docs/standard.md, "Public API"). -->
-  <PropertyGroup>
-    <NoWarn>$(NoWarn);RS0026</NoWarn>
-  </PropertyGroup>
-
 </Project>

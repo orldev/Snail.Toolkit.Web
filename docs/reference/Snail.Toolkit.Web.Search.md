@@ -30,9 +30,9 @@ Asks every registered provider and merges what they answer.
 
 | Member | Summary |
 | --- | --- |
-| `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct = default)` | Yields each provider-and-query attempt as it finishes, failures included. |
+| `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct)` | Yields each provider-and-query attempt as it finishes, failures included. |
 | `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, TimeSpan budget, CancellationToken ct = default)` | Yields each attempt as it finishes, and each one the budget did not stretch to. |
-| `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct = default)` | Runs every query against every provider and collects what came back. |
+| `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct)` | Runs every query against every provider and collects what came back. |
 | `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, TimeSpan budget, CancellationToken ct = default)` | Runs every query the budget allows, and says which providers it did not stretch to. |
 
 ### class SearchAttempt
@@ -137,9 +137,9 @@ Runs a batch of queries across the registered providers, a few per query and in 
 
 | Member | Summary |
 | --- | --- |
-| `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct = default)` | Yields each provider-and-query attempt as it finishes, failures included. |
+| `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, CancellationToken ct)` | Yields each provider-and-query attempt as it finishes, failures included. |
 | `IAsyncEnumerable<SearchAttempt> StreamAsync(IEnumerable<string> queries, TimeSpan budget, CancellationToken ct = default)` | Yields each attempt as it finishes, and each one the budget did not stretch to. |
-| `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct = default)` | Runs every query against every provider and collects what came back. |
+| `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, CancellationToken ct)` | Runs every query against every provider and collects what came back. |
 | `Task<SearchOutcome> FindAsync(IEnumerable<string> queries, TimeSpan budget, CancellationToken ct = default)` | Runs every query the budget allows, and says which providers it did not stretch to. |
 | `WebSearch(IEnumerable<ISearchProvider> providers, ISearchCooldown cooldown, IPoliteness politeness, TimeProvider clock, IOptions<SearchOptions> options, ILogger<WebSearch> logger)` | Runs a batch of queries across the registered providers, a few per query and in turn. |
 
