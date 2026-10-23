@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-26 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+27 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -222,6 +222,19 @@ The break owed to a `pre` also says so, and that is how the walk knows which tex
 *Waits until this host opens, however far off that is.*
 
 The wait is taken in stretches because `Delay` refuses anything past about forty-nine days. MEASURED on 2026-09-20: a site answering `Retry-After` of a hundred days made every later caller to that host meet an `ArgumentOutOfRangeException` naming a timer, and the host stayed broken for as long as the process ran. A rest that long is a site to be left alone, not a defect to be raised at whoever arrives next — and a caller that will not wait it out cancels, which is the answer it already had.
+
+
+## Rests
+
+`2026-09-20`, `2026-10-23` · *internal*
+
+*Reads the gap a site asked to be left alone for out of what it answered with.*
+
+Written once and read by everything that drives a browser. Until 2026-09-20 only the page reader read the header: the errand and the call to a site's own service carried the status and never the number, so a service that said "come back in thirty seconds" in the middle of a form told one caller and nobody else — `Attempts` writes the gap into the per-host gate, where it binds every later caller, and it had nothing to write. That is the twelfth item on the consumer's list.
+
+Headers rather than a response, so that the reading can be checked without a browser, and the instant is given rather than taken from a clock, so that a date in the header can be checked at all.
+
+ONE READING FOR THE WHOLE TOOLKIT since 2026-10-23, which is why it lives in the core beside the gate it feeds. Until then "written once" held for the browser and not for the search over HTTP, which read the same header twice more of its own: the gate honoured both forms, and the decision whether to repeat a refusal looked at the seconds only — a site that named a date was refused a retry it had asked for, by a reading the gate disagreed with. Found by the audit of that day.
 
 
 ## Spread.ShouldReadAhead

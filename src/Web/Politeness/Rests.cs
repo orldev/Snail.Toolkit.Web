@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Snail.Toolkit.Web.Scraping;
+namespace Snail.Toolkit.Web.Politeness;
 
 /// <summary>
 /// Reads the gap a site asked to be left alone for out of what it answered with.
@@ -14,6 +14,13 @@ namespace Snail.Toolkit.Web.Scraping;
 /// <para>
 /// Headers rather than a response, so that the reading can be checked without a browser, and the instant is
 /// given rather than taken from a clock, so that a date in the header can be checked at all.
+/// </para>
+/// <para>
+/// ONE READING FOR THE WHOLE TOOLKIT since 2026-10-23, which is why it lives in the core beside the gate it
+/// feeds. Until then "written once" held for the browser and not for the search over HTTP, which read the
+/// same header twice more of its own: the gate honoured both forms, and the decision whether to repeat a
+/// refusal looked at the seconds only — a site that named a date was refused a retry it had asked for, by a
+/// reading the gate disagreed with. Found by the audit of that day.
 /// </para>
 /// </remarks>
 internal static class Rests

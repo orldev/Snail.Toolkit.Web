@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Tests;
@@ -26,7 +27,7 @@ public class PermitsTests
     [Fact]
     public async Task Emptied_WhileOnePermitIsHeld_GivesBackEverythingItTook()
     {
-        var permits = new Permits(4);
+        var permits = new Permits(4, TimeProvider.System);
 
         await permits.WaitAsync(CancellationToken.None);
 
@@ -49,14 +50,18 @@ public class PermitsTests
     /// has to make it not idle by that same window. With the clock frozen at construction the second
     /// assertion fails, which is what makes this a guard rather than a statement about how fast a test runs.
     /// </para>
+    /// <para>
+    /// The hundred milliseconds are the test's clock's since 2026-10-23, moved by hand rather than slept.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task IsIdleFor_AfterAPermitComesBack_MeasuresFromThatMoment()
     {
-        var permits = new Permits(1);
+        var clock = new FakeTimeProvider();
+        var permits = new Permits(1, clock);
         var window = TimeSpan.FromMilliseconds(50);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        clock.Advance(TimeSpan.FromMilliseconds(100));
 
         Assert.True(permits.IsIdleFor(window), "a pool nobody has touched should read as idle");
 

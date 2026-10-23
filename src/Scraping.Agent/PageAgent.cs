@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Playwright;
 using Snail.Toolkit.Web.Detection;
 using Snail.Toolkit.Web.Identity;
+using Snail.Toolkit.Web.Politeness;
 using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Agent;

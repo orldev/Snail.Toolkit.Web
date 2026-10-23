@@ -19,6 +19,7 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// </remarks>
 internal sealed class Reaper(
     TimeSpan idleTimeout,
+    TimeProvider clock,
     Permits permits,
     Func<bool> isOpen,
     Func<Task> closeAsync,
@@ -34,7 +35,7 @@ internal sealed class Reaper(
         if (idleTimeout <= TimeSpan.Zero)
             return;
 
-        using var timer = new PeriodicTimer(Period(idleTimeout));
+        using var timer = new PeriodicTimer(Period(idleTimeout), clock);
 
         try
         {

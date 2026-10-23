@@ -31,9 +31,14 @@
     The third name was added on 2026-09-15 for Markup, which is the same argument reaching a different type:
     the ceiling on nesting depth is not a policy a consumer tunes, so the parser stays internal, and the
     browser-backed engines read their results pages through it rather than each building a parser of its own.
+
+    The fourth, the agent, on 2026-10-23 for Rests: the reading of a site's Retry-After moved here from Scraping
+    so that the search over HTTP reads it the same way, and the agent was already one of its readers. How a gap
+    is parsed out of a header is machinery behind the gate, not something a consumer is promised.
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Agent" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Search" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser" />
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Tests" />

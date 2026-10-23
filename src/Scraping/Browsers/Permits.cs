@@ -23,12 +23,18 @@ namespace Snail.Toolkit.Web.Scraping.Browsers;
 /// used to be a paragraph in the pool that applied to one of its two semaphores and was not extended to the
 /// other; a type that cannot be disposed cannot have the rule applied to half of it.
 /// </para>
+/// <para>
+/// The clock is the pool's since 2026-10-23, where it had been the system's: the rest of the toolkit has read
+/// an injected <see cref="TimeProvider"/> since 2026-09-20, and this was the one place left out — the place
+/// where waiting is measured in minutes, so the one where a clock a test can move pays the most. Without it
+/// closing an idle browser could be checked only by waiting the idle timeout out against a real one.
+/// </para>
 /// </remarks>
-internal sealed class Permits(int ceiling)
+internal sealed class Permits(int ceiling, TimeProvider clock)
 {
     private readonly SemaphoreSlim _free = new(ceiling, ceiling);
 
-    private long _idleSince = DateTimeOffset.UtcNow.UtcTicks;
+    private long _idleSince = clock.GetUtcNow().UtcTicks;
 
     /// <summary>How many pages may be open at once.</summary>
     internal int Ceiling => ceiling;
@@ -39,14 +45,14 @@ internal sealed class Permits(int ceiling)
     /// <summary>Hands one page's permission back, and starts the idle clock from now.</summary>
     internal void Return()
     {
-        Interlocked.Exchange(ref _idleSince, DateTimeOffset.UtcNow.UtcTicks);
+        Interlocked.Exchange(ref _idleSince, clock.GetUtcNow().UtcTicks);
 
         _free.Release();
     }
 
     /// <summary>Whether nothing has been handed back for longer than the given span.</summary>
     internal bool IsIdleFor(TimeSpan span)
-        => DateTimeOffset.UtcNow.UtcTicks - Interlocked.Read(ref _idleSince) > span.Ticks;
+        => clock.GetUtcNow().UtcTicks - Interlocked.Read(ref _idleSince) > span.Ticks;
 
     /// <summary>Takes every permit, or none, and says which.</summary>
     /// <remarks>

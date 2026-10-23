@@ -119,6 +119,7 @@ public static class ServiceCollectionExtensions
             {
                 var budget = provider.GetRequiredService<IOptions<SearchOptions>>().Value.Timeout;
                 var longestRest = provider.GetRequiredService<IOptions<PolitenessOptions>>().Value.LongestRest;
+                var clock = provider.GetRequiredService<TimeProvider>();
                 var wasTransient = resilience.Retry.ShouldHandle;
 
                 resilience.TotalRequestTimeout.Timeout = budget;
@@ -126,7 +127,8 @@ public static class ServiceCollectionExtensions
                 resilience.CircuitBreaker.SamplingDuration = budget / 3 * 2;
 
                 resilience.Retry.ShouldHandle = async arguments =>
-                    await wasTransient(arguments) && IsWorthRepeating(arguments.Outcome.Result, longestRest);
+                    await wasTransient(arguments)
+                    && IsWorthRepeating(arguments.Outcome.Result, longestRest, clock.GetUtcNow());
             });
 
             client.AddHttpMessageHandler<PolitenessHandler>();
@@ -154,11 +156,17 @@ public static class ServiceCollectionExtensions
         /// becomes a ban — the rule this toolkit states everywhere and practised against itself here. A server
         /// that merely failed is repeated as before: a <c>500</c> is not the site turning anybody away.
         /// </para>
+        /// <para>
+        /// THE GAP IS READ IN BOTH ITS FORMS since 2026-10-23, through <see cref="Rests"/>. Until then this read
+        /// the seconds and nothing else, so a site that named a DATE inside the caller's reach was refused the
+        /// retry it had asked for, while the gate — reading the same header — held the host for that date. A gap
+        /// of nothing, a zero or a date already past, is a site saying "now", and is repeated as before.
+        /// </para>
         /// </remarks>
-        private static bool IsWorthRepeating(HttpResponseMessage? answered, TimeSpan longestRest)
+        private static bool IsWorthRepeating(HttpResponseMessage? answered, TimeSpan longestRest, DateTimeOffset now)
         {
-            if (answered?.Headers.RetryAfter?.Delta is { } gap)
-                return gap <= longestRest;
+            if (answered?.Headers.RetryAfter is { } asked)
+                return Rests.AskedFor(asked.ToString(), now) is not { } gap || gap <= longestRest;
 
             return answered is null || !Refusals.IsRefusal(answered.StatusCode);
         }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Snail.Toolkit.Web.Scraping.Browsers;
 
 namespace Snail.Toolkit.Web.Scraping.Tests;
@@ -18,28 +19,37 @@ namespace Snail.Toolkit.Web.Scraping.Tests;
 /// bought; the line count was never the point.
 /// </para>
 /// <para>
-/// The sweep period is half the idle window with a floor of one second, so every check here waits on the
-/// order of a second by construction. They are written to finish as soon as the thing they wait for happens
-/// rather than to sleep a fixed time, and the failure budget is generous, because what is being asserted is
-/// "does this ever happen" and never "how fast".
+/// THE CLOCK IS THE TEST'S since 2026-10-23. The sweep period is half the idle window with a floor of one
+/// second, and on the system's clock that made every check here wait on the order of a second by
+/// construction — the suite paid eight seconds of sleeping for this file, measured that day, most of the unit
+/// run of the package. Now the clock moves a sweep at a time and the window is the real default of three
+/// minutes, which costs nothing. Each move waits for the reaper to LOOK — the question of whether a browser is
+/// open is the first thing a sweep asks — so a check never asserts on a sweep that has not happened yet; and
+/// one sweep more is moved than a check needs, because a sweep that has started the next one has finished the
+/// last.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
 public class ReaperTests
 {
-    private static readonly TimeSpan Idle = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan Idle = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan Sweep = Idle / 2;
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(10);
 
     /// <summary>A browser nobody has used is closed.</summary>
     [Fact]
     public async Task ReapAsync_BrowserIdleAndNobodyHoldingAPage_ClosesIt()
     {
-        var permits = new Permits(4);
+        var clock = new FakeTimeProvider();
+        var permits = new Permits(4, clock);
+        var looks = new SemaphoreSlim(0);
         var closed = new TaskCompletionSource();
 
         using var shutdown = new CancellationTokenSource();
 
-        var reaping = Reaping(permits, isOpen: () => true, closed, shutdown.Token);
+        var reaping = Reaping(clock, permits, Looking(looks, isOpen: true), closed, shutdown.Token);
+
+        await SweptAsync(clock, looks, sweeps: 3);
 
         Assert.Same(closed.Task, await Task.WhenAny(closed.Task, Task.Delay(Budget)));
 
@@ -55,28 +65,30 @@ public class ReaperTests
     /// every page in flight — which is the failure the all-or-nothing take exists to prevent, and which
     /// nothing until now asserted.
     /// <para>
-    /// Three seconds is three sweeps at this window, not one: a check that waited a single period could pass
-    /// against a reaper that simply had not looked yet.
+    /// Several sweeps past the window, not one: a check that waited a single period could pass against a reaper
+    /// that simply had not looked yet.
     /// </para>
     /// </remarks>
     [Fact]
     public async Task ReapAsync_SomebodyHoldingAPage_LeavesTheBrowserAlone()
     {
-        var permits = new Permits(4);
+        var clock = new FakeTimeProvider();
+        var permits = new Permits(4, clock);
+        var looks = new SemaphoreSlim(0);
         var closed = new TaskCompletionSource();
 
         using var shutdown = new CancellationTokenSource();
 
         await permits.WaitAsync(CancellationToken.None);
 
-        var reaping = Reaping(permits, isOpen: () => true, closed, shutdown.Token);
+        var reaping = Reaping(clock, permits, Looking(looks, isOpen: true), closed, shutdown.Token);
 
-        var looked = await Task.WhenAny(closed.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        await SweptAsync(clock, looks, sweeps: 4);
 
         await shutdown.CancelAsync();
         await reaping;
 
-        Assert.NotSame(closed.Task, looked);
+        Assert.False(closed.Task.IsCompleted, "the browser was closed under a page somebody was holding");
     }
 
     /// <summary>A close that throws still gives every permit back.</summary>
@@ -92,15 +104,18 @@ public class ReaperTests
     [Fact]
     public async Task ReapAsync_CloseThatThrows_StillGivesThePermitsBack()
     {
-        var permits = new Permits(2);
+        var clock = new FakeTimeProvider();
+        var permits = new Permits(2, clock);
+        var looks = new SemaphoreSlim(0);
         var attempted = new TaskCompletionSource();
 
         using var shutdown = new CancellationTokenSource();
 
         var reaping = new Reaper(
             Idle,
+            clock,
             permits,
-            isOpen: () => true,
+            Looking(looks, isOpen: true),
             closeAsync: () =>
             {
                 attempted.TrySetResult();
@@ -109,7 +124,9 @@ public class ReaperTests
             },
             NullLogger.Instance).ReapAsync(shutdown.Token);
 
-        Assert.Same(attempted.Task, await Task.WhenAny(attempted.Task, Task.Delay(Budget)));
+        await SweptAsync(clock, looks, sweeps: 4);
+
+        Assert.True(attempted.Task.IsCompleted, "the reaper never tried to close the idle browser");
 
         await shutdown.CancelAsync();
         await reaping;
@@ -126,19 +143,21 @@ public class ReaperTests
     [Fact]
     public async Task ReapAsync_NoBrowserOpen_NeverTakesThePermits()
     {
-        var permits = new Permits(1);
+        var clock = new FakeTimeProvider();
+        var permits = new Permits(1, clock);
+        var looks = new SemaphoreSlim(0);
         var closed = new TaskCompletionSource();
 
         using var shutdown = new CancellationTokenSource();
 
-        var reaping = Reaping(permits, isOpen: () => false, closed, shutdown.Token);
+        var reaping = Reaping(clock, permits, Looking(looks, isOpen: false), closed, shutdown.Token);
 
-        var looked = await Task.WhenAny(closed.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        await SweptAsync(clock, looks, sweeps: 4);
 
         await shutdown.CancelAsync();
         await reaping;
 
-        Assert.NotSame(closed.Task, looked);
+        Assert.False(closed.Task.IsCompleted, "a browser that does not exist was closed");
         Assert.True(permits.TryEmpty(), "the permits were taken for a browser that does not exist");
     }
 
@@ -151,13 +170,14 @@ public class ReaperTests
     [Fact]
     public async Task ReapAsync_IdleTimeoutOfZero_EndsAtOnceWithoutSweeping()
     {
-        var permits = new Permits(1);
+        var permits = new Permits(1, TimeProvider.System);
         var closed = new TaskCompletionSource();
 
         using var shutdown = new CancellationTokenSource();
 
         var reaping = new Reaper(
             TimeSpan.Zero,
+            TimeProvider.System,
             permits,
             isOpen: () => true,
             closeAsync: () =>
@@ -173,13 +193,35 @@ public class ReaperTests
         Assert.False(closed.Task.IsCompleted);
     }
 
+    /// <summary>Moves the clock one sweep at a time, and waits each time for the reaper to look.</summary>
+    private static async Task SweptAsync(FakeTimeProvider clock, SemaphoreSlim looks, int sweeps)
+    {
+        for (var sweep = 1; sweep <= sweeps; sweep++)
+        {
+            clock.Advance(Sweep);
+
+            Assert.True(await looks.WaitAsync(Budget), $"the reaper did not look on sweep {sweep}");
+        }
+    }
+
+    /// <summary>The reaper's first question, answered, with every asking counted.</summary>
+    private static Func<bool> Looking(SemaphoreSlim looks, bool isOpen)
+        => () =>
+        {
+            looks.Release();
+
+            return isOpen;
+        };
+
     private static Task Reaping(
+        TimeProvider clock,
         Permits permits,
         Func<bool> isOpen,
         TaskCompletionSource closed,
         CancellationToken ct)
         => new Reaper(
             Idle,
+            clock,
             permits,
             isOpen,
             closeAsync: () =>

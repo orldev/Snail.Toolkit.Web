@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-24 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+25 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -178,17 +178,6 @@ The installation is started once and kept, because unpacking it is the expensive
 A broken WebSocket is the browser going away, not a page that would not load. Until 2026-09-20 it read as `Navigation` — a statement about the SITE — and a measurement on 16.09.2026 shows why that matters: one heavy page killed Firefox inside the container, the Playwright server closed with it, and every caller saw `WebSocket error: socket hang up` on whatever page it happened to be reading. A reader looking at that line goes to the site; the thing to look at was the browser.
 
 
-## Rests
-
-`2026-09-20` · *internal*
-
-*Reads the gap a site asked to be left alone for out of what it answered with.*
-
-Written once and read by everything that drives a browser. Until 2026-09-20 only the page reader read the header: the errand and the call to a site's own service carried the status and never the number, so a service that said "come back in thirty seconds" in the middle of a form told one caller and nobody else — `Attempts` writes the gap into the per-host gate, where it binds every later caller, and it had nothing to write. That is the twelfth item on the consumer's list.
-
-Headers rather than a response, so that the reading can be checked without a browser, and the instant is given rather than taken from a clock, so that a date in the header can be checked at all.
-
-
 ## ScrapingOptions.RememberSiteFor
 
 `2026-09-20`
@@ -262,3 +251,27 @@ Compression is decided by the first two bytes rather than by the file name or th
 The read is capped. Compressed XML expands by twenty to one and the file is written by the site being read, so an unbounded read is a memory limit set by someone else.
 
 The cap holds on the network too: only the headers are awaited and the body is read under it. Awaited whole, as the client does by default, the body was buffered before the cap was ever consulted — measured on 2026-10-13, an answer of 50 MB cost 95 MB per read under a ceiling of 1 000 bytes. A body that breaks off while it is read fails as an `IOException`, and reads as no sitemap, as a failed request does.
+
+
+## BrowserPool.constructor
+
+`2026-10-23` · *internal*
+
+*Creates a pool on a clock and a Playwright of the caller's choosing.*
+
+The seam that lets idle closing be checked without a browser and without waiting minutes for it, added on 2026-10-23. Internal rather than a second public constructor, because the public surface has no reason to change: a host's `TimeProvider` is the system's, which is what the public one passes, and choosing the Playwright a pool drives is not something a consumer is offered.
+
+
+## Permits
+
+`2026-10-23`, `2026-09-20` · *internal*
+
+*Counts how many pages may be open on the browser at once, and remembers when the last one was handed back.*
+
+The ceiling the pool enforces is a count of PAGES, not of browser processes, and this is where that count lives. A caller waits here before it is given a browser and returns its permit when the lease is disposed; the idle reaper comes here to take every permit at once, which is the only way it can know that nobody is inside.
+
+The clock belongs with the count rather than beside it because the two only ever move together: a permit coming back IS the page closing, and that instant is the one the reaper measures idleness from. Kept apart they would be two facts that have to be kept in step by whoever remembers to.
+
+THIS TYPE IS DELIBERATELY NOT DISPOSABLE, and that is the point of it being a type. The semaphore inside must outlive the pool that owns it: a lease returned after shutdown releases its permit by definition — a crawl is cancelled while pages are still open — and a disposed semaphore answers that with an `ObjectDisposedException` raised out of somebody's `await using`, which is the last thing anyone reads while looking for why the run stopped. Nothing here holds a handle worth reclaiming: `SemaphoreSlim` allocates one only for `AvailableWaitHandle`, which nobody asks for. That used to be a paragraph in the pool that applied to one of its two semaphores and was not extended to the other; a type that cannot be disposed cannot have the rule applied to half of it.
+
+The clock is the pool's since 2026-10-23, where it had been the system's: the rest of the toolkit has read an injected `TimeProvider` since 2026-09-20, and this was the one place left out — the place where waiting is measured in minutes, so the one where a clock a test can move pays the most. Without it closing an idle browser could be checked only by waiting the idle timeout out against a real one.

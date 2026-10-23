@@ -71,13 +71,29 @@ public sealed class BrowserPool : IBrowserPool
 
     /// <summary>Creates a pool that allows <see cref="ScrapingOptions.MaxDegreeOfParallelism"/> pages at once.</summary>
     public BrowserPool(IOptions<ScrapingOptions> options, ILogger<BrowserPool> logger)
+        : this(options, logger, TimeProvider.System, start: null)
+    {
+    }
+
+    /// <summary>Creates a pool on a clock and a Playwright of the caller's choosing.</summary>
+    /// <remarks>
+    /// The seam that lets idle closing be checked without a browser and without waiting minutes for it, added
+    /// on 2026-10-23. Internal rather than a second public constructor, because the public surface has no
+    /// reason to change: a host's <see cref="TimeProvider"/> is the system's, which is what the public one
+    /// passes, and choosing the Playwright a pool drives is not something a consumer is offered.
+    /// </remarks>
+    internal BrowserPool(
+        IOptions<ScrapingOptions> options,
+        ILogger<BrowserPool> logger,
+        TimeProvider clock,
+        Func<Task<IPlaywright>>? start)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options.Value;
         _logger = logger;
-        _driver = new Driver(_options);
-        _permits = new Permits(Math.Max(1, _options.MaxDegreeOfParallelism));
+        _driver = new Driver(_options, start);
+        _permits = new Permits(Math.Max(1, _options.MaxDegreeOfParallelism), clock);
 
         if (_driver.IsRemote && _options.BrowserArguments.Count > 0)
             Log.ArgumentsIgnored(_logger, _options.BrowserArguments.Count);
@@ -86,6 +102,7 @@ public sealed class BrowserPool : IBrowserPool
             ? Task.CompletedTask
             : Task.Run(() => new Reaper(
                 _options.BrowserIdleTimeout,
+                clock,
                 _permits,
                 () => Volatile.Read(ref _browser) is not null,
                 CloseAsync,

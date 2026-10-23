@@ -58,6 +58,36 @@ public class SearchClientTests
         Assert.Equal(4, counting.Sent);
     }
 
+    /// <summary>A gap named as a date short enough to sit out is repeated, as the same gap in seconds is.</summary>
+    /// <remarks>
+    /// Found by the audit of 2026-10-23: the decision read the seconds and nothing else, so this answer was
+    /// handed back after one request while the gate, reading the same header, held the host for the date.
+    /// </remarks>
+    [Fact]
+    public async Task SendAsync_GapNamedAsADateShorterThanWeWillWait_IsStillRepeated()
+    {
+        var counting = new Counting(TimeSpan.FromSeconds(1), isDated: true);
+
+        await using var provider = Host(counting, budget: TimeSpan.FromSeconds(20));
+
+        await Client(provider).GetAsync(Address);
+
+        Assert.Equal(4, counting.Sent);
+    }
+
+    /// <summary>A gap named as a date longer than we will wait is believed the first time, as in seconds.</summary>
+    [Fact]
+    public async Task SendAsync_GapNamedAsADateLongerThanWeWillWait_AsksOnce()
+    {
+        var counting = new Counting(TimeSpan.FromSeconds(30), isDated: true);
+
+        await using var provider = Host(counting, budget: TimeSpan.FromSeconds(20));
+
+        await Client(provider).GetAsync(Address);
+
+        Assert.Equal(1, counting.Sent);
+    }
+
     /// <summary>
     /// The gap the site named reaches the gate, so every later caller to that host waits with us.
     /// </summary>
@@ -146,7 +176,10 @@ public class SearchClientTests
     }
 
     /// <summary>A site that always refuses by frequency, counting what reaches it.</summary>
-    private sealed class Counting(TimeSpan? asked, HttpStatusCode status = HttpStatusCode.TooManyRequests)
+    private sealed class Counting(
+        TimeSpan? asked,
+        HttpStatusCode status = HttpStatusCode.TooManyRequests,
+        bool isDated = false)
         : HttpMessageHandler
     {
         public int Sent { get; private set; }
@@ -160,7 +193,9 @@ public class SearchClientTests
             var answered = new HttpResponseMessage(status);
 
             if (asked is { } gap)
-                answered.Headers.RetryAfter = new RetryConditionHeaderValue(gap);
+                answered.Headers.RetryAfter = isDated
+                    ? new RetryConditionHeaderValue(DateTimeOffset.UtcNow + gap)
+                    : new RetryConditionHeaderValue(gap);
 
             return Task.FromResult(answered);
         }

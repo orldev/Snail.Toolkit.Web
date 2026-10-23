@@ -41,22 +41,11 @@ public sealed class PolitenessHandler(IPoliteness politeness) : DelegatingHandle
 
     /// <summary>The gap a response asks to be left alone for, in either form the header is written in.</summary>
     /// <remarks>
-    /// Seconds are what a rate limiter sends and a date is what a cache sends; a date already past reads as no
-    /// gap at all rather than as a negative one.
+    /// Read by <see cref="Rests"/>, the one reading the toolkit has, since 2026-10-23. The instant is the system's
+    /// here, as it was: this handler is built by its public constructor, and a clock of its own would be a change
+    /// to that surface for a branch whose only effect is how long a host is held — a date is rare, and a clock a
+    /// few seconds out is read as no gap rather than a negative one.
     /// </remarks>
     private static TimeSpan? RestAskedFor(HttpResponseMessage answered)
-    {
-        if (answered.Headers.RetryAfter is not { } asked)
-            return null;
-
-        if (asked.Delta is { } delta)
-            return delta > TimeSpan.Zero ? delta : null;
-
-        if (asked.Date is not { } moment)
-            return null;
-
-        var gap = moment - DateTimeOffset.UtcNow;
-
-        return gap > TimeSpan.Zero ? gap : null;
-    }
+        => Rests.AskedFor(answered.Headers.RetryAfter?.ToString(), DateTimeOffset.UtcNow);
 }

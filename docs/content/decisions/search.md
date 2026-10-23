@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-24 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+25 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## SearchOptions.RefusalCooldown
 
@@ -35,7 +35,7 @@ A site asking to be left alone is written into that same gate. Until 2026-09-14 
 
 ## ServiceCollectionExtensions.IsWorthRepeating
 
-`2026-09-14`, `2026-09-20` · *internal*
+`2026-09-14`, `2026-09-20`, `2026-10-23` · *internal*
 
 *Answers whether asking again could do better than repeating the refusal.*
 
@@ -44,6 +44,8 @@ The standard handler retries a `429` and waits the `Retry-After` the site sent, 
 The gate still holds the host for the full gap — `PolitenessHandler` writes it there on the way out — so declining to wait here makes nobody ruder, only better informed.
 
 A refusal that names no gap is not repeated either, which it was until 2026-09-20: a `429` or a `503` without the header cost four requests before the search heard about the first one, and the search rests an engine the moment it hears. Asking a challenged engine again at once is how a pause becomes a ban — the rule this toolkit states everywhere and practised against itself here. A server that merely failed is repeated as before: a `500` is not the site turning anybody away.
+
+THE GAP IS READ IN BOTH ITS FORMS since 2026-10-23, through `Rests`. Until then this read the seconds and nothing else, so a site that named a DATE inside the caller's reach was refused the retry it had asked for, while the gate — reading the same header — held the host for that date. A gap of nothing, a zero or a date already past, is a site saying "now", and is repeated as before.
 
 
 ## DuckDuckGo.PageAsync
@@ -266,6 +268,15 @@ A provider that names no host is always asked. It is not a promise that it is qu
 *Reads the offset the next-page control of a page already parsed asks for.*
 
 The results and the offset were each read from a parse of their own, and the parse is most of what either costs: measured on 2026-10-12 by the audit, one parse for both is 0.50–0.65 of the time and 63 % of the bytes.
+
+
+## PolitenessHandler.RestAskedFor
+
+`2026-10-23` · *internal*
+
+*The gap a response asks to be left alone for, in either form the header is written in.*
+
+Read by `Rests`, the one reading the toolkit has, since 2026-10-23. The instant is the system's here, as it was: this handler is built by its public constructor, and a clock of its own would be a change to that surface for a branch whose only effect is how long a host is held — a date is rare, and a clock a few seconds out is read as no gap rather than a negative one.
 
 
 ## WebSearch.FilledAsync

@@ -1,4 +1,6 @@
-namespace Snail.Toolkit.Web.Scraping.Tests;
+using Snail.Toolkit.Web.Politeness;
+
+namespace Snail.Toolkit.Web.Tests;
 
 /// <summary>
 /// Covers the reading every caller that drives a browser shares: the gap a site asked to be left alone for.
@@ -6,7 +8,8 @@ namespace Snail.Toolkit.Web.Scraping.Tests;
 /// <remarks>
 /// The reading itself was never in doubt — the page reader had it from the start. What this file is for is that
 /// there is now ONE of it: the errand and the call to a site's own service read the header through the same
-/// function, and a test here holds all three.
+/// function, and a test here holds all three. Since 2026-10-23 the search over HTTP reads it too, and the file
+/// moved with the type into the core.
 /// </remarks>
 public class RestsTests
 {
