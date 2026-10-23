@@ -36,7 +36,7 @@ public sealed class PageSnapshots(
     private readonly ScrapingOptions _options = options.Value;
 
     /// <inheritdoc />
-    public Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct = default)
+    public Task<Outcome<PageSnapshot, PageFailure>> TakeAsync(Link address, CancellationToken ct)
         => TakeAsync(address, SnapshotFrame.Screen, ct);
 
     /// <inheritdoc />

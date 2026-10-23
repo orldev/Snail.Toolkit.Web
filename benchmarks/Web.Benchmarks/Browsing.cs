@@ -58,7 +58,7 @@ public class Browsing
     [Benchmark]
     public async Task<int> PageRead()
     {
-        var outcome = await _reader.ReadAsync(_address);
+        var outcome = await _reader.ReadAsync(_address, CancellationToken.None);
 
         return outcome.Value.Text.Length;
     }
@@ -86,7 +86,7 @@ public class Browsing
         var expected = text.Clean(html);
         var title = text.Title(html);
 
-        var read = (await _reader.ReadAsync(_address)).Value;
+        var read = (await _reader.ReadAsync(_address, CancellationToken.None)).Value;
         var report = await _crawler.CrawlAsync(_scope);
         var crawled = report.Pages.Single().Value;
         var answer = await _engine.FindAsync(ResultsPage.Query);

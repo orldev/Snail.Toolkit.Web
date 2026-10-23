@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +24,7 @@ namespace Snail.Toolkit.Web.Identity;
 public static class Proxied
 {
     /// <summary>The handler for one exit, tuned by whatever the caller needs on top of it.</summary>
+    [SuppressMessage("ApiDesign", "RS0026", Justification = "The overloads differ by the type of what they are given, not by how many arguments they take, so an optional parameter added to one later cannot make a call to another ambiguous, which is what the rule guards against.")]
     public static SocketsHttpHandler Handler(ProxyEndpoint? exit, Action<SocketsHttpHandler>? tune = null)
     {
         var handler = new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All };
@@ -45,6 +47,7 @@ public static class Proxied
     }
 
     /// <summary>The handler for the next exit of a rotation, or a direct one when none is configured.</summary>
+    [SuppressMessage("ApiDesign", "RS0026", Justification = "The overloads differ by the type of what they are given, not by how many arguments they take, so an optional parameter added to one later cannot make a call to another ambiguous, which is what the rule guards against.")]
     public static SocketsHttpHandler Handler(IProxyRotation proxies, Action<SocketsHttpHandler>? tune = null)
     {
         ArgumentNullException.ThrowIfNull(proxies);
@@ -57,6 +60,7 @@ public static class Proxied
     /// The shape <c>ConfigurePrimaryHttpMessageHandler</c> asks for, so a named client is proxied by one line
     /// at its registration rather than by a factory of the consumer's own.
     /// </remarks>
+    [SuppressMessage("ApiDesign", "RS0026", Justification = "The overloads differ by the type of what they are given, not by how many arguments they take, so an optional parameter added to one later cannot make a call to another ambiguous, which is what the rule guards against.")]
     public static HttpMessageHandler Handler(IServiceProvider provider, Action<SocketsHttpHandler>? tune = null)
     {
         ArgumentNullException.ThrowIfNull(provider);

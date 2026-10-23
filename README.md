@@ -47,17 +47,18 @@ point, so a change to `appsettings.json` reaches a running process only when it 
 no live reload anywhere in the toolkit, and a setting that appears to have been ignored has usually been
 edited under a process that read it an hour ago.
 
-Asking a question, and reading a page:
+Asking a question, and reading a page. Every call that goes to the network takes the caller's
+`CancellationToken` — `ct` below — and requires it, so a search nobody is waiting for any more does not run on:
 
 ```csharp
-var found = await search.FindAsync(["postgresql documentation"]);
+var found = await search.FindAsync(["postgresql documentation"], ct);
 
 foreach (var result in found.Results)
     Console.WriteLine($"{result.Title} — {result.Address}");
 ```
 
 ```csharp
-var outcome = await pages.ReadAsync(Link.Of("https://www.postgresql.org/docs/"));
+var outcome = await pages.ReadAsync(Link.Of("https://www.postgresql.org/docs/"), ct);
 
 if (outcome.IsSuccess)
     Console.WriteLine(outcome.Value.Text);

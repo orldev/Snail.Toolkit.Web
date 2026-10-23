@@ -25,7 +25,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("Grain report", outcome.Value.Html, StringComparison.Ordinal);
@@ -43,7 +43,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/tracked.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/tracked.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("<title>tracked</title>", outcome.Value.Html, StringComparison.Ordinal);
@@ -82,7 +82,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(429, outcome.Failure.StatusCode);
@@ -118,7 +118,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         await using var host = Host(tune: options => options.MaxRetryAttempts = 3);
 
         var started = DateTimeOffset.UtcNow;
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy-for-ages.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/busy-for-ages.html"), CancellationToken.None);
         var elapsed = DateTimeOffset.UtcNow - started;
 
         Assert.False(outcome.IsSuccess);
@@ -133,7 +133,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/challenge.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/challenge.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Blocked, outcome.Failure.Kind);
@@ -146,7 +146,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/blank.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/blank.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Empty, outcome.Failure.Kind);
@@ -159,7 +159,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/nowhere.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/nowhere.html"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Navigation, outcome.Failure.Kind);
@@ -190,7 +190,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of("http://no-such-host.invalid/"));
+        var outcome = await host.Reader.ReadAsync(Link.Of("http://no-such-host.invalid/"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Navigation, outcome.Failure.Kind);
@@ -203,7 +203,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of("mailto:someone@example.com"));
+        var outcome = await host.Reader.ReadAsync(Link.Of("mailto:someone@example.com"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccess);
         Assert.Equal(FailureKind.Navigation, outcome.Failure.Kind);
@@ -304,7 +304,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host(tune: options => options.MaxContentCharacters = 20);
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.True(outcome.Value.IsTruncated);
@@ -321,7 +321,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host(tune: options => options.MaxContentCharacters = 20);
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("</html>", outcome.Value.Html, StringComparison.Ordinal);
@@ -355,7 +355,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
     {
         await using var host = Host();
 
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/article.html"), CancellationToken.None);
         var text = outcome.Value.Text;
 
         Assert.DoesNotContain("window.tracked", text, StringComparison.Ordinal);
@@ -365,7 +365,7 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
 
     private async Task<JsonElement> ProbeAsync(Harness host, string origin = SiteFixture.BaseUrl)
     {
-        var outcome = await host.Reader.ReadAsync(Link.Of($"{origin}/probe.html"));
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{origin}/probe.html"), CancellationToken.None);
 
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
 
