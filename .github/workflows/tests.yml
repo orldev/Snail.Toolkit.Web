@@ -9,9 +9,9 @@ name: browser integration
 
 on:
   push:
-    branches: [main, 'feature/**']
+    branches: [master, 'feature/**']
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
