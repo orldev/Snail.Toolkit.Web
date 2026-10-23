@@ -9,9 +9,9 @@ name: browser integration
 
 on:
   push:
-    branches: [main, 'feature/**']
+    branches: [master, 'feature/**']
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -59,7 +59,9 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release -warnaserror
 
+      # Every class marked Integration, less the Live ones, which ask a third party and need a browser server named
+      # in their own variable. The mirror of ci.yml's filter, by the same trait rather than by a list of names.
       - name: Test
         run: >-
           dotnet test --configuration Release --no-build --logger "console;verbosity=normal"
-          --filter "FullyQualifiedName~.SiteCallsTests|FullyQualifiedName~.PageAgentTests|FullyQualifiedName~.CrawlIntegrationTests|FullyQualifiedName~.KeptVisitTests|FullyQualifiedName~.BrowserPoolTests|FullyQualifiedName~.PageReaderTests|FullyQualifiedName~.PageSnapshotsTests"
+          --filter "Category=Integration&Category!=Live"

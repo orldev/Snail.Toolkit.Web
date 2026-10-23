@@ -29,7 +29,7 @@ jobs:
     with:
       version: ${{ inputs.version }}
       push: ${{ github.event_name == 'push' || inputs.push }}
-      test-filter: 'FullyQualifiedName!~.SiteCallsTests&FullyQualifiedName!~.PageAgentTests&FullyQualifiedName!~.CrawlIntegrationTests&FullyQualifiedName!~.KeptVisitTests&FullyQualifiedName!~.BrowserPoolTests&FullyQualifiedName!~.PageReaderTests&FullyQualifiedName!~.PageSnapshotsTests&FullyQualifiedName!~.Live'
+      test-filter: 'Category!=Integration'
     secrets: inherit
 
   push:

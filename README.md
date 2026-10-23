@@ -273,4 +273,4 @@ nothing else in this repository would notice.
 
 ## License
 
-MIT. See [LICENSE](https://github.com/orldev/Snail.Toolkit.Web/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/orldev/Snail.Toolkit.Web/blob/master/LICENSE).
