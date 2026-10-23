@@ -42,12 +42,45 @@ internal static class Fanout
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(failed);
 
+        return StreamedAsync(source, Handing(work), failed, Math.Max(1, maxDegreeOfParallelism), ct);
+    }
+
+    /// <summary>Streams every result <paramref name="work"/> hands over for an item, each the moment it is handed over.</summary>
+    /// <remarks>
+    /// For work with more than one thing to say about an item, each of which is news as soon as it is known. The
+    /// search is the reason it exists, since 2026-10-23: when an engine fails in a place of the round it asks
+    /// another in that place, and the failure belongs to the caller before the second engine has answered —
+    /// <c>StreamAsync</c> promises each attempt as it finishes, and handing the two over together would have
+    /// broken that for exactly the attempts a caller most needs to see early.
+    /// <para>
+    /// The work keeps its slot of the degree of parallelism for as long as it runs, so a second answer for an
+    /// item is bounded the same way the first one was rather than taking a slot of its own. An item that throws
+    /// hands over the result <c>failed</c> gives for it, after whatever it had already handed over.
+    /// Everything else is the other overload's, which is this one with a single result per item.
+    /// </para>
+    /// </remarks>
+    public static IAsyncEnumerable<TResult> OverAsync<TSource, TResult>(
+        IEnumerable<TSource> source,
+        Func<TSource, Func<TResult, ValueTask>, CancellationToken, ValueTask> work,
+        Func<TSource, Exception, TResult> failed,
+        int maxDegreeOfParallelism,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(work);
+        ArgumentNullException.ThrowIfNull(failed);
+
         return StreamedAsync(source, work, failed, Math.Max(1, maxDegreeOfParallelism), ct);
     }
 
+    /// <summary>Work that returns one result, as work that hands it over.</summary>
+    private static Func<TSource, Func<TResult, ValueTask>, CancellationToken, ValueTask> Handing<TSource, TResult>(
+        Func<TSource, CancellationToken, ValueTask<TResult>> work)
+        => async (item, hand, ct) => await hand(await work(item, ct));
+
     private static async IAsyncEnumerable<TResult> StreamedAsync<TSource, TResult>(
         IEnumerable<TSource> source,
-        Func<TSource, CancellationToken, ValueTask<TResult>> work,
+        Func<TSource, Func<TResult, ValueTask>, CancellationToken, ValueTask> work,
         Func<TSource, Exception, TResult> failed,
         int degree,
         [EnumeratorCancellation] CancellationToken ct)
@@ -122,7 +155,7 @@ internal static class Fanout
 
     private static async Task ProduceAsync<TSource, TResult>(
         IEnumerable<TSource> source,
-        Func<TSource, CancellationToken, ValueTask<TResult>> work,
+        Func<TSource, Func<TResult, ValueTask>, CancellationToken, ValueTask> work,
         Func<TSource, Exception, TResult> failed,
         ChannelWriter<TResult> writer,
         int degree,
@@ -133,12 +166,12 @@ internal static class Fanout
             await Parallel.ForEachAsync(
                 source,
                 new ParallelOptions { MaxDegreeOfParallelism = degree, CancellationToken = ct },
-                async (item, token) =>
-                {
-                    var result = await AttemptedAsync(item, work, failed, token);
-
-                    await writer.WriteAsync(result, token);
-                });
+                async (item, token) => await AttemptedAsync(
+                    item,
+                    work,
+                    failed,
+                    result => writer.WriteAsync(result, token),
+                    token));
 
             writer.Complete();
         }
@@ -148,22 +181,23 @@ internal static class Fanout
         }
     }
 
-    /// <summary>One item's result, whether the work produced it or threw on the way.</summary>
+    /// <summary>One item's results, whether the work handed them over or threw on the way.</summary>
     /// <remarks>
     /// Only a cancellation the caller asked for travels on. Anything else becomes an item, because the
     /// alternative is that a single page of a ten-thousand-page crawl ends the crawl — and ends it through
     /// <see cref="Parallel.ForEachAsync{TSource}(IEnumerable{TSource},ParallelOptions,Func{TSource,CancellationToken,ValueTask})"/>,
     /// which cancels the work already in flight, so the items that had succeeded are lost with it.
     /// </remarks>
-    private static async ValueTask<TResult> AttemptedAsync<TSource, TResult>(
+    private static async ValueTask AttemptedAsync<TSource, TResult>(
         TSource item,
-        Func<TSource, CancellationToken, ValueTask<TResult>> work,
+        Func<TSource, Func<TResult, ValueTask>, CancellationToken, ValueTask> work,
         Func<TSource, Exception, TResult> failed,
+        Func<TResult, ValueTask> hand,
         CancellationToken ct)
     {
         try
         {
-            return await work(item, ct);
+            await work(item, hand, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -171,7 +205,7 @@ internal static class Fanout
         }
         catch (Exception exception)
         {
-            return failed(item, exception);
+            await hand(failed(item, exception));
         }
     }
 }

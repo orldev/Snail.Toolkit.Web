@@ -14,7 +14,12 @@ public enum SearchFailureKind
     /// </remarks>
     NoResults,
 
-    /// <summary>The provider threw.</summary>
+    /// <summary>The provider threw, or did not answer within <see cref="SearchOptions.Timeout"/>.</summary>
+    /// <remarks>
+    /// Both are a defect on the provider's side of the line, and both call for the same reaction: look at it,
+    /// and do not ask it again in this batch. Running out of the timeout was a fault on both engine paths
+    /// before it was one for every provider — <c>BrowserSearch</c> wrote it down first, on 2026-09-20.
+    /// </remarks>
     Faulted,
 
     /// <summary>The caller cancelled before the provider answered.</summary>

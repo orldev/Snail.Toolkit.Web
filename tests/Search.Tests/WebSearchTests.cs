@@ -312,6 +312,62 @@ public class WebSearchTests
         Assert.Equal([2, 2, 2, 2], shares);
     }
 
+    /// <summary>Two engines down in the two places of a query must not keep a healthy third from being asked.</summary>
+    /// <remarks>
+    /// Found by the audit of 2026-10-23: what the round knows about faults arrives as attempts finish, so the
+    /// first query of a batch was placed blind and came back empty with an engine that answers left unasked.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_BothPlacedEnginesFaultWhileAHealthyOneWaits_TheHealthyOneAnswersInAPlace()
+    {
+        var search = Search(
+            new SearchOptions { ProvidersPerQuery = 2 },
+            Faulting("A"),
+            Faulting("B"),
+            Answering("C", "https://example.com/c"));
+
+        var outcome = await search.FindAsync(["grain"]);
+
+        Assert.Equal(["https://example.com/c"], outcome.Results.Select(result => result.Address.ToString()));
+        Assert.Equal(["A", "B", "C"], AskedFor(outcome, "grain"));
+    }
+
+    /// <summary>An engine that answered with nothing has answered: its place is not passed on.</summary>
+    /// <remarks>
+    /// The other half of the rule above, and the one that keeps it honest. "Nothing matched" is a statement
+    /// about the query, and passing the place on over it would be asking until somebody agrees.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_BothPlacedEnginesAnswerWithNothing_NoOtherEngineIsAsked()
+    {
+        var search = Search(
+            new SearchOptions { ProvidersPerQuery = 2 },
+            Empty("A"),
+            Empty("B"),
+            Answering("C", "https://example.com/c"));
+
+        var outcome = await search.FindAsync(["grain"]);
+
+        Assert.Equal(["A", "B"], AskedFor(outcome, "grain"));
+    }
+
+    /// <summary>The failure of a place reaches a streaming caller before the engine standing in has answered.</summary>
+    [Fact]
+    public async Task StreamAsync_AnEngineStandingIn_ArrivesAfterTheFailureItStandsInFor()
+    {
+        var search = Search(
+            new SearchOptions { ProvidersPerQuery = 1 },
+            Faulting("A"),
+            Answering("B", "https://example.com/b"));
+
+        List<string> order = [];
+
+        await foreach (var attempt in search.StreamAsync(["grain"]))
+            order.Add(attempt.Provider);
+
+        Assert.Equal(["A", "B"], order);
+    }
+
     /// <summary>A resting engine is skipped by the round rather than counted as a turn: its share goes to the ones awake.</summary>
     [Fact]
     public async Task FindAsync_RestingProvider_IsSkippedByTheRound()
@@ -542,6 +598,44 @@ public class WebSearchTests
         Assert.Equal(SearchFailureKind.OutOfTime, Assert.Single(outcome.Attempts).Failure!.Kind);
     }
 
+    /// <summary>A provider that never answers is held to the timeout even by a search given no budget.</summary>
+    /// <remarks>
+    /// Found by the audit of 2026-10-23: the setting was kept by the two engine families of this repository and
+    /// by nothing else, so a provider of a consumer's own held this search for ever. The wait is capped at
+    /// fifty times the timeout so that the old behaviour reads as a failure rather than hanging the suite.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_AProviderThatNeverAnswersAndNoBudget_IsAFaultWithinTheTimeout()
+    {
+        var timeout = TimeSpan.FromMilliseconds(100);
+        var search = Search(new SearchOptions { Timeout = timeout }, new Waiting("Slow"));
+
+        var searching = search.FindAsync(["grain"]);
+        var ended = await Task.WhenAny(searching, Task.Delay(timeout * 50));
+
+        Assert.Same(searching, ended);
+
+        var attempt = Assert.Single((await searching).Attempts);
+
+        Assert.Equal(SearchFailureKind.Faulted, attempt.Failure?.Kind);
+    }
+
+    /// <summary>A request that timed out inside the provider is the provider's fault, not the caller changing its mind.</summary>
+    /// <remarks>
+    /// The shape a bare <see cref="HttpClient"/> fails in when it reaches its own timeout. Until the audit of
+    /// 2026-10-23 it arrived as <see cref="SearchFailureKind.Canceled"/>, and the caller's own cancellation —
+    /// the test below — is what that kind is kept for.
+    /// </remarks>
+    [Fact]
+    public async Task FindAsync_AProviderWhoseOwnClientTimedOut_IsAFaultRatherThanCanceled()
+    {
+        var outcome = await Search(new TimingOut("Slow")).FindAsync(["grain"]);
+
+        var attempt = Assert.Single(outcome.Attempts);
+
+        Assert.Equal(SearchFailureKind.Faulted, attempt.Failure?.Kind);
+    }
+
     /// <summary>A caller that changes its mind mid-search is answered with the cancellation, budget or not.</summary>
     /// <remarks>
     /// Cancellation passes through this toolkit rather than being translated, and a budget is the one thing
@@ -661,6 +755,17 @@ public class WebSearchTests
 
             return SearchAnswer.Success([]);
         }
+    }
+
+    /// <summary>A provider failing the way <see cref="HttpClient"/> fails when it reaches its own timeout.</summary>
+    private sealed class TimingOut(string name) : ISearchProvider
+    {
+        public string Name => name;
+
+        public Task<SearchAnswer> FindAsync(string query, CancellationToken ct = default)
+            => throw new TaskCanceledException(
+                "The request was canceled due to the configured HttpClient.Timeout of 30 seconds elapsing.",
+                new TimeoutException());
     }
 
     /// <summary>A provider that never answers, so what ends the attempt is the clock rather than the engine.</summary>

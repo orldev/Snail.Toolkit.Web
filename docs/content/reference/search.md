@@ -176,7 +176,9 @@ Why one attempt carried no results.
 
 **Canceled** — The caller cancelled before the provider answered.
 
-**Faulted** — The provider threw.
+**Faulted** — The provider threw, or did not answer within `Timeout`.
+
+Both are a defect on the provider's side of the line, and both call for the same reaction: look at it, and do not ask it again in this batch. Running out of the timeout was a fault on both engine paths before it was one for every provider — `BrowserSearch` wrote it down first, on 2026-09-20.
 
 **NoResults** — The provider answered and the answer held nothing.
 
@@ -236,6 +238,8 @@ A challenge page is not an error in the query but a reaction to how often it was
 Spent by the resilience pipeline rather than by `Timeout`, and divided into a per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when the host starts rather than surfacing as a pipeline validation error on the first query.
 
 A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes — runs out of it when asked again before the gap is over, which is the setting doing what it says.
+
+And the search itself holds EVERY provider to it since 2026-10-23, a provider registered through `AddSearchProvider` included: until then nothing did, and one that never answered held a search without a budget for ever. Running out of it is `Faulted`, the same reading on every path. A provider ends when it is told to only if it passes on the token it is given.
 
 
 ## SearchOutcome

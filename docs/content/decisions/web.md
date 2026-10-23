@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-25 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+26 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## PolitenessOptions.HostDelays
 
@@ -298,3 +298,14 @@ The text, the title and the links of one page used to be read from a parse each 
 *Answers whether a space- or comma-separated list of relations names `relation`.*
 
 Read in place: the list used to be split, each entry lower-cased into a string of its own and gathered into a list, for every anchor of every page, to answer one yes or no. Each entry is still trimmed of white space and compared after lowering each character by the invariant culture, which is what `ToLowerInvariant` did to it, so a relation matches exactly the spellings it matched then. A comparison ignoring case would not: measured over every character on 2026-10-13, lowering turns the Kelvin sign into `k` and an ordinal comparison ignoring case does not match the two.
+
+
+## Fanout.OverAsync
+
+`2026-10-23` · *internal*
+
+*Streams every result `work` hands over for an item, each the moment it is handed over.*
+
+For work with more than one thing to say about an item, each of which is news as soon as it is known. The search is the reason it exists, since 2026-10-23: when an engine fails in a place of the round it asks another in that place, and the failure belongs to the caller before the second engine has answered — `StreamAsync` promises each attempt as it finishes, and handing the two over together would have broken that for exactly the attempts a caller most needs to see early.
+
+The work keeps its slot of the degree of parallelism for as long as it runs, so a second answer for an item is bounded the same way the first one was rather than taking a slot of its own. An item that throws hands over the result `failed` gives for it, after whatever it had already handed over. Everything else is the other overload's, which is this one with a single result per item.

@@ -29,6 +29,12 @@ public sealed class SearchOptions
     /// the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes —
     /// runs out of it when asked again before the gap is over, which is the setting doing what it says.
     /// </para>
+    /// <para>
+    /// And the search itself holds EVERY provider to it since 2026-10-23, a provider registered through
+    /// <c>AddSearchProvider</c> included: until then nothing did, and one that never answered held a search
+    /// without a budget for ever. Running out of it is <see cref="SearchFailureKind.Faulted"/>, the same reading
+    /// on every path. A provider ends when it is told to only if it passes on the token it is given.
+    /// </para>
     /// </remarks>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 

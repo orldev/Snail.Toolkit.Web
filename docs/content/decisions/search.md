@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-22 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+24 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## SearchOptions.RefusalCooldown
 
@@ -149,17 +149,6 @@ An attempt ALSO listens to the fan-out's own token, which fires when the caller 
 A search in which every provider rests asks nobody and comes back unanswered — which is the truth, and louder in the log than the usual line, because from the caller's side it looks like a search that found nothing. Since 2026-09-15 the caller is told the same thing in the answer rather than only here: the log is for whoever runs the process, and this is a fact about the search the process was asked to run.
 
 
-## WebSearch.AttemptAsync
-
-`2026-09-15` · *internal*
-
-*Asks one provider one query, and turns every way that can end into an attempt.*
-
-A cancellation has to say WHOSE it was: the budget running out is `OutOfTime`, and everything else stays `Canceled`. Told apart nowhere else, a deadline a deployment set would read exactly like a user closing a page. The condition is on the BUDGET's token, not on the one the work runs under: that one also fires when the caller stops reading, and a provider that timed out inside itself — its own client's clock, nothing to do with this search — must not be reported as the budget's doing either. A search without a budget has nothing that can run out.
-
-A SECOND HALF WAS WRITTEN HERE AND TAKEN OUT, and the reason is recorded because it is the obvious thing to propose again: `&& !caller.IsCancellationRequested`, to keep a caller's own cancellation out of this arm. MEASURED BY REMOVAL on 2026-09-15 — no test could tell the two apart, and none can: when the caller cancels, the fan-out this attempt is written to is reading under that same token, so the enumeration ends and the attempt is never yielded to anybody. A condition nothing can observe is a claim about behaviour that does not exist.
-
-
 ## WebSearch.Turn
 
 `2026-09-16` · *internal*
@@ -197,15 +186,26 @@ A refusal inside a running rest leaves it as it is. Until 2026-09-20 each one do
 There is no separate probing state. A rest that has run out lets the next request through, and the answer to that request either clears the record or doubles the rest; that is the whole mechanism.
 
 
-## SearchOptions.Timeout
+## SearchFailureKind.Faulted
 
 `2026-09-20`
+
+*The provider threw, or did not answer within `Timeout`.*
+
+Both are a defect on the provider's side of the line, and both call for the same reaction: look at it, and do not ask it again in this batch. Running out of the timeout was a fault on both engine paths before it was one for every provider — `BrowserSearch` wrote it down first, on 2026-09-20.
+
+
+## SearchOptions.Timeout
+
+`2026-09-20`, `2026-10-23`
 
 *Gets or sets how long one provider request may take, retries included.*
 
 Spent by the resilience pipeline rather than by `Timeout`, and divided into a per-attempt budget and a circuit-breaker sampling window. The circuit breaker refuses a window shorter than 500 ms, which is what puts a floor of one second under this setting; anything less is refused when the host starts rather than surfacing as a pipeline validation error on the first query.
 
 A browser engine is held to the same number since 2026-09-20, and on both paths it includes the wait for the host's turn. An engine whose host keeps a gap longer than this — Google's is measured in minutes — runs out of it when asked again before the gap is over, which is the setting doing what it says.
+
+And the search itself holds EVERY provider to it since 2026-10-23, a provider registered through `AddSearchProvider` included: until then nothing did, and one that never answered held a search without a budget for ever. Running out of it is `Faulted`, the same reading on every path. A provider ends when it is told to only if it passes on the token it is given.
 
 
 ## ServiceCollectionExtensions.AddSearchClient
@@ -266,3 +266,31 @@ A provider that names no host is always asked. It is not a promise that it is qu
 *Reads the offset the next-page control of a page already parsed asks for.*
 
 The results and the offset were each read from a parse of their own, and the parse is most of what either costs: measured on 2026-10-12 by the audit, one parse for both is 0.50–0.65 of the time and 63 % of the bytes.
+
+
+## WebSearch.FilledAsync
+
+`2026-10-23`, `2026-10-04` · *internal*
+
+*Asks the engine in one place, and the next free one each time the place goes unanswered.*
+
+A PLACE IS FILLED BY AN ENGINE THAT ANSWERS, since 2026-10-23. `Turn` gives places to the engines it knows can use them, but what it knows — which engines faulted — arrives as attempts finish, so it helps the second query of a batch and never the first, and a search of one query is the shape the README shows. Found by the audit of that day: two places, two engines down, and the engine that would have answered was never asked. A consumer had met the same thing on 2026-10-04 as a search ending with nobody having answered.
+
+An engine leaves its place empty when it faults, refuses or answers markup too deep to read: each is an engine that was asked and said nothing about the query. An empty answer is not one — it is a statement about the query, and asking another engine over it would be asking until somebody agrees. The engine that stands in is asked under every rule the first one was: its rest, its host's gate, the budget and the timeout, and it stands in the slot the place already had, so the degree of parallelism is what it was. Each attempt is handed over as it ends, the failure before the stand-in answers.
+
+The price is time: a search with no budget can now spend one timeout per engine in a place where it once spent one in total and came back empty. A budget bounds it as it bounds everything else.
+
+
+## WebSearch.AttemptAsync
+
+`2026-10-23`, `2026-09-15` · *internal*
+
+*Asks one provider one query, and turns every way that can end into an attempt.*
+
+A cancellation has to say WHOSE it was: the budget running out is `OutOfTime`, the caller's own is `Canceled`, and one that nobody on this side asked for came from inside the provider and is its `Faulted`. Told apart nowhere else, a deadline a deployment set would read exactly like a user closing a page. The condition is on the BUDGET's token, not on the one the work runs under: that one also fires when the caller stops reading, and a provider that timed out inside itself — its own client's clock, nothing to do with this search — must not be reported as the budget's doing either.
+
+Nor as the caller's, which it was until 2026-10-23: "everything else stays Canceled" filed a bare `HttpClient` reaching its own timeout — `TaskCanceledException` with a `TimeoutException` inside — as a user changing their mind, and a consumer deciding whether to ask again was told the one thing that was not true. The engines of this repository were spared because their pipeline throws Polly's own rejection; a consumer's provider was not.
+
+A SECOND HALF WAS WRITTEN HERE AND TAKEN OUT, and the reason is recorded because it is the obvious thing to propose again: `&& !caller.IsCancellationRequested`, to keep a caller's own cancellation out of this arm. MEASURED BY REMOVAL on 2026-09-15 — no test could tell the two apart, and none can: when the caller cancels, the fan-out this attempt is written to is reading under that same token, so the enumeration ends and the attempt is never yielded to anybody. A condition nothing can observe is a claim about behaviour that does not exist.
+
+EVERY PROVIDER IS HELD TO `Timeout` HERE, since 2026-10-23. Until then the setting was kept by the two engine families of this repository, each by its own means — the HTTP pipeline's total-request timeout, the linked source in `BrowserSearch` — and by nothing else, so a provider registered through `AddSearchProvider` that never answered held a search without a budget for ever. Found by the audit of that day with a provider that waits on its token. Running out of it is a fault, which is the reading `BrowserSearch` wrote down first: the two timers are the same length, and whichever wins, the attempt is named the same and the engine stands aside for the rest of the batch. The timer runs on the search's clock, as the budget's does.

@@ -46,4 +46,8 @@ internal static partial class Log
     [LoggerMessage(EventId = 9, Level = LogLevel.Warning, Message =
         "{Provider} refused '{Query}' after {Ms:F0}ms and is left alone for {Rest}: {Reason}")]
     internal static partial void RefusedQuery(ILogger logger, string provider, string query, double ms, TimeSpan rest, string? reason);
+
+    [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message =
+        "{Provider} left its place for '{Query}' unanswered, and {Standing} is asked in it")]
+    internal static partial void PassedOn(ILogger logger, string provider, string query, string standing);
 }

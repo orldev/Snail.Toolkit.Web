@@ -98,6 +98,54 @@ public class FanoutTests
         });
     }
 
+    /// <summary>Work with two things to say about an item says the first before the second is ready.</summary>
+    /// <remarks>
+    /// The reason the handing overload exists: the search's second engine in a failed place, whose failure is
+    /// news before the second engine answers. Handing the two over together would delay exactly that, and here
+    /// it would also never finish — the second result waits for the first to be read — so the wait is capped,
+    /// and a delay reads as a failure rather than a hung suite.
+    /// </remarks>
+    [Fact]
+    public async Task OverAsync_WorkHandingOverTwice_DeliversTheFirstBeforeTheSecondIsReady()
+    {
+        var firstRead = new TaskCompletionSource();
+        var seen = new List<int>();
+
+        await foreach (var result in Fanout.OverAsync<int, int>([1], HandingTwice, Failed, 1))
+        {
+            seen.Add(result);
+            firstRead.TrySetResult();
+        }
+
+        Assert.Equal([1, 2], seen);
+
+        async ValueTask HandingTwice(int number, Func<int, ValueTask> hand, CancellationToken ct)
+        {
+            await hand(number);
+            await firstRead.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await hand(number * 2);
+        }
+    }
+
+    /// <summary>Work that throws after handing something over keeps what it handed over, and adds its failure.</summary>
+    [Fact]
+    public async Task OverAsync_WorkThrowingAfterHandingOver_KeepsWhatItHandedAndAddsTheFailure()
+    {
+        var seen = new List<int>();
+
+        await foreach (var result in Fanout.OverAsync<int, int>([3], HandingThenThrowing, Failed, 1))
+            seen.Add(result);
+
+        Assert.Equal([3, Broken], seen);
+
+        static async ValueTask HandingThenThrowing(int number, Func<int, ValueTask> hand, CancellationToken ct)
+        {
+            await hand(number);
+
+            throw new InvalidOperationException("boom");
+        }
+    }
+
     /// <summary>Arguments are checked when the call is made, not when enumeration first moves.</summary>
     [Fact]
     public void OverAsync_WithoutASource_ThrowsBeforeEnumerationBegins()

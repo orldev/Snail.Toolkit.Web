@@ -84,7 +84,7 @@ Why one attempt carried no results.
 | Member | Summary |
 | --- | --- |
 | `const SearchFailureKind Canceled` | The caller cancelled before the provider answered. |
-| `const SearchFailureKind Faulted` | The provider threw. |
+| `const SearchFailureKind Faulted` | The provider threw, or did not answer within `Timeout`. |
 | `const SearchFailureKind NoResults` | The provider answered and the answer held nothing. |
 | `const SearchFailureKind OutOfTime` | The provider was not asked: it could not answer inside the budget this search was given. |
 | `const SearchFailureKind Refused` | The provider was turned away: a challenge, a consent wall, a rate limit. |
