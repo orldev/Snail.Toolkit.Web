@@ -37,13 +37,13 @@ jobs:
       SNAIL_BROWSER_ENGINE: Firefox
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Read from global.json rather than written here: the .editorconfig rules this build fails over are
       # analyzers that ship with the SDK, so the version is part of what the build MEANS and belongs in one
       # place. 'dotnet-version: 10.0.x' would install whatever is newest and quietly judge the code by
       # another band's rules.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
