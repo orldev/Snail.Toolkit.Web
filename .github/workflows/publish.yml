@@ -5,7 +5,8 @@ name: release to NuGet
 # because nuget.org gives a trusted publishing key only to a job of the workflow file its policy names in this
 # repository (job_workflow_ref): this publish.yml, with the secret NUGET_USER.
 #
-# The browser-backed tests run in tests.yml, so the release leaves them out.
+# The browser-backed tests run in tests.yml, so the release leaves them out. Before a first release, run it by hand
+# with push unticked: the packages stay as an artifact of the run, and nothing reaches NuGet.
 
 on:
   push:

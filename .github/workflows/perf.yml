@@ -1,6 +1,7 @@
 name: performance
 
 # Every two months: the benchmarks against benchmarks/Web.Benchmarks/baseline/, and Stryker.NET on the tests.
+# Run it by hand after a change on a hot path; the baseline comes from the same kind of runner.
 
 on:
   schedule:
