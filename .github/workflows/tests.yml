@@ -47,10 +47,10 @@ jobs:
         with:
           global-json-file: global.json
 
-      # The image is private. GITHUB_TOKEN reaches it only once the package is linked to this repository in
-      # its GitHub settings; without that link a personal access token with read:packages is needed instead.
+      # The image is public since 2026-10-27, so a pull needs no sign-in. The step stays for a private image
+      # named here: GITHUB_TOKEN reaches one only once the package grants this repository read access.
       - name: Sign in to the container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
