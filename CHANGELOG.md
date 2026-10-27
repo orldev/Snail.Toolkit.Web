@@ -18,6 +18,14 @@ Everything below is the first release taking shape. The dated groups are there b
 was a single round of work — an audit and its treatment — and it is the part most likely to matter to
 someone reading this before the first publication.
 
+### Dependencies, 2026-10-27
+
+- **The packages this library depends on are raised**: `Microsoft.Extensions.*` to 10.0.14,
+  `Microsoft.Extensions.Http.Resilience` to 10.11.0, Polly to 8.8.1 and HtmlAgilityPack to 1.13.1, so a project
+  referencing this one gets at least those. It builds on Snail.Sdk 0.2.2.
+- **`Microsoft.Playwright` stays at 1.62.0.** A browser server answers a client of another version with 428, and
+  the patched browser image is built from the 1.62 tag; the client moves together with a rebuild of that image.
+
 ### The audit of 2026-10-23
 
 Three promises the documentation made and the code did not keep, each found by a test written to break it,

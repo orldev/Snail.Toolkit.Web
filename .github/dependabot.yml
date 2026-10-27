@@ -20,6 +20,10 @@ updates:
     schedule:
       interval: cron
       cronjob: '0 6 1 1,3,5,7,9,11 *'
+    # The client has to match the server of the patched browser image (ghcr.io/orldev/ff-juggler:153.0-pw1.62),
+    # which answers any other version with 428. Raise it together with a rebuild of that image, by hand.
+    ignore:
+      - dependency-name: Microsoft.Playwright
     groups:
       packages:
         patterns: ['*']
