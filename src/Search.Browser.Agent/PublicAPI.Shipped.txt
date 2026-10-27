@@ -1,1 +1,16 @@
 #nullable enable
+const Snail.Toolkit.Web.Search.Browser.Agent.Google.ProviderName = "Google" -> string!
+const Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.SectionName = "Web:Search:Google" -> string!
+override Snail.Toolkit.Web.Search.Browser.Agent.Google.Name.get -> string!
+Snail.Toolkit.Web.Search.Browser.Agent.Extensions.ServiceCollectionExtensions
+Snail.Toolkit.Web.Search.Browser.Agent.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+Snail.Toolkit.Web.Search.Browser.Agent.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddGoogle(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Search.Browser.Agent.Google
+Snail.Toolkit.Web.Search.Browser.Agent.Google.Google(Snail.Toolkit.Web.Scraping.Agent.IPageAgent! agent, System.Net.Http.IHttpClientFactory! clients, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions!>! options, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.SearchOptions!>! search, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Politeness.PolitenessOptions!>! pacing, Microsoft.Extensions.Logging.ILogger<Snail.Toolkit.Web.Search.Browser.Agent.Google!>! logger) -> void
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.Domain.get -> string!
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.Domain.set -> void
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.FollowDelay.get -> System.TimeSpan
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.FollowDelay.set -> void
+Snail.Toolkit.Web.Search.Browser.Agent.GoogleOptions.GoogleOptions() -> void
+static Snail.Toolkit.Web.Search.Browser.Agent.Extensions.ServiceCollectionExtensions.AddGoogle(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

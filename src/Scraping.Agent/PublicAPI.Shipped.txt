@@ -1,1 +1,147 @@
 #nullable enable
+const Snail.Toolkit.Web.Scraping.Agent.AgentOptions.SectionName = "Web:Scraping:Agent" -> string!
+override Snail.Toolkit.Web.Scraping.Agent.Effect.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.Effect.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.Effect.ToString() -> string!
+override Snail.Toolkit.Web.Scraping.Agent.Errand.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.Errand.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.Errand.ToString() -> string!
+override Snail.Toolkit.Web.Scraping.Agent.Mint.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.Mint.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.Mint.ToString() -> string!
+override Snail.Toolkit.Web.Scraping.Agent.SiteCall.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.SiteCall.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.SiteCall.ToString() -> string!
+override Snail.Toolkit.Web.Scraping.Agent.Spot.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.Spot.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.Spot.ToString() -> string!
+override Snail.Toolkit.Web.Scraping.Agent.Step.Equals(object? obj) -> bool
+override Snail.Toolkit.Web.Scraping.Agent.Step.GetHashCode() -> int
+override Snail.Toolkit.Web.Scraping.Agent.Step.ToString() -> string!
+Snail.Toolkit.Web.Scraping.Agent.AgentOptions
+Snail.Toolkit.Web.Scraping.Agent.AgentOptions.AgentOptions() -> void
+Snail.Toolkit.Web.Scraping.Agent.AgentOptions.Settle.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.AgentOptions.Settle.set -> void
+Snail.Toolkit.Web.Scraping.Agent.Effect
+Snail.Toolkit.Web.Scraping.Agent.Effect.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.Effect!
+Snail.Toolkit.Web.Scraping.Agent.Effect.Deconstruct(out Snail.Toolkit.Web.Scraping.Agent.EffectKind Kind, out string! Pattern) -> void
+Snail.Toolkit.Web.Scraping.Agent.Effect.Effect(Snail.Toolkit.Web.Scraping.Agent.EffectKind Kind, string! Pattern) -> void
+Snail.Toolkit.Web.Scraping.Agent.Effect.Equals(Snail.Toolkit.Web.Scraping.Agent.Effect? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.Effect.Kind.get -> Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.Effect.Kind.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Effect.Pattern.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.Effect.Pattern.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Effect.Within.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.Effect.Within.init -> void
+Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.EffectKind.Appears = 1 -> Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.EffectKind.Request = 0 -> Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.EffectKind.Text = 3 -> Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.EffectKind.Vanishes = 2 -> Snail.Toolkit.Web.Scraping.Agent.EffectKind
+Snail.Toolkit.Web.Scraping.Agent.Errand
+Snail.Toolkit.Web.Scraping.Agent.Errand.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.Errand!
+Snail.Toolkit.Web.Scraping.Agent.Errand.Address.get -> Snail.Toolkit.Web.Link!
+Snail.Toolkit.Web.Scraping.Agent.Errand.Address.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Errand.Appetite.get -> Snail.Toolkit.Web.Scraping.Browsers.Appetite
+Snail.Toolkit.Web.Scraping.Agent.Errand.Appetite.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Errand.Deconstruct(out Snail.Toolkit.Web.Link! Address, out System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Scraping.Agent.Step!>! Steps) -> void
+Snail.Toolkit.Web.Scraping.Agent.Errand.Equals(Snail.Toolkit.Web.Scraping.Agent.Errand? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.Errand.Errand(Snail.Toolkit.Web.Link! Address, System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Scraping.Agent.Step!>! Steps) -> void
+Snail.Toolkit.Web.Scraping.Agent.Errand.Steps.get -> System.Collections.Generic.IReadOnlyList<Snail.Toolkit.Web.Scraping.Agent.Step!>!
+Snail.Toolkit.Web.Scraping.Agent.Errand.Steps.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions
+Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!)
+Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddPageAgent(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddPageAgent(System.Action<Snail.Toolkit.Web.Scraping.ScrapingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Snail.Toolkit.Web.Scraping.Agent.IPageAgent
+Snail.Toolkit.Web.Scraping.Agent.IPageAgent.PerformAsync(Snail.Toolkit.Web.Scraping.Agent.Errand! errand, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Outcome<Snail.Toolkit.Web.Scraping.PageContent!, Snail.Toolkit.Web.Scraping.PageFailure!>!>!
+Snail.Toolkit.Web.Scraping.Agent.ISiteCalls
+Snail.Toolkit.Web.Scraping.Agent.ISiteCalls.SendAsync(Snail.Toolkit.Web.Scraping.Agent.SiteCall! call, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Outcome<string!, Snail.Toolkit.Web.Scraping.PageFailure!>!>!
+Snail.Toolkit.Web.Scraping.Agent.Mint
+Snail.Toolkit.Web.Scraping.Agent.Mint.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.Mint!
+Snail.Toolkit.Web.Scraping.Agent.Mint.Action.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.Mint.Action.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Mint.Deconstruct(out string! Key, out string! Action) -> void
+Snail.Toolkit.Web.Scraping.Agent.Mint.Equals(Snail.Toolkit.Web.Scraping.Agent.Mint? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.Mint.Key.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.Mint.Key.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Mint.Mint(string! Key, string! Action) -> void
+Snail.Toolkit.Web.Scraping.Agent.Mint.Parameter.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.Mint.Parameter.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Mint.Within.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.Mint.Within.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.SiteCall!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Body.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Body.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.ContentType.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.ContentType.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Deconstruct(out Snail.Toolkit.Web.Link! Page, out string! Path, out string! Body) -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Equals(Snail.Toolkit.Web.Scraping.Agent.SiteCall? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Method.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Method.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Mint.get -> Snail.Toolkit.Web.Scraping.Agent.Mint?
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Mint.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Page.get -> Snail.Toolkit.Web.Link!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Page.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Path.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Path.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Settle.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.Settle.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCall.SiteCall(Snail.Toolkit.Web.Link! Page, string! Path, string! Body) -> void
+Snail.Toolkit.Web.Scraping.Agent.SiteCalls
+Snail.Toolkit.Web.Scraping.Agent.SiteCalls.SendAsync(Snail.Toolkit.Web.Scraping.Agent.SiteCall! call, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Snail.Toolkit.Web.Outcome<string!, Snail.Toolkit.Web.Scraping.PageFailure!>!>!
+Snail.Toolkit.Web.Scraping.Agent.SiteCalls.SiteCalls(Snail.Toolkit.Web.Scraping.IAttempts<string!>! attempts, Snail.Toolkit.Web.Scraping.Browsers.IVisits! visits, Snail.Toolkit.Web.Detection.IBlockDetector! blocks, Microsoft.Extensions.Logging.ILogger<Snail.Toolkit.Web.Scraping.Agent.SiteCalls!>! logger) -> void
+Snail.Toolkit.Web.Scraping.Agent.Spot
+Snail.Toolkit.Web.Scraping.Agent.Spot.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.Spot!
+Snail.Toolkit.Web.Scraping.Agent.Spot.Deconstruct(out Snail.Toolkit.Web.Scraping.Agent.SpotKind Kind, out string! Value) -> void
+Snail.Toolkit.Web.Scraping.Agent.Spot.Equals(Snail.Toolkit.Web.Scraping.Agent.Spot? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.Spot.Kind.get -> Snail.Toolkit.Web.Scraping.Agent.SpotKind
+Snail.Toolkit.Web.Scraping.Agent.Spot.Kind.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Spot.Spot(Snail.Toolkit.Web.Scraping.Agent.SpotKind Kind, string! Value) -> void
+Snail.Toolkit.Web.Scraping.Agent.Spot.Value.get -> string!
+Snail.Toolkit.Web.Scraping.Agent.Spot.Value.init -> void
+Snail.Toolkit.Web.Scraping.Agent.SpotKind
+Snail.Toolkit.Web.Scraping.Agent.SpotKind.Css = 0 -> Snail.Toolkit.Web.Scraping.Agent.SpotKind
+Snail.Toolkit.Web.Scraping.Agent.SpotKind.Label = 1 -> Snail.Toolkit.Web.Scraping.Agent.SpotKind
+Snail.Toolkit.Web.Scraping.Agent.Step
+Snail.Toolkit.Web.Scraping.Agent.Step.<Clone>$() -> Snail.Toolkit.Web.Scraping.Agent.Step!
+Snail.Toolkit.Web.Scraping.Agent.Step.Attempts.get -> int
+Snail.Toolkit.Web.Scraping.Agent.Step.Attempts.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Deconstruct(out Snail.Toolkit.Web.Scraping.Agent.StepKind Kind, out Snail.Toolkit.Web.Scraping.Agent.Spot! Where) -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Equals(Snail.Toolkit.Web.Scraping.Agent.Step? other) -> bool
+Snail.Toolkit.Web.Scraping.Agent.Step.Expected.get -> Snail.Toolkit.Web.Scraping.Agent.Effect?
+Snail.Toolkit.Web.Scraping.Agent.Step.Expected.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Kind.get -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.Step.Kind.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Ready.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.Step.Ready.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Rhythm.get -> System.TimeSpan
+Snail.Toolkit.Web.Scraping.Agent.Step.Rhythm.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Step(Snail.Toolkit.Web.Scraping.Agent.StepKind Kind, Snail.Toolkit.Web.Scraping.Agent.Spot! Where) -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Value.get -> string?
+Snail.Toolkit.Web.Scraping.Agent.Step.Value.init -> void
+Snail.Toolkit.Web.Scraping.Agent.Step.Where.get -> Snail.Toolkit.Web.Scraping.Agent.Spot!
+Snail.Toolkit.Web.Scraping.Agent.Step.Where.init -> void
+Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.StepKind.Choose = 4 -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.StepKind.Click = 2 -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.StepKind.Pick = 1 -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.StepKind.Press = 3 -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+Snail.Toolkit.Web.Scraping.Agent.StepKind.Type = 0 -> Snail.Toolkit.Web.Scraping.Agent.StepKind
+static Snail.Toolkit.Web.Scraping.Agent.Effect.operator !=(Snail.Toolkit.Web.Scraping.Agent.Effect? left, Snail.Toolkit.Web.Scraping.Agent.Effect? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Effect.operator ==(Snail.Toolkit.Web.Scraping.Agent.Effect? left, Snail.Toolkit.Web.Scraping.Agent.Effect? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Errand.operator !=(Snail.Toolkit.Web.Scraping.Agent.Errand? left, Snail.Toolkit.Web.Scraping.Agent.Errand? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Errand.operator ==(Snail.Toolkit.Web.Scraping.Agent.Errand? left, Snail.Toolkit.Web.Scraping.Agent.Errand? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions.AddPageAgent(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Snail.Toolkit.Web.Scraping.Agent.Extensions.ServiceCollectionExtensions.AddPageAgent(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Snail.Toolkit.Web.Scraping.ScrapingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Snail.Toolkit.Web.Scraping.Agent.Mint.operator !=(Snail.Toolkit.Web.Scraping.Agent.Mint? left, Snail.Toolkit.Web.Scraping.Agent.Mint? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Mint.operator ==(Snail.Toolkit.Web.Scraping.Agent.Mint? left, Snail.Toolkit.Web.Scraping.Agent.Mint? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.SiteCall.operator !=(Snail.Toolkit.Web.Scraping.Agent.SiteCall? left, Snail.Toolkit.Web.Scraping.Agent.SiteCall? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.SiteCall.operator ==(Snail.Toolkit.Web.Scraping.Agent.SiteCall? left, Snail.Toolkit.Web.Scraping.Agent.SiteCall? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Spot.Css(string! selector) -> Snail.Toolkit.Web.Scraping.Agent.Spot!
+static Snail.Toolkit.Web.Scraping.Agent.Spot.Labelled(string! label) -> Snail.Toolkit.Web.Scraping.Agent.Spot!
+static Snail.Toolkit.Web.Scraping.Agent.Spot.operator !=(Snail.Toolkit.Web.Scraping.Agent.Spot? left, Snail.Toolkit.Web.Scraping.Agent.Spot? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Spot.operator ==(Snail.Toolkit.Web.Scraping.Agent.Spot? left, Snail.Toolkit.Web.Scraping.Agent.Spot? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Step.operator !=(Snail.Toolkit.Web.Scraping.Agent.Step? left, Snail.Toolkit.Web.Scraping.Agent.Step? right) -> bool
+static Snail.Toolkit.Web.Scraping.Agent.Step.operator ==(Snail.Toolkit.Web.Scraping.Agent.Step? left, Snail.Toolkit.Web.Scraping.Agent.Step? right) -> bool
