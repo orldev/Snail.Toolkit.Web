@@ -3,20 +3,18 @@
 What changed, for someone who has this library in their project and wants to know whether an update will
 move the ground under them.
 
-Two things worth knowing about how this file is kept. **Nothing has been released yet**, so there is one
-section and it has no date: version `0.1.0` is what the packages carry, and the first published version is
-still ahead. And a line here is written from the consumer's side — what is different for code that calls
-this library — not from the commit's side. The commit history is where the reasoning lives; this is the
-short answer.
+A line here is written from the consumer's side — what is different for code that calls this library — not
+from the commit's side. The commit history is where the reasoning lives; this is the short answer.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions will follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html) from the first release onward.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
 
-Everything below is the first release taking shape. The dated groups are there because the last of them
-was a single round of work — an audit and its treatment — and it is the part most likely to matter to
-someone reading this before the first publication.
+## [0.1.0] - 2026-10-27
+
+The first release. The dated groups below are the rounds of work it took shape in; the latest come first,
+because they are the part most likely to matter to someone who saw the code before it was published.
 
 ### Dependencies, 2026-10-27
 
@@ -222,3 +220,6 @@ which is the other thing a first release fixes in place.
   through a source folder returns sources.
 - **The SDK version is pinned in `global.json`.** The build fails on a handful of code style rules, those
   rules ship with the SDK, and a floating SDK therefore meant a floating definition of a green build.
+
+[Unreleased]: https://github.com/orldev/Snail.Toolkit.Web/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/orldev/Snail.Toolkit.Web/tree/v0.1.0
