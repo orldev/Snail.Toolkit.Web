@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Built on Snail.Sdk 0.4.2, with Polly 8.9.0.
+
 ## [0.1.0] - 2026-10-27
 
 The first release. The dated groups below are the rounds of work it took shape in; the latest come first,

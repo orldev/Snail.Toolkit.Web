@@ -25,6 +25,8 @@ updates:
     ignore:
       - dependency-name: Microsoft.Playwright
     groups:
+      snail-sdk:
+        patterns: ['Snail.Sdk*']
       packages:
         patterns: ['*']
         update-types: [minor, patch]
