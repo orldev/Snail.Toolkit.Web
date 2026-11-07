@@ -87,6 +87,26 @@ public static class ServiceCollectionExtensions
 
             return services.AddSearchProvider<Brave>();
         }
+
+        /// <summary>Adds DuckDuckGo read through a browser, at the site a person uses.</summary>
+        /// <remarks>
+        /// Not part of <c>AddBrowserSearch</c>, and on purpose: search registers the HTTP reading of the same
+        /// engine already, and from an address it answers that one costs a request where this one costs a page
+        /// load. This is for the address it refuses — measured on 2026-11-07, one that met the HTTP endpoint with
+        /// a challenge every time was answered by the site in Firefox every time. A deployment in that position
+        /// adds this and, if it likes, leaves the HTTP reading out.
+        /// </remarks>
+        public IServiceCollection AddDuckDuckGo(IConfiguration configuration)
+        {
+            ArgumentNullException.ThrowIfNull(configuration);
+
+            services.AddSearch(configuration);
+            services.AddScraping(configuration);
+
+            Validated(services.BindOnce<DuckDuckGoOptions>(configuration, DuckDuckGoOptions.SectionName, static (options, section) => options.Bind(section)));
+
+            return services.AddSearchProvider<DuckDuckGo>();
+        }
     }
 
     private static void Validated(OptionsBuilder<BingOptions> builder)
@@ -101,6 +121,13 @@ public static class ServiceCollectionExtensions
             .Validate(
                 settings => IsHost(settings.Domain),
                 $"'{BraveOptions.SectionName}:{nameof(BraveOptions.Domain)}' has to be a bare host such as 'search.brave.com', without a scheme or a path.")
+            .ValidateOnStart();
+
+    private static void Validated(OptionsBuilder<DuckDuckGoOptions> builder)
+        => builder
+            .Validate(
+                settings => IsHost(settings.Domain),
+                $"'{DuckDuckGoOptions.SectionName}:{nameof(DuckDuckGoOptions.Domain)}' has to be a bare host such as 'duckduckgo.com', without a scheme or a path.")
             .ValidateOnStart();
 
     private static bool IsHost(string value)

@@ -6,7 +6,6 @@ using Snail.Toolkit.Web.Politeness;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping.Agent;
 using Snail.Toolkit.Web.Search.Browser.Agent.Extensions;
-using Snail.Toolkit.Web.Search.Providers;
 using Snail.Toolkit.Web.Tests;
 
 namespace Snail.Toolkit.Web.Search.Browser.Agent.Tests;
@@ -23,7 +22,7 @@ public class RegistrationTests
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal([DuckDuckGo.ProviderName, Google.ProviderName], names);
+        Assert.Equal([Providers.DuckDuckGo.ProviderName, Google.ProviderName], names);
     }
 
     /// <summary>Google is walked through its form, so the agent has to be registered alongside it.</summary>

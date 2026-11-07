@@ -35,19 +35,32 @@ public sealed class PageReader(
 
     /// <inheritdoc />
     public Task<PageOutcome> ReadAsync(Link address, Appetite appetite, CancellationToken ct = default)
-        => ReadAsync(address, appetite, contents.Reading, ct);
+        => ReadAsync(address, appetite, contents.Reading, readyWhen: null, ct);
+
+    /// <inheritdoc />
+    Task<PageOutcome> IPageReader.ReadWhenReadyAsync(
+        Link address,
+        Appetite appetite,
+        string readyWhen,
+        CancellationToken ct)
+        => ReadAsync(address, appetite, contents.Reading, readyWhen, ct);
 
     /// <summary>Reads <paramref name="address"/> whole, answering what <paramref name="reading"/> asks of the page.</summary>
     internal Task<PageOutcome> ReadAsync(Link address, Reading reading, CancellationToken ct)
-        => ReadAsync(address, Appetite.Everything, reading, ct);
+        => ReadAsync(address, Appetite.Everything, reading, readyWhen: null, ct);
 
-    private Task<PageOutcome> ReadAsync(Link address, Appetite appetite, Reading reading, CancellationToken ct)
+    private Task<PageOutcome> ReadAsync(
+        Link address,
+        Appetite appetite,
+        Reading reading,
+        string? readyWhen,
+        CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(address);
 
         return attempts.AtAsync(
             address,
-            (identity, target, token) => FetchAsync(address, target, identity, appetite, reading, token),
+            (identity, target, token) => FetchAsync(address, target, identity, appetite, reading, readyWhen, token),
             ct);
     }
 
@@ -57,6 +70,7 @@ public sealed class PageReader(
         WebIdentity identity,
         Appetite appetite,
         Reading reading,
+        string? readyWhen,
         CancellationToken ct)
     {
         try
@@ -73,6 +87,7 @@ public sealed class PageReader(
             });
 
             await SettleAsync(page, ct);
+            await ReadyAsync(page, readyWhen, ct);
             await behavior.SimulateAsync(page, ct);
 
             ct.ThrowIfCancellationRequested();
@@ -115,6 +130,31 @@ public sealed class PageReader(
         catch (PlaywrightException)
         {
             Log.NeverIdle(logger, page.Url);
+        }
+    }
+
+    /// <summary>Waits for what the caller said the page is ready with, and reads the page as it stands if it never comes.</summary>
+    /// <remarks>
+    /// Bounded the way the picture's wait is, by the navigation budget and never past ten seconds: a page that
+    /// never draws what was asked for is either a refusal or a redesign, and both are told apart afterwards by
+    /// reading the page — waiting longer would only make either answer later.
+    /// </remarks>
+    private async Task ReadyAsync(IPage page, string? readyWhen, CancellationToken ct)
+    {
+        if (readyWhen is null)
+            return;
+
+        try
+        {
+            await page.Locator(readyWhen).First.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Attached,
+                Timeout = Math.Min(_options.NavigationTimeoutMs, 10_000)
+            }).WaitAsync(ct);
+        }
+        catch (Exception exception) when (BrowserFailure.IsBrowsers(exception))
+        {
+            Log.NeverReady(logger, page.Url, readyWhen);
         }
     }
 

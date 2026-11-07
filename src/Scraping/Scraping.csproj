@@ -20,10 +20,12 @@
   <!--
     The context options are internal because which headers a browser sends is not a contract a consumer
     configures. What they must never send is, which is why the test assembly is let in rather than the type
-    being made public.
+    being made public. The engines' tests are let in for the reader's wait: an engine that draws its results
+    with script is checked to ask for it, and the stub standing in for the browser has to hear the question.
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Snail.Toolkit.Web.Scraping.Tests" />
+    <InternalsVisibleTo Include="Snail.Toolkit.Web.Search.Browser.Tests" />
   </ItemGroup>
 
   <!--

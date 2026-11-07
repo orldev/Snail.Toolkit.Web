@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Snail.Toolkit.Web.Scraping;
 using Snail.Toolkit.Web.Search.Browser.Extensions;
-using Snail.Toolkit.Web.Search.Providers;
 
 namespace Snail.Toolkit.Web.Search.Browser.Tests;
 
@@ -20,7 +19,7 @@ public class RegistrationTests
 
         var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(p => p.Name).Order();
 
-        Assert.Equal([Bing.ProviderName, Brave.ProviderName, DuckDuckGo.ProviderName], names);
+        Assert.Equal([Bing.ProviderName, Brave.ProviderName, Providers.DuckDuckGo.ProviderName], names);
     }
 
     /// <summary>
@@ -137,6 +136,45 @@ public class RegistrationTests
             engine => engine.Name == Brave.ProviderName);
     }
 
+    /// <summary>DuckDuckGo through a browser is added on its own, beside the HTTP reading search brings.</summary>
+    /// <remarks>
+    /// Asks for the providers themselves for the reason the Brave check above does: only that forces them to be
+    /// built, and a missing reader would otherwise surface on the first query.
+    /// </remarks>
+    [Fact]
+    public async Task AddDuckDuckGo_OnItsOwn_BuildsItBesideTheHttpReading()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDuckDuckGo(new ConfigurationBuilder().Build());
+
+        await using var provider = services.BuildServiceProvider();
+
+        var names = provider.GetRequiredService<IEnumerable<ISearchProvider>>().Select(engine => engine.Name).Order();
+
+        Assert.Equal([Providers.DuckDuckGo.ProviderName, DuckDuckGo.ProviderName], names);
+    }
+
+    [Theory]
+    [InlineData("https://duckduckgo.com")]
+    [InlineData("duckduckgo.com/html")]
+    [InlineData("")]
+    public async Task AddDuckDuckGo_DomainThatIsNotAHost_FailsValidation(string domain)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Web:Search:DuckDuckGoBrowser:Domain"] = domain })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddLogging();
+        services.AddDuckDuckGo(configuration);
+
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IOptions<DuckDuckGoOptions>>().Value);
+    }
+
     /// <summary>
     /// The engines read through attempts that hand a wall straight back, while a crawl keeps repeating it.
     /// </summary>
@@ -148,6 +186,7 @@ public class RegistrationTests
     [Theory]
     [InlineData(typeof(Brave))]
     [InlineData(typeof(Browser.Bing))]
+    [InlineData(typeof(DuckDuckGo))]
     public async Task AddBrowserSearch_Engine_ReadsThroughAttemptsThatDoNotRepeatAWall(Type engine)
     {
         await using var provider = Built(new Dictionary<string, string?>

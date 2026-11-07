@@ -114,4 +114,8 @@ internal static partial class Log
         "Client hints stay as the browser built them while the headers claim {Brand} {Version}; the two "
         + "disagree and that disagreement is itself detectable.")]
     internal static partial void HintsDisagree(ILogger logger, Exception exception, string brand, string version);
+
+    [LoggerMessage(EventId = 26, Level = LogLevel.Debug, Message =
+        "Nothing on {Url} matched {Selector} in time; reading the page as it stands")]
+    internal static partial void NeverReady(ILogger logger, string url, string selector);
 }

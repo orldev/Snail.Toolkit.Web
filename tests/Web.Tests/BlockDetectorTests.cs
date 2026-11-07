@@ -38,6 +38,22 @@ public class BlockDetectorTests
         Assert.True(verdict.IsBlocked);
     }
 
+    /// <summary>DuckDuckGo's site turns a browser away to an error page that carries no marker at all.</summary>
+    /// <remarks>
+    /// Recorded on 2026-11-07 from stock headless Chromium: the page answers <c>200</c> and its text is only
+    /// "Unexpected error. Please try again." — without the address, a parse of it would read as no results.
+    /// </remarks>
+    [Fact]
+    public void Inspect_RedirectToDuckDuckGoTeapot_ReportsBlocked()
+    {
+        var verdict = _detector.Inspect(
+            "<html><body><p>Unexpected error. Please try again.</p></body></html>",
+            "https://duckduckgo.com/static-pages/home-error/418.html?bno=84f2&is_tor=0&is_ar=0&is_netp=0");
+
+        Assert.True(verdict.IsBlocked);
+        Assert.Equal("url:duckduckgo.com/static-pages/home-error/418", verdict.Signal);
+    }
+
     /// <summary>
     /// Guards the deliberate omission of the bare words "captcha" and "blocked" from the markup signals.
     /// </summary>

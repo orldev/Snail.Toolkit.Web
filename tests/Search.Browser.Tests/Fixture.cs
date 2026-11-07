@@ -29,6 +29,8 @@ internal sealed class StubReader(Func<Link, PageOutcome> answer) : IPageReader
 
     public Appetite? Wanted { get; private set; }
 
+    public string? ReadyWhen { get; private set; }
+
     public Task<PageOutcome> ReadAsync(Link address, CancellationToken ct = default)
         => ReadAsync(address, Appetite.Everything, ct);
 
@@ -38,5 +40,12 @@ internal sealed class StubReader(Func<Link, PageOutcome> answer) : IPageReader
         Wanted = appetite;
 
         return Task.FromResult(answer(address));
+    }
+
+    Task<PageOutcome> IPageReader.ReadWhenReadyAsync(Link address, Appetite appetite, string readyWhen, CancellationToken ct)
+    {
+        ReadyWhen = readyWhen;
+
+        return ReadAsync(address, appetite, ct);
     }
 }

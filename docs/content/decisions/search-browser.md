@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-12 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+14 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## Brave
 
@@ -130,3 +130,34 @@ Bounded by `Timeout`, the same setting that bounds an engine asked over HTTP. Un
 THE ONLY READING OF THIS ENGINE THERE IS, since 2026-09-20. It used to take the place of an HTTP provider of the same name, and this method carried the code that removed that one from the registrations; the owner had it deleted instead, so there is nothing left to displace.
 
 Why it was deleted rather than kept for deployments without a browser: measured on 2026-09-15 from a datacentre address, the HTTP reading answered four Russian queries out of five with ten confident results about something else — bible sites for «Rusnano» (in Russian), a hotel chain, Zurich tourism, car parts — while the same address read through a browser answered with the company, its Wikipedia article and the news about its licence. A provider that keeps the shape of an answer while saying nothing is worse than a provider that is absent: absence is visible in the report.
+
+
+## DuckDuckGo
+
+`2026-11-07`
+
+*Asks DuckDuckGo through a real browser, at the site a person uses.*
+
+Beside the provider that reads the HTML endpoint over plain HTTP, not instead of it: that one needs nothing running and answers from most addresses. This one is for the addresses it does not answer. Measured on 2026-11-07 from one such address, one query per arm with a plain request first and last as the control:
+
+- a plain request to the HTML endpoint — `202` and the challenge, both times;
+- Firefox at the HTML endpoint — the same challenge;
+- stock headless Chromium at the site — sent to `/static-pages/home-error/418.html`, twice;
+- Firefox at the site — ten results, four times out of four, two of them a query in Russian.
+
+From another address the plain request answered the same query with results, so the refusal belongs to the address and not to the query.
+
+So the site, read whole: its results are drawn by script after the document has loaded — none was in the document at `DOMContentLoaded`, and the first appeared 340 to 870 ms after it — which is why the reader is asked to wait for the first result rather than take the page at the document.
+
+Its result links are the addresses themselves. The HTML endpoint wraps every one in a redirect of its own; the site does not, and there is nothing to unwrap.
+
+It shares its type name with `DuckDuckGo`, as `Bing` and `Brave` are named after their engines; the namespace says which reading it is. Code that imports both namespaces names one of them in full or through an alias — `using DuckDuckGoBrowser = Snail.Toolkit.Web.Search.Browser.DuckDuckGo;`. Only `ProviderName` has to differ, and does.
+
+
+## ServiceCollectionExtensions.AddDuckDuckGo
+
+`2026-11-07`
+
+*Adds DuckDuckGo read through a browser, at the site a person uses.*
+
+Not part of `AddBrowserSearch`, and on purpose: search registers the HTTP reading of the same engine already, and from an address it answers that one costs a request where this one costs a page load. This is for the address it refuses — measured on 2026-11-07, one that met the HTTP endpoint with a challenge every time was answered by the site in Firefox every time. A deployment in that position adds this and, if it likes, leaves the HTTP reading out.

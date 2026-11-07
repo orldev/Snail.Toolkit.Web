@@ -70,6 +70,29 @@ A search engine that only answers a real browser.
 | `string Host { get; }` | The host this provider's queries go to, or nothing when it does not talk to one. |
 | `string Name { get; }` | Identifies the provider in configuration, metrics and logs. |
 
+### class DuckDuckGo
+
+Asks DuckDuckGo through a real browser, at the site a person uses.
+
+| Member | Summary |
+| --- | --- |
+| `DuckDuckGo(IPageReader pages, IOptions<DuckDuckGoOptions> options, IOptions<SearchOptions> search, ILogger<DuckDuckGo> logger)` | Asks DuckDuckGo through a real browser, at the site a person uses. |
+| `IEnumerable<SearchResult> Parsed(HtmlDocument document)` | Reads the links off one results page, already parsed. |
+| `Task<Outcome<PageContent, PageFailure>> AnsweredAsync(string query, CancellationToken ct)` | Asks the engine one query and hands back the page it answered with. |
+| `const string ProviderName` | The name this provider is registered and configured under. |
+| `string Domain { get; }` | Gets the host queries are sent to, without a scheme. |
+| `string Name { get; }` | Identifies the provider in configuration, metrics and logs. |
+
+### class DuckDuckGoOptions
+
+Which DuckDuckGo front end the browser asks.
+
+| Member | Summary |
+| --- | --- |
+| `DuckDuckGoOptions()` |  |
+| `const string SectionName` | The configuration section this binds from. |
+| `string Domain { get; set; }` | Gets or sets the host the query is sent to, without a scheme. |
+
 ## Snail.Toolkit.Web.Search.Browser.Extensions
 
 ### static class ServiceCollectionExtensions
@@ -81,3 +104,4 @@ Registers the search providers that need a real browser.
 | `IServiceCollection AddBing(this IServiceCollection services, IConfiguration configuration)` | Adds Bing, which answers a browser and not a plain request. |
 | `IServiceCollection AddBrave(this IServiceCollection services, IConfiguration configuration)` | Adds Brave, read at its own results address. |
 | `IServiceCollection AddBrowserSearch(this IServiceCollection services, IConfiguration configuration)` | Registers search with the browser-backed providers included. |
+| `IServiceCollection AddDuckDuckGo(this IServiceCollection services, IConfiguration configuration)` | Adds DuckDuckGo read through a browser, at the site a person uses. |

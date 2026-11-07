@@ -11,9 +11,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **DuckDuckGo through a real browser**: `AddDuckDuckGo` in `Snail.Toolkit.Web.Search.Browser` registers
+  `Search.Browser.DuckDuckGo`, which reads `duckduckgo.com` itself and waits for the results its script draws. It
+  is for an address where the HTTP provider meets a challenge: from such an address on 2026-11-07, Firefox at the
+  site was answered every time. The type shares its name with the HTTP `Search.Providers.DuckDuckGo`; its provider
+  name and settings section are `DuckDuckGoBrowser`, so the two rest and configure apart. It is not part of
+  `AddBrowserSearch`, so a deployment that calls only that sees no change. Use it with a Firefox server: stock
+  headless Chromium was turned away.
+
 ### Changed
 
 - Built on Snail.Sdk 0.4.2, with Polly 8.9.0.
+
+### Fixed
+
+- **DuckDuckGo turning a browser away is a refusal, not an empty answer.** Its site redirects a browser it will
+  not serve to an error page answered with 200 and no marker; that address is now read as a block, so the
+  search rests the engine instead of recording that it found nothing.
 
 ## [0.1.0] - 2026-10-27
 

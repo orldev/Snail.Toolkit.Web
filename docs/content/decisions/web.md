@@ -15,7 +15,7 @@ One gap for every host is the wrong shape for a client that talks to a search en
 
 ## BlockDetector
 
-`2026-09-13`, `2026-09-15`, `2026-10-04`
+`2026-09-13`, `2026-09-15`, `2026-10-04`, `2026-11-07`
 
 *Matches the markers challenge and consent pages leave in the document or in the final URL.*
 
@@ -26,6 +26,8 @@ That rule was written for the markup and broken by the URL beside it, where the 
 THE LAST SIGNAL WAS ADDED ON 2026-09-15 FROM A MEASUREMENT, and it is the shape to copy. An engine's own wall answered `202` — a success status — with 14 228 bytes reading "Unfortunately, bots use DuckDuckGo too. Please complete the following challenge to confirm this search was made by a human. Select all squares containing a duck". NOT ONE existing signal matched: no Cloudflare marker, no recaptcha widget, and the word that appears sixty-seven times on that page — `anomaly` — is exactly the bare word this list refuses to carry, since an article about anomaly detection would match it. What was taken instead is the one sentence that is a refusal wherever it appears, prose rather than infrastructure: the asset paths beside it are the vendor's and will be renamed, the sentence has to keep meaning what it says.
 
 A VENDOR'S NAME IS A BARE WORD TOO, and the list carried one until 2026-10-04. Every page of Wikipedia names the captcha it would show an editor in the settings MediaWiki inlines into the document — `"wgConfirmEditCaptchaNeededForGenericEdit":"hcaptcha"` — so the substring `hcaptcha` called the whole encyclopedia a wall: an article that had loaded in full with status 200 came back as `Blocked: markup:hcaptcha`, and because a block is transient the reader spent its identities proving it again. Measured through the MCP server built on this toolkit, on the first two articles it was asked for. What matches now is the widget, the same way reCAPTCHA is matched: `h-captcha` as the class of the element a visitor has to solve, and not the hidden `h-captcha-response` field beside it.
+
+A REFUSAL CAN ALSO BE A REDIRECT TO A PAGE THAT SAYS NOTHING, and DuckDuckGo's site is the one measured. On 2026-11-07 stock headless Chromium asking it a query twice was sent both times to `/static-pages/home-error/418.html`, answered `200`, whose whole text is "Unexpected error. Please try again." — no marker of any kind, and a parse of it finds nothing, which reads as an engine that found nothing. Firefox asking the same queries from the same address was answered with results. The path with its host is taken, status code and all: a teapot is not an error a server makes by accident, and the host keeps the path from matching anyone else's.
 
 
 ## ContentBudget.Apply

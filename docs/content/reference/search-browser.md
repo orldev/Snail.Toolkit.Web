@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-The public surface of this package: 6 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
+The public surface of this package: 8 types. Everything else it contains is internal and is described under [Decisions](../decisions/index.md) where it carries a measurement.
 
 ## Bing
 
@@ -71,6 +71,41 @@ Bounded by `Timeout`, the same setting that bounds an engine asked over HTTP. Un
 The same host the engine is read at, said once more where the search can see it: a caller weighing what a query costs asks the gate about this, and an engine driven through a browser is the expensive kind.
 
 
+## DuckDuckGo
+
+Asks DuckDuckGo through a real browser, at the site a person uses.
+
+Beside the provider that reads the HTML endpoint over plain HTTP, not instead of it: that one needs nothing running and answers from most addresses. This one is for the addresses it does not answer. Measured on 2026-11-07 from one such address, one query per arm with a plain request first and last as the control:
+
+- a plain request to the HTML endpoint — `202` and the challenge, both times;
+- Firefox at the HTML endpoint — the same challenge;
+- stock headless Chromium at the site — sent to `/static-pages/home-error/418.html`, twice;
+- Firefox at the site — ten results, four times out of four, two of them a query in Russian.
+
+From another address the plain request answered the same query with results, so the refusal belongs to the address and not to the query.
+
+So the site, read whole: its results are drawn by script after the document has loaded — none was in the document at `DOMContentLoaded`, and the first appeared 340 to 870 ms after it — which is why the reader is asked to wait for the first result rather than take the page at the document.
+
+Its result links are the addresses themselves. The HTML endpoint wraps every one in a redirect of its own; the site does not, and there is nothing to unwrap.
+
+It shares its type name with `DuckDuckGo`, as `Bing` and `Brave` are named after their engines; the namespace says which reading it is. Code that imports both namespaces names one of them in full or through an alias — `using DuckDuckGoBrowser = Snail.Toolkit.Web.Search.Browser.DuckDuckGo;`. Only `ProviderName` has to differ, and does.
+
+**ProviderName** — The name this provider is registered and configured under.
+
+Not `DuckDuckGo`, which names the provider over HTTP, though the type names are the same: the search keeps an engine's rest and its settings under this string, and the two readings are refused and answered separately — a challenge to the HTTP endpoint must not rest the browser, which is there for exactly that.
+
+
+## DuckDuckGoOptions
+
+Which DuckDuckGo front end the browser asks.
+
+**Domain** — Gets or sets the host the query is sent to, without a scheme.
+
+The site itself rather than its HTML endpoint, because that is the whole point of reading it with a browser: the endpoint answers a browser with the same challenge it shows a plain request. A setting rather than a constant for the reason Brave's is — which front end answers is a deployment decision.
+
+**SectionName** — The configuration section this binds from.
+
+
 ## ServiceCollectionExtensions
 
 Registers the search providers that need a real browser.
@@ -92,3 +127,7 @@ Pulls in search and the page reader rather than assuming them, so that saying on
 Pulls in both halves deliberately: browser search is HTTP search plus a page reader, and a consumer that asked for it wants the HTTP providers alongside rather than instead. Both registrations are idempotent, so calling them again elsewhere costs nothing.
 
 Google is not here. It answers a form rather than an address — measured on 2026-09-13, its results address returns `/sorry/` where its own form returns results — and walking a form needs the page agent, which this package deliberately does not depend on. It ships in `Snail.Toolkit.Web.Search.Browser.Agent`, and a deployment that wants both adds that one too.
+
+**AddDuckDuckGo** — Adds DuckDuckGo read through a browser, at the site a person uses.
+
+Not part of `AddBrowserSearch`, and on purpose: search registers the HTTP reading of the same engine already, and from an address it answers that one costs a request where this one costs a page load. This is for the address it refuses — measured on 2026-11-07, one that met the HTTP endpoint with a challenge every time was answered by the site in Firefox every time. A deployment in that position adds this and, if it likes, leaves the HTTP reading out.

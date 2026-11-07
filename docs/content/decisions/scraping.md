@@ -2,7 +2,7 @@
 
 *Generated from the compiler's documentation by `dotnet run --project docs/generator -- docs`. Editing this file by hand is lost on the next build; edit the remark in the source instead.*
 
-25 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
+26 decisions recorded in this package, each naming the day it was measured. Declarations a consumer cannot see are marked *internal*: they are here because the reasoning is, not because the type is reachable.
 
 ## ClientHints
 
@@ -275,3 +275,14 @@ The clock belongs with the count rather than beside it because the two only ever
 THIS TYPE IS DELIBERATELY NOT DISPOSABLE, and that is the point of it being a type. The semaphore inside must outlive the pool that owns it: a lease returned after shutdown releases its permit by definition — a crawl is cancelled while pages are still open — and a disposed semaphore answers that with an `ObjectDisposedException` raised out of somebody's `await using`, which is the last thing anyone reads while looking for why the run stopped. Nothing here holds a handle worth reclaiming: `SemaphoreSlim` allocates one only for `AvailableWaitHandle`, which nobody asks for. That used to be a paragraph in the pool that applied to one of its two semaphores and was not extended to the other; a type that cannot be disposed cannot have the rule applied to half of it.
 
 The clock is the pool's since 2026-10-23, where it had been the system's: the rest of the toolkit has read an injected `TimeProvider` since 2026-09-20, and this was the one place left out — the place where waiting is measured in minutes, so the one where a clock a test can move pays the most. Without it closing an idle browser could be checked only by waiting the idle timeout out against a real one.
+
+
+## IPageReader.ReadWhenReadyAsync
+
+`2026-11-07` · *internal*
+
+*Reads `address`, taking the page only once `readyWhen` matches or the wait runs out.*
+
+For an engine that draws its results with script after the document has loaded. Measured on 2026-11-07 against DuckDuckGo's own site, three queries: no result was in the document at `DOMContentLoaded`, and the first appeared 340 to 870 ms after it. A read taken at the document would have parsed into nothing on a good day, and only the pause the behaviour happens to add stood between the two.
+
+Internal, with a body, because it is a decision this toolkit makes for its own engines and not a knob a consumer should hold — the same reason the engines' readers are keyed. A reader that does not know how to wait, such as a test's stub, reads the page as it would anyway.

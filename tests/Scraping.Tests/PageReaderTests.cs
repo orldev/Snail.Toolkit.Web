@@ -20,6 +20,8 @@ namespace Snail.Toolkit.Web.Scraping.Tests;
 [Trait("Category", "Integration")]
 public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
 {
+    private const string Drawn = "<article class=\"result\">";
+
     [Fact]
     public async Task ReadAsync_RenderedPage_ReturnsItsMarkup()
     {
@@ -69,6 +71,57 @@ public class PageReaderTests(SiteFixture site, ITestOutputHelper output)
         Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
         Assert.Contains("<title>quiet</title>", outcome.Value.Html, StringComparison.Ordinal);
         Assert.Contains("Wheat prices rose", outcome.Value.Html, StringComparison.Ordinal);
+    }
+
+    /// <summary>Asked to wait for what the page draws with script, the reader takes the page once it is drawn.</summary>
+    /// <remarks>
+    /// The pair with the next test is the point, one axis between them: without the control this would pass
+    /// against a reader that had quietly started waiting for every page.
+    /// </remarks>
+    [Fact]
+    public async Task ReadWhenReadyAsync_ResultDrawnAfterTheDocument_WaitsForIt()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Reader.ReadWhenReadyAsync(
+            Link.Of($"{SiteFixture.BaseUrl}/late.html"),
+            Browsers.Appetite.Everything,
+            "article.result",
+            CancellationToken.None);
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains(Drawn, outcome.Value.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReadAsync_ResultDrawnAfterTheDocument_TakesThePageWithoutIt()
+    {
+        await using var host = Host();
+
+        var outcome = await host.Reader.ReadAsync(Link.Of($"{SiteFixture.BaseUrl}/late.html"), CancellationToken.None);
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.DoesNotContain(Drawn, outcome.Value.Html, StringComparison.Ordinal);
+    }
+
+    /// <summary>A page that never draws what was asked for is still read, as it stands, once the wait runs out.</summary>
+    /// <remarks>
+    /// A refusal page and a redesign both look like this, and both are told apart by reading the page — so the
+    /// wait must end in a page, never in a failure of its own.
+    /// </remarks>
+    [Fact]
+    public async Task ReadWhenReadyAsync_NothingEverMatches_ReadsThePageAsItStands()
+    {
+        await using var host = Host(tune: options => options.NavigationTimeoutMs = 3_000);
+
+        var outcome = await host.Reader.ReadWhenReadyAsync(
+            Link.Of($"{SiteFixture.BaseUrl}/article.html"),
+            Browsers.Appetite.Everything,
+            "article.result",
+            CancellationToken.None);
+
+        Assert.True(outcome.IsSuccess, outcome.Failure?.ToString());
+        Assert.Contains("Grain report", outcome.Value.Html, StringComparison.Ordinal);
     }
 
     /// <summary>A site refusing by frequency says how long to wait, and the failure carries the number.</summary>

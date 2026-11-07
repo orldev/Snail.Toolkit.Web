@@ -40,6 +40,15 @@ namespace Snail.Toolkit.Web.Detection;
 /// for. What matches now is the widget, the same way reCAPTCHA is matched: <c>h-captcha</c> as the class of
 /// the element a visitor has to solve, and not the hidden <c>h-captcha-response</c> field beside it.
 /// </para>
+/// <para>
+/// A REFUSAL CAN ALSO BE A REDIRECT TO A PAGE THAT SAYS NOTHING, and DuckDuckGo's site is the one measured. On
+/// 2026-11-07 stock headless Chromium asking it a query twice was sent both times to
+/// <c>/static-pages/home-error/418.html</c>, answered <c>200</c>, whose whole text is "Unexpected error. Please
+/// try again." — no marker of any kind, and a parse of it finds nothing, which reads as an engine that found
+/// nothing. Firefox asking the same queries from the same address was answered with results. The path with its
+/// host is taken, status code and all: a teapot is not an error a server makes by accident, and the host keeps
+/// the path from matching anyone else's.
+/// </para>
 /// </remarks>
 public sealed partial class BlockDetector : IBlockDetector
 {
@@ -69,7 +78,8 @@ public sealed partial class BlockDetector : IBlockDetector
         "consent.google.com",
         "/challenge-platform/",
         "/cdn-cgi/challenge",
-        "challenges.cloudflare.com"
+        "challenges.cloudflare.com",
+        "duckduckgo.com/static-pages/home-error/418"
     ];
 
     /// <inheritdoc />

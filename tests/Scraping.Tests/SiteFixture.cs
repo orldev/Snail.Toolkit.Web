@@ -94,6 +94,7 @@ public sealed class SiteFixture : IAsyncLifetime
             .WithResourceMapping(Bytes(Pages.Probe), "/usr/share/nginx/html/probe.html")
             .WithResourceMapping(Bytes(Pages.Tracked), "/usr/share/nginx/html/tracked.html")
             .WithResourceMapping(Bytes(Pages.Tracker), "/usr/share/nginx/html/tracker.js")
+            .WithResourceMapping(Bytes(Pages.Late), "/usr/share/nginx/html/late.html")
             .WithResourceMapping(Bytes(Pages.Robots), "/usr/share/nginx/html/robots.txt")
             .WithWaitStrategy(Wait.ForUnixContainer()
                 .UntilInternalTcpPortIsAvailable(80)
@@ -215,6 +216,22 @@ public sealed class SiteFixture : IAsyncLifetime
             """;
 
         public const string Tracker = "document.title = 'tracked';";
+
+        /// <summary>A page that draws its one result with script, well after the document has loaded.</summary>
+        public const string Late =
+            """
+            <!doctype html>
+            <html><head><title>Late</title></head>
+            <body><h1>Results</h1><main id="results"></main>
+            <script>
+              setTimeout(() => {
+                const drawn = document.createElement('article');
+                drawn.className = 'result';
+                document.getElementById('results').append(drawn);
+              }, 1500);
+            </script>
+            </body></html>
+            """;
 
         public const string Robots =
             $"""
