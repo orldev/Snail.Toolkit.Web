@@ -1,12 +1,1 @@
 #nullable enable
-const Snail.Toolkit.Web.Search.Browser.DuckDuckGo.ProviderName = "DuckDuckGoBrowser" -> string!
-const Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions.SectionName = "Web:Search:DuckDuckGoBrowser" -> string!
-override Snail.Toolkit.Web.Search.Browser.DuckDuckGo.Name.get -> string!
-Snail.Toolkit.Web.Search.Browser.DuckDuckGo
-Snail.Toolkit.Web.Search.Browser.DuckDuckGo.DuckDuckGo(Snail.Toolkit.Web.Scraping.IPageReader! pages, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions!>! options, Microsoft.Extensions.Options.IOptions<Snail.Toolkit.Web.Search.SearchOptions!>! search, Microsoft.Extensions.Logging.ILogger<Snail.Toolkit.Web.Search.Browser.DuckDuckGo!>! logger) -> void
-Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions
-Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions.DuckDuckGoOptions() -> void
-Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions.Domain.get -> string!
-Snail.Toolkit.Web.Search.Browser.DuckDuckGoOptions.Domain.set -> void
-Snail.Toolkit.Web.Search.Browser.Extensions.ServiceCollectionExtensions.extension(Microsoft.Extensions.DependencyInjection.IServiceCollection!).AddDuckDuckGo(Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Snail.Toolkit.Web.Search.Browser.Extensions.ServiceCollectionExtensions.AddDuckDuckGo(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
