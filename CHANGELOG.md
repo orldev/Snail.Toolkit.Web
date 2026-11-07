@@ -11,6 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
 ### Added
 
 - **DuckDuckGo through a real browser**: `AddDuckDuckGo` in `Snail.Toolkit.Web.Search.Browser` registers
@@ -241,5 +243,6 @@ which is the other thing a first release fixes in place.
 - **The SDK version is pinned in `global.json`.** The build fails on a handful of code style rules, those
   rules ship with the SDK, and a floating SDK therefore meant a floating definition of a green build.
 
-[Unreleased]: https://github.com/orldev/Snail.Toolkit.Web/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/orldev/Snail.Toolkit.Web/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/orldev/Snail.Toolkit.Web/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/orldev/Snail.Toolkit.Web/tree/v0.1.0
